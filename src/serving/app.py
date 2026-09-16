@@ -152,7 +152,14 @@ class CorpusReviewRequest(BaseModel):
 class DataUploadRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    dataset: Literal["units_csv", "daily_csv", "crosswalk_csv", "daily_long_csv", "outage_csv", "generation_cost_csv"]
+    dataset: Literal[
+        "units_csv",
+        "daily_csv",
+        "crosswalk_csv",
+        "daily_long_csv",
+        "outage_csv",
+        "generation_cost_csv",
+    ]
     filename: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
     content_base64: Annotated[str, StringConstraints(min_length=1, max_length=90_000_000)]
     reason: Annotated[
@@ -164,7 +171,14 @@ class DataUploadRequest(BaseModel):
 class DataRemoveRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    dataset: Literal["units_csv", "daily_csv", "crosswalk_csv", "daily_long_csv", "outage_csv", "generation_cost_csv"]
+    dataset: Literal[
+        "units_csv",
+        "daily_csv",
+        "crosswalk_csv",
+        "daily_long_csv",
+        "outage_csv",
+        "generation_cost_csv",
+    ]
     reason: Annotated[
         str | None,
         StringConstraints(strip_whitespace=True, max_length=500),
