@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import sqlite3
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from threading import RLock
@@ -15,6 +16,7 @@ from ingest.validate import PROJECT_ROOT
 from text2sql.db import ReadOnlySQLite
 from text2sql.llm import DisabledLLM, OpenAILLM
 from text2sql.pipeline import Text2SQLPipeline
+from text2sql.scope_guard import ScopeGuard
 from text2sql.semantic_guard import SemanticGuard
 from text2sql.sql_guard import SqlGuard
 
@@ -48,6 +50,18 @@ def _yaml(path: Path) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise ValueError(f"{path} 必須是 YAML mapping。")
     return payload
+
+
+def _optional_scope_guard(database: Path) -> ScopeGuard | None:
+    """Load the authorisation roster, tolerating a snapshot built before schema 3.
+
+    A database without the scope tables still serves the all-plants scope; plant accounts
+    then fail closed in the pipeline rather than silently reading every plant's rows.
+    """
+    try:
+        return ScopeGuard.from_database(database)
+    except sqlite3.OperationalError:
+        return None
 
 
 def _single_column(executor: ReadOnlySQLite, sql: str) -> set[str]:
@@ -130,6 +144,7 @@ def build_runtime(
     peak_columns = _single_column(executor, 'SELECT DISTINCT "機組欄位" FROM v_peak LIMIT 200')
     plants = _single_column(executor, 'SELECT DISTINCT "電廠" FROM v_unit LIMIT 200')
     semantic_guard = SemanticGuard.from_database(database, peak_columns=peak_columns)
+    scope_guard = _optional_scope_guard(database)
 
     key, key_source = _credential(api_key)
     active_mode: ActiveRuntimeMode = (
@@ -166,6 +181,7 @@ def build_runtime(
         peak_columns=peak_columns,
         plants=plants,
         semantic_guard=semantic_guard,
+        scope_guard=scope_guard,
         max_attempts=int(llm_config["max_attempts"]),
         top_k=int(retriever_config["top_k"]),
         ngram_min=int(ngram["min"]),

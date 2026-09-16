@@ -9,5 +9,8 @@ paths:
   daily_long_csv: taipower_align/daily_long.csv
   outage_csv: taipower_align/outage.csv
   generation_cost_csv: taipower_align/generation_cost.csv
+  plants_csv: taipower_align/plants.csv
+  daily_scope_csv: taipower_align/daily_plant_scope.csv
+  outage_scope_csv: taipower_align/outage_plant_map.csv
   database: data/processed/power.db
   data_quality_report: reports/data_quality.json

@@ -8,7 +8,8 @@
     "generation_columns": 64,
     "mapped_columns": 43,
     "daily_peak": 36928,
-    "outages": 138
+    "outages": 138,
+    "generation_costs": 72
   },
   "date_range": {
     "min": "2025-01-01",
@@ -19,9 +20,10 @@
     "daily.csv": "b502dd35d3d92ca3bacf5d6db5a3f71e89877913a0e6c77eb29e32e42b6046a8",
     "crosswalk.csv": "4119ef328f86e992a07641198ccecceb6b60708e437e093ee00c0dac5965d60e",
     "daily_long.csv": "c84d9f92e8087cfea82fdee7a4720c500a38a21b790c56ce33019f283b3a505e",
-    "outage.csv": "a3d3cd8f90648f592c33c7918afc4c084b6683a06a50d035744d7216cc788cbc"
+    "outage.csv": "a3d3cd8f90648f592c33c7918afc4c084b6683a06a50d035744d7216cc788cbc",
+    "generation_cost.csv": "73a574486ef6e9178a715e92d1b59d012738529f0ac8f71928bd50caee7d1202"
   },
-  "data_checksum": "f3ac4a951641db23d06107bf887c9d6639617d252e26f533fe961b15323b30c3",
+  "data_checksum": "dc7feed238a830f9180200fb776c178ba7272c0b10dbd42c19f1f9a2499851e9",
   "warnings": [
     {
       "code": "OUTAGE_DATE_INVALID",
@@ -31,8 +33,8 @@
       "end_date": "2027-02-23"
     }
   ],
-  "schema_version": "1",
-  "database": "C:\\Users\\User\\Desktop\\PowerQueryTW\\text2sql_project\\data\\processed\\power.db",
+  "schema_version": "3",
+  "database": "D:\\@spin\\text2SQL_project\\data\\processed\\power.db",
   "table_counts": {
     "dim_plant": 22,
     "dim_unit": 175,
@@ -43,9 +45,14 @@
     "fact_daily_peak": 36928,
     "fact_daily_system": 577,
     "dim_outage": 138,
-    "meta_pitfall": 10
+    "fact_generation_cost": 72,
+    "meta_pitfall": 18,
+    "dim_plant_scope": 34,
+    "b_column_scope": 64,
+    "bridge_b_column_plant": 72,
+    "outage_scope": 138
   },
-  "database_content_checksum": "388ec3d6629b23dce00246b0503fbab8569856f058c55ad347b898e84a9b94f3",
+  "database_content_checksum": "18892876a0f3318c35e8d69da840a25f847eeba244820c0aabbba01659ff137c",
   "ratio_thresholds": {
     "expected_min": 0.8,
     "expected_max": 1.06
@@ -65,5 +72,27 @@
       "立霧",
       "興達新#1"
     ]
+  },
+  "plant_scope": {
+    "plants": 34,
+    "daily_columns": {
+      "plant": 58,
+      "shared": 6
+    },
+    "bucket_only_plants": [
+      "協和電廠－珠山分廠",
+      "塔山發電廠",
+      "尖山發電廠",
+      "曾文發電廠",
+      "桂山發電廠",
+      "石門發電廠",
+      "蘭陽發電廠",
+      "高屏發電廠"
+    ],
+    "source_sha256": {
+      "plants.csv": "80bc58dd18c28446824dee5427fdf957a4168fa308a5b67d560005afe48c60f3",
+      "daily_plant_scope.csv": "5ab99c9e945315b2a1db32384060d03342a68ffde42750e1194401653a42c95e",
+      "outage_plant_map.csv": "fc8ac4004a2383118343bd3c0f22987cf20801252bf7858013acd8ae9780edc5"
+    }
   }
 }

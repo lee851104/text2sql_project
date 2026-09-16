@@ -30,14 +30,28 @@ from ingest.validate import (
     parse_unit_date,
     read_csv,
     resolve_configured_paths,
+    sha256_file,
     validate_files,
 )
 
-SCHEMA_VERSION = "2"
+SCHEMA_VERSION = "3"
+
+SCOPE_SOURCES = ("plants_csv", "daily_scope_csv", "outage_scope_csv")
 
 
 class DatabasePublishError(PermissionError):
     """Raised when a completed database cannot replace the published snapshot."""
+
+
+class ScopeAlignmentError(ValueError):
+    """Raised when the authorisation CSVs no longer match the rebuilt database.
+
+    ``dim_plant.id`` and ``dim_b_column.id`` are positional: both are assigned by
+    ``enumerate(sorted(...))``, so a renamed, added or retired source row shifts every
+    identifier after it.  The scope CSVs key on those identifiers, which means a silent
+    shift would hand one plant's account another plant's output.  Every mismatch is
+    therefore fatal at build time rather than at query time.
+    """
 
 
 def _text(row: dict[str, str], key: str) -> str:
@@ -53,7 +67,7 @@ def _load_align_limits(root: Path) -> tuple[float, float]:
 def _load_rows(paths: dict[str, Path]) -> dict[str, list[dict[str, str]]]:
     rows = {
         name: read_csv(paths[name])[1]
-        for name in ("units_csv", "daily_csv", "crosswalk_csv", "daily_long_csv")
+        for name in ("units_csv", "daily_csv", "crosswalk_csv", "daily_long_csv", *SCOPE_SOURCES)
     }
     rows["outage_csv"] = read_csv(paths["outage_csv"])[1] if paths["outage_csv"].is_file() else []
     rows["generation_cost_csv"] = read_csv(paths["generation_cost_csv"])[1]
@@ -299,6 +313,242 @@ def _insert_outages(
     return summarize_outage_alignment(results)
 
 
+def _insert_plant_scope(
+    connection: sqlite3.Connection, rows: list[dict[str, str]]
+) -> dict[int, str]:
+    """Load the authorisation roster and pin it to the rebuilt ``dim_plant`` identifiers."""
+
+    star = dict(connection.execute("SELECT id, plant_name FROM dim_plant"))
+    names: dict[int, str] = {}
+    for row in rows:
+        plant_id = int(_text(row, "plant_id"))
+        plant_name = _text(row, "plant_name")
+        expected = star.get(plant_id)
+        if expected is not None and expected != plant_name:
+            raise ScopeAlignmentError(
+                f"授權對照失效：plants.csv 的 plant_id={plant_id} 是「{plant_name}」，"
+                f"重建後的 dim_plant 卻是「{expected}」。電廠編號已漂移，"
+                "沿用會讓電廠帳號查到其他電廠的資料。"
+                "請重新核對 taipower_align/plants.csv 後再建庫。"
+            )
+        names[plant_id] = plant_name
+        connection.execute(
+            """INSERT INTO dim_plant_scope
+               (plant_id, plant_name, plant_type, fuel_types, ownership, aliases)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (
+                plant_id,
+                plant_name,
+                _text(row, "plant_type"),
+                _text(row, "fuel_types"),
+                _text(row, "ownership"),
+                _text(row, "aliases"),
+            ),
+        )
+    unlisted = sorted(set(star) - set(names))
+    if unlisted:
+        raise ScopeAlignmentError(
+            f"授權對照失效：電廠 {[star[plant_id] for plant_id in unlisted]} 在 dim_plant 中，"
+            "卻沒有出現在 plants.csv。新電廠必須先取得授權編號才能建庫。"
+        )
+    return names
+
+
+def _insert_column_scope(
+    connection: sqlite3.Connection,
+    rows: list[dict[str, str]],
+    plant_names: dict[int, str],
+) -> None:
+    """Load per-column authorisation and refuse any daily column without a decision."""
+
+    columns = dict(connection.execute("SELECT id, b_column FROM dim_b_column"))
+    seen: set[int] = set()
+    for row in rows:
+        column_id = int(_text(row, "b_column_id"))
+        b_column = _text(row, "b_column")
+        actual = columns.get(column_id)
+        if actual != b_column:
+            raise ScopeAlignmentError(
+                f"授權對照失效：daily_plant_scope.csv 的 b_column_id={column_id} 是"
+                f"「{b_column}」，重建後的 dim_b_column 卻是"
+                f"「{actual if actual is not None else '不存在'}」。每日欄位編號已漂移，"
+                "沿用會讓電廠帳號查到其他電廠的出力。"
+                "請重新核對 taipower_align/daily_plant_scope.csv 後再建庫。"
+            )
+        seen.add(column_id)
+        access_scope = _text(row, "access_scope")
+        connection.execute(
+            "INSERT INTO b_column_scope VALUES (?, ?, ?, ?)",
+            (column_id, access_scope, _text(row, "membership_status"), _text(row, "note")),
+        )
+        plant_ids = [part for part in _text(row, "known_plant_ids").split("|") if part]
+        if access_scope == "plant" and len(plant_ids) != 1:
+            raise ScopeAlignmentError(
+                f"授權對照失效：「{b_column}」標為 plant，卻對應 {len(plant_ids)} 個電廠。"
+                "按電廠授權的欄位必須剛好屬於一個電廠。"
+            )
+        for value in plant_ids:
+            plant_id = int(value)
+            if plant_id not in plant_names:
+                raise ScopeAlignmentError(
+                    f"授權對照失效：「{b_column}」指向不存在的 plant_id={plant_id}。"
+                )
+            connection.execute(
+                "INSERT INTO bridge_b_column_plant VALUES (?, ?)", (column_id, plant_id)
+            )
+    unlisted = sorted(set(columns) - seen)
+    if unlisted:
+        raise ScopeAlignmentError(
+            f"授權對照失效：每日欄位 {[columns[column_id] for column_id in unlisted]} "
+            "沒有授權範圍設定。新欄位必須先在 daily_plant_scope.csv 指定 access_scope，"
+            "否則無法判斷它屬於哪個電廠。"
+        )
+
+
+def _insert_outage_scope(
+    connection: sqlite3.Connection,
+    rows: list[dict[str, str]],
+    plant_names: dict[int, str],
+) -> None:
+    """Load per-event authorisation, including the events that only resolve to a plant."""
+
+    outages = {
+        row[0]: (row[1], row[2])
+        for row in connection.execute("SELECT id, source_unit_name, unit_id FROM dim_outage")
+    }
+    if not outages:
+        return
+    unit_plants = dict(connection.execute("SELECT id, plant_id FROM dim_unit"))
+    seen: set[int] = set()
+    for row in rows:
+        outage_id = int(_text(row, "outage_id"))
+        source_unit_name = _text(row, "source_unit_name")
+        record = outages.get(outage_id)
+        if record is None or record[0] != source_unit_name:
+            raise ScopeAlignmentError(
+                f"授權對照失效：outage_plant_map.csv 的 outage_id={outage_id} 是"
+                f"「{source_unit_name}」，重建後的 dim_outage 卻是"
+                f"「{record[0] if record else '不存在'}」。歲修事件編號已漂移，"
+                "請重新核對 taipower_align/outage_plant_map.csv 後再建庫。"
+            )
+        plant_id = int(_text(row, "plant_id"))
+        if plant_id not in plant_names:
+            raise ScopeAlignmentError(
+                f"授權對照失效：outage_id={outage_id} 指向不存在的 plant_id={plant_id}。"
+            )
+        unit_value = _text(row, "unit_id")
+        unit_id = int(unit_value) if unit_value else None
+        if unit_id != record[1]:
+            raise ScopeAlignmentError(
+                f"授權對照失效：outage_id={outage_id} 的 unit_id 與 dim_outage 不一致"
+                f"（CSV 為 {unit_id}、資料庫為 {record[1]}）。"
+            )
+        if unit_id is not None and unit_plants.get(unit_id) != plant_id:
+            raise ScopeAlignmentError(
+                f"授權對照失效：outage_id={outage_id} 的機組隸屬 plant_id="
+                f"{unit_plants.get(unit_id)}，CSV 卻標為 {plant_id}。"
+            )
+        seen.add(outage_id)
+        connection.execute(
+            "INSERT INTO outage_scope VALUES (?, ?, ?)",
+            (outage_id, plant_id, _text(row, "mapping_level")),
+        )
+    unlisted = sorted(set(outages) - seen)
+    if unlisted:
+        raise ScopeAlignmentError(
+            f"授權對照失效：歲修事件 {unlisted} 沒有電廠歸屬。"
+            "每一筆事件都必須在 outage_plant_map.csv 指定所屬電廠。"
+        )
+
+
+def _insert_bucket_only_pitfalls(connection: sqlite3.Connection) -> list[str]:
+    """Record plants whose daily output only survives inside a shared bucket column.
+
+    These accounts would otherwise receive an empty result set for their own plant and
+    read it as missing data rather than as a limit of the source.
+    """
+
+    rows = connection.execute(
+        """SELECT p.plant_name,
+                  (SELECT GROUP_CONCAT(c.b_column, '、')
+                     FROM bridge_b_column_plant AS bp
+                     JOIN dim_b_column AS c ON c.id = bp.b_column_id
+                     JOIN b_column_scope AS s ON s.b_column_id = bp.b_column_id
+                    WHERE bp.plant_id = p.plant_id AND s.access_scope = 'shared'),
+                  (SELECT MAX(members.total)
+                     FROM bridge_b_column_plant AS bp
+                     JOIN b_column_scope AS s ON s.b_column_id = bp.b_column_id
+                     JOIN (SELECT b_column_id, COUNT(*) AS total
+                             FROM bridge_b_column_plant GROUP BY b_column_id) AS members
+                       ON members.b_column_id = bp.b_column_id
+                    WHERE bp.plant_id = p.plant_id AND s.access_scope = 'shared')
+             FROM dim_plant_scope AS p
+            WHERE NOT EXISTS (SELECT 1
+                                FROM bridge_b_column_plant AS bp
+                                JOIN b_column_scope AS s ON s.b_column_id = bp.b_column_id
+                               WHERE bp.plant_id = p.plant_id AND s.access_scope = 'plant')
+            ORDER BY p.plant_id"""
+    ).fetchall()
+
+    outage_counts = dict(
+        connection.execute(
+            """SELECT p.plant_name, COUNT(*)
+                 FROM outage_scope AS o
+                 JOIN dim_plant_scope AS p ON p.plant_id = o.plant_id
+                GROUP BY p.plant_name"""
+        )
+    )
+
+    affected: list[str] = []
+    for plant_name, buckets, member_count in rows:
+        if not buckets:
+            continue
+        affected.append(plant_name)
+        available = "機組裝置容量與歲修排程" if outage_counts.get(plant_name) else "機組裝置容量"
+        connection.execute(
+            """INSERT INTO meta_pitfall
+               (pitfall_code, target_kind, target_name, severity, reason, suggestion, evidence)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (
+                "PLANT_DAILY_ONLY_IN_BUCKET",
+                "plant",
+                plant_name,
+                "refuse",
+                f"{plant_name}在每日尖峰資料中沒有自己的欄位，出力併在「{buckets}」這個 "
+                f"{member_count} 廠合計欄位裡，來源資料無法拆出單廠數值。",
+                f"改查{plant_name}的{available}，"
+                f"或直接查「{buckets}」的合計趨勢並註明它涵蓋 {member_count} 個電廠。",
+                json.dumps(
+                    {"bucket": buckets, "member_plants": member_count},
+                    ensure_ascii=False,
+                ),
+            ),
+        )
+    return affected
+
+
+def _insert_scope(
+    connection: sqlite3.Connection,
+    rows: dict[str, list[dict[str, str]]],
+    paths: dict[str, Path],
+) -> dict[str, Any]:
+    plant_names = _insert_plant_scope(connection, rows["plants_csv"])
+    _insert_column_scope(connection, rows["daily_scope_csv"], plant_names)
+    _insert_outage_scope(connection, rows["outage_scope_csv"], plant_names)
+    bucket_only = _insert_bucket_only_pitfalls(connection)
+    scoped_columns = connection.execute(
+        "SELECT access_scope, COUNT(*) FROM b_column_scope GROUP BY access_scope"
+    ).fetchall()
+    return {
+        "plants": len(plant_names),
+        "daily_columns": dict(scoped_columns),
+        "bucket_only_plants": bucket_only,
+        "source_sha256": {
+            paths[name].name: sha256_file(paths[name]) for name in SCOPE_SOURCES
+        },
+    }
+
+
 def _table_counts(connection: sqlite3.Connection) -> dict[str, int]:
     tables = (
         "dim_plant",
@@ -312,6 +562,10 @@ def _table_counts(connection: sqlite3.Connection) -> dict[str, int]:
         "dim_outage",
         "fact_generation_cost",
         "meta_pitfall",
+        "dim_plant_scope",
+        "b_column_scope",
+        "bridge_b_column_plant",
+        "outage_scope",
     )
     return {
         table: connection.execute(f'SELECT COUNT(*) FROM "{table}"').fetchone()[0]
@@ -333,6 +587,10 @@ def _database_content_checksum(connection: sqlite3.Connection) -> str:
         "dim_outage",
         "fact_generation_cost",
         "meta_pitfall",
+        "dim_plant_scope",
+        "b_column_scope",
+        "bridge_b_column_plant",
+        "outage_scope",
     ):
         digest.update(table.encode())
         for row in connection.execute(f'SELECT * FROM "{table}" ORDER BY 1, 2'):
@@ -356,6 +614,7 @@ def build_database(
             "daily_long_csv",
             "outage_csv",
             "generation_cost_csv",
+            *SCOPE_SOURCES,
         }
         unknown_sources = set(source_paths) - allowed_sources
         if unknown_sources:
@@ -402,6 +661,7 @@ def build_database(
             )
             _insert_generation_costs(connection, rows["generation_cost_csv"])
             _insert_derived_pitfalls(connection, crosswalk_records, ratio_max=upper_ratio)
+            scope_summary = _insert_scope(connection, rows, paths)
 
             foreign_key_errors = connection.execute("PRAGMA foreign_key_check").fetchall()
             if foreign_key_errors:
@@ -412,7 +672,10 @@ def build_database(
 
             counts = _table_counts(connection)
             content_checksum = _database_content_checksum(connection)
-            source_hashes = json.dumps(validation["source_sha256"], sort_keys=True)
+            source_hashes = json.dumps(
+                {**validation["source_sha256"], **scope_summary["source_sha256"]},
+                sort_keys=True,
+            )
             connection.execute(
                 """INSERT INTO meta_manifest
                    (id, schema_version, data_version, data_start, data_end, built_at,
@@ -449,6 +712,7 @@ def build_database(
         "database_content_checksum": content_checksum,
         "ratio_thresholds": {"expected_min": lower_ratio, "expected_max": upper_ratio},
         "outage_alignment": outage_summary,
+        "plant_scope": scope_summary,
     }
     if report_path is not None:
         report_path.parent.mkdir(parents=True, exist_ok=True)
