@@ -236,11 +236,22 @@ class RawDataService:
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
-                entry["resource_id"], entry["dataset_id"], entry["resource_index"],
-                entry["title"], entry["format"], entry["relative_path"], entry["source_url"],
-                entry["bytes"], entry["status"], entry["updated_at"], entry["license"],
-                int(present), int(queryable), json.dumps(columns, ensure_ascii=False),
-                json.dumps(preview, ensure_ascii=False), parse_error,
+                entry["resource_id"],
+                entry["dataset_id"],
+                entry["resource_index"],
+                entry["title"],
+                entry["format"],
+                entry["relative_path"],
+                entry["source_url"],
+                entry["bytes"],
+                entry["status"],
+                entry["updated_at"],
+                entry["license"],
+                int(present),
+                int(queryable),
+                json.dumps(columns, ensure_ascii=False),
+                json.dumps(preview, ensure_ascii=False),
+                parse_error,
             ),
         )
 
@@ -407,9 +418,7 @@ class RawDataService:
         return io.TextIOWrapper(handle, encoding=encoding, errors="replace", newline="")
 
     @classmethod
-    def _read_csv(
-        cls, handle: BinaryIO, *, search: str, limit: int, offset: int
-    ) -> dict[str, Any]:
+    def _read_csv(cls, handle: BinaryIO, *, search: str, limit: int, offset: int) -> dict[str, Any]:
         text = cls._text_stream(handle)
         reader = csv.reader(text)
         try:
@@ -556,9 +565,7 @@ class RawDataService:
         return value
 
     @classmethod
-    def _read_xml(
-        cls, handle: BinaryIO, *, search: str, limit: int, offset: int
-    ) -> dict[str, Any]:
+    def _read_xml(cls, handle: BinaryIO, *, search: str, limit: int, offset: int) -> dict[str, Any]:
         records: list[dict[str, Any]] = []
         for _event, element in ElementTree.iterparse(handle, events=("end",)):
             children = list(element)
@@ -585,8 +592,7 @@ class RawDataService:
         filtered = [
             record
             for record in records
-            if not search
-            or search.casefold() in " ".join(map(str, record.values())).casefold()
+            if not search or search.casefold() in " ".join(map(str, record.values())).casefold()
         ]
         page = filtered[offset : offset + limit]
         return {
@@ -700,9 +706,7 @@ class RawDataService:
             resource
             for resource in resources
             if any(
-                field in str(column)
-                for field in requested_fields
-                for column in resource["columns"]
+                field in str(column) for field in requested_fields for column in resource["columns"]
             )
         ]
         candidates.sort(
