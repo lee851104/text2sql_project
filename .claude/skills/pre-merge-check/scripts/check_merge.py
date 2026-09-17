@@ -320,6 +320,49 @@ def check_behind(base: str, branch: str) -> Finding:
     )
 
 
+def check_rules_integrity(rules: dict) -> Finding:
+    """同一個路徑被指派給兩位 Owner 時，所有權判定沒有意義 —— 先擋下來要人裁決。"""
+    seen: dict[str, set[str]] = {}
+    for rule in rules["rules"]:
+        seen.setdefault(rule["pattern"], set()).add(rule["owner"])
+    dupes = sorted((p, sorted(o)) for p, o in seen.items() if len(o) > 1)
+    if not dupes:
+        return Finding(
+            "rules.integrity", "所有權規則一致性", "PASS", f"{len(seen)} 條規則沒有重複指派。"
+        )
+    return Finding(
+        "rules.integrity",
+        "所有權規則一致性",
+        "BLOCK",
+        f"有 {len(dupes)} 個路徑同時被指派給多位 Owner —— 這種狀態下任何所有權判定都不可信。",
+        evidence=[f"{p}  →  同時指派給 {' 與 '.join(o)}" for p, o in dupes],
+        fix="docs/TEAM_4_ROLES.md 明訂「每個 production 檔案只有一位主要 Owner」，這裡違反了。"
+        "四人裁決後，在 references/ownership.json 刪掉多餘的那一條，"
+        "並同步修正 TEAM_4_ROLES.md，再重跑本檢查。",
+    )
+
+
+def check_handoff(files: list[str], rules: dict) -> Finding:
+    """跨組介面：檔案主人是一個人，但改動會影響另一個人的驗收結果。"""
+    hits = [
+        f"{path}  →  需交接單給 {rule['notify']}：{rule['reason']}"
+        for rule in rules.get("handoff", [])
+        for path in files
+        if match_pattern(path, rule["pattern"])
+    ]
+    if hits:
+        return Finding(
+            "own.handoff",
+            "跨組介面交接",
+            "WARN",
+            f"改到 {len(hits)} 個跨組介面檔案，改動會影響其他 Owner 的驗收結果。",
+            evidence=hits,
+            fix="依 docs/TEAM_4_ROLES.md 的「跨組契約／交接單」格式附上交接單，"
+            "載明輸入／輸出／錯誤／版本與至少一個成功、一個失敗案例。",
+        )
+    return Finding("own.handoff", "跨組介面交接", "PASS", "沒有動到需要跨組交接的介面檔案。")
+
+
 def check_ownership(files: list[str], rules: dict, declared: str | None) -> Finding:
     ignore = rules.get("ignore", [])
     graded = [
@@ -762,7 +805,9 @@ def main() -> int:
         base_finding,
         check_conflict(base_ref, branch),
         check_behind(base_ref, branch),
+        check_rules_integrity(rules),
         check_ownership(files, rules, args.owner),
+        check_handoff(files, rules),
         check_secrets(merge_base, branch, rules),
         check_forbidden(live, rules),
         check_large(live, branch, rules),

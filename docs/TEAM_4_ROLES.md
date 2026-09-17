@@ -34,8 +34,8 @@
 | 成員 | 主要角色 | 唯一主要擁有範圍 | 下一階段任務 | 驗收證據 |
 |---|---|---|---|---|
 | A | 資料生命週期與熱插拔 | `taipower_align/`、`src/align/`、`src/ingest/`、`src/serving/data_management.py`、`configs/align.yaml`、`configs/outage_overrides.yaml`、資料下載工具與資料文件 | 更新官方快照與相依驗證；維護上傳、移除、替換、回退、版本保留／清理及 Windows／OneDrive 中斷恢復 | 資料品質與 row-count diff、來源 checksum、SQLite `quick_check=ok`、候選核准前不影響查詢、歲修檔 `138→0→138` E2E、tamper fail-closed |
-| B | Text2SQL、LLM 與語料治理 | `src/text2sql/`（不含 C 擁有的 guards）、`src/serving/corpus_learning.py`、`corpus/`、`configs/llm.yaml`、`configs/retriever.yaml`、管線文件 | 提升語料外與長尾問句；維護候選去識別、去重、來源追溯、索引版本／回退及線上 LLM 對照評測 | 無 key 可離線重現、result match 與 trace、router／LLM 候選皆為 `pending_review`、核准後才更新 corpus/index、benchmark leakage 為 0 |
-| C | 安全、身分驗證與獨立評測 | `src/text2sql/sql_guard.py`、`src/text2sql/semantic_guard.py`、`src/eval/`、`benchmarks/`、`src/serving/admin_auth.py`、`configs/guard.yaml`、安全／評測文件 | 維護唯讀 SQL、語意陷阱、auth／CSRF／session／rate limit、人工審核安全、tamper 與 promotion gate | 攻擊 SQL 15/15 阻擋、陷阱 45/45 命中、合法邊界 0/20 誤攔、遠端 demo 帳密拒絕、未登入／缺 CSRF 異動拒絕、故障注入通過 |
+| B | Text2SQL、LLM 與語料治理 | `src/text2sql/`（不含 C 擁有的 guards 與 `db.py`）、`src/serving/corpus_learning.py`、`corpus/`、`configs/llm.yaml`、`configs/retriever.yaml`、管線文件 | 提升語料外與長尾問句；維護候選去識別、去重、來源追溯、索引版本／回退及線上 LLM 對照評測 | 無 key 可離線重現、result match 與 trace、router／LLM 候選皆為 `pending_review`、核准後才更新 corpus/index、benchmark leakage 為 0 |
+| C | 安全、身分驗證與獨立評測 | `src/text2sql/sql_guard.py`、`src/text2sql/semantic_guard.py`、`src/text2sql/db.py`、`src/eval/`、`benchmarks/`、`src/serving/admin_auth.py`、`configs/guard.yaml`、安全／評測文件 | 維護唯讀 SQL、語意陷阱、auth／CSRF／session／rate limit、人工審核安全、tamper 與 promotion gate | 攻擊 SQL 15/15 阻擋、陷阱 45/45 命中、合法邊界 0/20 誤攔、遠端 demo 帳密拒絕、未登入／缺 CSRF 異動拒絕、故障注入通過 |
 | D | API、runtime、前端與整合發表（Integration Owner） | 其餘 `src/serving/`、`src/cli.py`、`src/project_tasks.py`、`configs/config.yaml`、`啟動.bat`、啟動輔助工具、建置／CI、HTTP 契約及共用文件 | 整合 A／B／C 契約；完成桌機／手機展示、OpenAPI、錯誤復原、無障礙、多 worker 切版一致性及 GitHub Release | 全套測試、Ruff、JS、diff check；登入→熱插拔→查詢→語料審核→版本／稽核瀏覽器 E2E；runtime／provenance 同 snapshot；Release checksum 與回退說明 |
 
 ### 明確且不重疊的檔案所有權
@@ -49,9 +49,13 @@
 | `configs/align.yaml`、`outage_overrides.yaml`、`docs/DATA_DICTIONARY.md`、資料下載工具 | A | 牽涉 runtime 路徑或發布流程時交接 D |
 | `configs/llm.yaml`、`retriever.yaml`、`docs/TEXT2SQL_PIPELINE.md` | B | 牽涉 guard 門檻交接 C；牽涉 runtime mapping 交接 D |
 | `configs/guard.yaml`、`docs/EVALUATION.md`、`docs/SEMANTIC_GUARD.md`、`docs/SYSTEM_CARD.md` | C | 評測結果產物由 C 產生，發布版面交接 D |
+| `src/text2sql/db.py`（`ReadOnlySQLite`） | C | 唯讀保證是 C 的第一責任，比照 guards 從 `src/text2sql/` 劃出；B 需要查詢介面變更時提供契約 |
+| `src/align/pitfalls.py` | A | **跨組介面**：產出 C 用於評測的語意陷阱，A 改動出題規則時必須附交接單給 C |
 | `configs/config.yaml`、`src/cli.py`、`src/project_tasks.py`、`啟動.bat`、`scripts/launcher_dependency_state.ps1`、`scripts/launcher_health.ps1` | D | 資料 path 變更須由 A 提供契約，安全預設須由 C 審查 |
 | `pyproject.toml`、`uv.lock`、`Makefile`、`.env.example`、`.gitignore`、`.github/` | D | 依賴或安全例外須由受影響 Owner 審查 |
 | `README.md`、`docs/SERVING.md`、`docs/TEAM_4_ROLES.md`、`docs/releases/`、`docs/superpowers/` | D | 內容正確性由相應 Owner 提供驗收證據 |
+
+> **尚未裁決**：`tests/test_serving_auth.py` 同時出現在 C 與 D 的最低驗收清單，違反「每個 production 檔案只有一位主要 Owner」。四人裁決前，合併門檻會擋下所有合併並提示此衝突；裁決後請同步修正本文件與 `.claude/skills/pre-merge-check/references/ownership.json`。
 
 D 的 Integration Owner 身分只負責共用契約、合併順序、主分支品質及發布，不代表可以未經審查改寫 A／B／C 的模組。
 
@@ -105,7 +109,7 @@ D 的 Integration Owner 身分只負責共用契約、合併順序、主分支�
 ```text
 你現在代表成員 B：Text2SQL、LLM 與語料治理 Owner。
 
-主要可修改：src/text2sql/ 中除 sql_guard.py、semantic_guard.py 外的模組、src/serving/corpus_learning.py、corpus/、configs/llm.yaml、configs/retriever.yaml、docs/TEXT2SQL_PIPELINE.md，以及直接相關測試與管線文件。
+主要可修改：src/text2sql/ 中除 sql_guard.py、semantic_guard.py、db.py 外的模組、src/serving/corpus_learning.py、corpus/、configs/llm.yaml、configs/retriever.yaml、docs/TEXT2SQL_PIPELINE.md，以及直接相關測試與管線文件。
 
 你的第一責任是把中文問題穩定轉為可驗證的候選 SQL，同時維持離線可重現。router 與線上 LLM 產生的新語料一律只能進 pending_review；核准時必須重新執行去識別、去重、SQL／語意、結果重播與 benchmark 回歸，通過後才更新 corpus/index。不得讀取或複製 benchmark 標準答案到 corpus，也不得修改 guard 或 HTTP route 來繞過契約。
 
@@ -123,7 +127,7 @@ D 的 Integration Owner 身分只負責共用契約、合併順序、主分支�
 ```text
 你現在代表成員 C：安全、身分驗證與獨立評測 Owner。
 
-主要可修改：src/text2sql/sql_guard.py、src/text2sql/semantic_guard.py、src/eval/、benchmarks/、src/serving/admin_auth.py、configs/guard.yaml、docs/EVALUATION.md、docs/SEMANTIC_GUARD.md、docs/SYSTEM_CARD.md，以及直接相關的 guard／eval／auth 測試與安全文件。
+主要可修改：src/text2sql/sql_guard.py、src/text2sql/semantic_guard.py、src/text2sql/db.py、src/eval/、benchmarks/、src/serving/admin_auth.py、configs/guard.yaml、docs/EVALUATION.md、docs/SEMANTIC_GUARD.md、docs/SYSTEM_CARD.md，以及直接相關的 guard／eval／auth 測試與安全文件。
 
 你的第一責任是讓不安全或語意錯誤的回答無法被發布。維持單一唯讀 SELECT、view／column allowlist、參數化、LIMIT、timeout、九條語意守門、benchmark 與 corpus 隔離。管理登入必須使用短期 opaque session、HttpOnly／SameSite cookie、精確同源與 CSRF；公開預設帳密只能由 loopback 使用。安全錯誤不可洩漏密碼、token、API key、Prompt 或 stack trace。
 

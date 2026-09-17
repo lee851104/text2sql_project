@@ -54,6 +54,7 @@
     {"owner": "C", "pattern": "src/eval/"},
     {"owner": "C", "pattern": "benchmarks/"},
     {"owner": "C", "pattern": "src/serving/admin_auth.py"},
+    {"owner": "C", "pattern": "src/text2sql/db.py"},
     {"owner": "C", "pattern": "configs/guard.yaml"},
     {"owner": "C", "pattern": "docs/EVALUATION.md"},
     {"owner": "C", "pattern": "docs/SEMANTIC_GUARD.md"},
@@ -66,7 +67,7 @@
     {"owner": "C", "pattern": "tests/test_serving_auth.py"},
     {"owner": "A", "pattern": "tests/test_pitfalls.py"},
     {"owner": "C", "pattern": "tests/test_promotion_gate.py"},
-    {"owner": "B", "pattern": "tests/test_readonly_db.py"},
+    {"owner": "C", "pattern": "tests/test_readonly_db.py"},
 
     {"owner": "D", "pattern": "src/serving/"},
     {"owner": "D", "pattern": "src/cli.py"},
@@ -90,12 +91,23 @@
     {"owner": "D", "pattern": "docs/releases/"},
     {"owner": "D", "pattern": "docs/superpowers/"},
     {"owner": "D", "pattern": "tests/test_serving.py"},
+    {"owner": "D", "pattern": "tests/test_serving_auth.py"},
     {"owner": "D", "pattern": "tests/test_runtime_modes.py"},
     {"owner": "D", "pattern": "tests/test_runtime_consistency.py"},
     {"owner": "D", "pattern": "tests/test_data_management_api.py"},
     {"owner": "D", "pattern": "tests/test_presentation.py"},
     {"owner": "D", "pattern": "tests/test_windows_launcher.py"},
     {"owner": "D", "pattern": "tests/test_foundation.py"}
+  ],
+
+  "_handoff_note": "檔案主人只有一個，但改動會影響另一位 Owner 的驗收結果；改到就要求附交接單。",
+  "handoff": [
+    {
+      "pattern": "src/align/pitfalls.py",
+      "owner": "A",
+      "notify": "C",
+      "reason": "產出 C 用於評測的語意陷阱，出題規則一改 C 的評測結果就跟著變"
+    }
   ],
 
   "forbidden": [

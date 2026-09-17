@@ -24,6 +24,8 @@
 |---|---|---|
 | 比較基準 | WARN | 一律以 `origin/<base>` 為準。本機 main 常落後遠端（實測就落後 2 個 commit），拿它當基準會漏掉真正會發生的衝突。只有連遠端分支都找不到時才退回本機並警告 |
 | 工作目錄狀態 | WARN | 工作目錄有未提交變更時，ruff／pytest 驗的是工作目錄而不是那個 commit。**這時不得判 PASS** —— 假的綠燈比沒有門檻更糟 |
+| 所有權規則一致性 | BLOCK | 同一個路徑被指派給兩位 Owner 時，所有權判定沒有意義。工具不替人選一個，直接擋下來要人裁決 |
+| 跨組介面交接 | WARN | 檔案主人只有一個，但改動會影響另一位 Owner 的驗收結果，依 TEAM_4_ROLES 需附交接單 |
 | 與 main 的合併衝突 | BLOCK | 有衝突就不可能自動合併；先在分支解衝突是 Integration Owner 的合併順序要求 |
 | 與 main 的同步狀態 | WARN | 落後 main 時，分支上的驗收證據不等於合併後的結果，需人工判斷要不要重跑 |
 | Owner 檔案所有權 | WARN | TEAM_4_ROLES：「每個 production 檔案只有一位主要 Owner」。但跨 Owner 是**合法**的，只是必須附「跨組契約／交接單」並由對應 Owner 確認 —— 所以警告而不阻擋 |
@@ -75,16 +77,16 @@
 
 `ATTRIBUTION.md` 是資料來源顯名與快照版本，屬於 A 的「資料文件」，不是 D 的共用文件。
 
-### 三個尚未裁決的爭議
+### 三個爭議的處置（2026-09-17 裁決）
 
-這三項超出我能單方面決定的範圍，**需要四人確認後再改 `ownership.json`**：
-
-1. **`tests/test_serving_auth.py` 同時出現在 C 與 D 的最低驗收清單裡。** 目前歸 C（安全優先）。
-   這是 `docs/TEAM_4_ROLES.md` 本身的矛盾，建議在該文件裡一併修正。
-2. **`src/text2sql/db.py`（`ReadOnlySQLite`）** 依檔案規則屬 B，但「維持唯讀 SQL」寫在 C 的第一責任裡。
-   要嘛把它列入 C 的擁有範圍，要嘛在 C 的責任描述中註明它靠 B 的模組實作。
-3. **`src/align/pitfalls.py`** 在 A 的目錄裡，但產出的是 C 用來評測的語意陷阱。
-   目前歸 A（依檔案位置），跨組介面建議以交接單約定。
+1. **`tests/test_serving_auth.py` 同時出現在 C 與 D 的最低驗收清單裡 —— 刻意不裁決。**
+   `ownership.json` 如實保留 C 與 D 兩條規則，讓「所有權規則一致性」檢查 BLOCK 並指名這個衝突。
+   工具不替人選一個：選錯就會有人該看沒看到，而且錯誤會被藏起來。四人裁決後刪掉多餘那條即可解除。
+2. **`src/text2sql/db.py`（`ReadOnlySQLite`）改歸 C。** 唯讀保證是 C 的第一責任，檔案跟著責任走，
+   比照 `sql_guard.py`、`semantic_guard.py` 從 `src/text2sql/` 劃出的既有做法。`tests/test_readonly_db.py` 一併歸 C。
+3. **`src/align/pitfalls.py` 留在 A，但列為跨組介面。** 改到就要求附交接單給 C。
+   這條擋的是「A 改了出題規則、C 的評測結果跟著變卻沒人知道」，**不是資料洩漏** ——
+   benchmark 與 corpus 的隔離是另一組獨立控制（見 B、C 的最低驗收）。
 
 ## 機密偵測的誤判處理
 
