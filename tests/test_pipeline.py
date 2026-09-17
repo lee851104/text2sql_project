@@ -83,6 +83,9 @@ def test_authentication_error_is_not_retried_and_is_actionable() -> None:
     assert not response.success
     assert response.error_code == "LLM_AUTH_FAILED"
     assert response.error == "OpenAI API key 驗證失敗，請到 API 設定更新金鑰。"
-    assert response.evidence == {"attempts": 1, "last_error": "LLM_OUTPUT_ERROR: AuthenticationError"}
+    assert response.evidence == {
+        "attempts": 1,
+        "last_error": "LLM_OUTPUT_ERROR: AuthenticationError",
+    }
     assert llm.calls == 1
     assert "sk-secret" not in str(response.to_dict())

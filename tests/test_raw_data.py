@@ -169,9 +169,7 @@ def test_raw_question_returns_matching_address_row_with_source(tmp_path: Path) -
     assert response["success"] is True
     assert response["data"]["intent"] == "raw_resource_lookup"
     assert response["data"]["columns"] == ["服務單位", "地址", "開放對外電話"]
-    assert response["data"]["rows"] == [
-        ["西莒發電廠", "連江縣莒光鄉田沃村77號", "(0836)88135"]
-    ]
+    assert response["data"]["rows"] == [["西莒發電廠", "連江縣莒光鄉田沃村77號", "(0836)88135"]]
     assert response["data"]["source_resource"]["resource_id"] == "6570-01"
 
 

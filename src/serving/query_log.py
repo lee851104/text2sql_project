@@ -1,4 +1,5 @@
 """Persistent, bounded diagnostics for failed query requests."""
+
 from __future__ import annotations
 
 import json
