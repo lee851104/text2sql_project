@@ -2,6 +2,18 @@
 
 > 這份檔案在每個可驗證、可回退的儲存點更新。回退前需保留使用者原有的未提交變更。
 
+## CP-015 — 電廠分權分支的格式修復與 main 同步
+
+- 時間：2026-09-18 00:07 +08:00
+- 狀態：已完成
+- 問題：`feat/plant-scope-authorisation` 建立時未執行 `ruff format`，且落後 main 兩個 commit（PR #2 的格式基線修正）。`git merge-tree` 顯示無文字衝突，但實際做完合併後 `ruff format --check` 仍有 3 個檔案不合規（`src/ingest/build_db.py:546`、`tests/test_scope_guard.py:135`、`tests/test_semantic_guard.py:169`），依 CP-014 的 `merge_rules.md` 屬 BLOCK。
+- 修正：在分支上執行 `ruff format`（10 個檔案重新格式化，其中 7 個是 main 已修好、分支尚未同步的部分），再以 `--no-ff` 把 main 合併進分支。合併無衝突。
+- 合併進來的 main 內容：CP-014 的 `pre-merge-check` Skill，以及 `docs/sync-stale-docs` 的文件同步修正。
+- 驗收：`ruff format --check .` 98 files already formatted；`ruff check .` All checks passed；`git diff --check HEAD` 無輸出；`pytest -q` 214 passed、1 skipped。main 當前基線為 196 passed，本分支淨增 18 題，主要來自 `tests/test_scope_guard.py`。
+- 唯一 skip：`tests/test_windows_launcher.py:168`，原因是本機 port 8765 已被既有服務占用，屬環境因素，CI 的 ubuntu runner 不受影響。
+- 待人工處理：本分支橫跨 A／B／C／D 四位 Owner 的檔案，依 `docs/TEAM_4_ROLES.md` 需附跨組交接單；`tests/test_scope_guard.py` 尚未列入 `ownership.json`，需先決定歸屬。
+- 回退方式：回退 `style: apply ruff format to tracked sources` 與其後的 merge commit；`d23a3ab`、`7bea052` 兩個功能 commit 保持不動。
+
 ## CP-014 — 合併門檻 Skill 與 main 的 ruff 基線修復
 
 - 時間：2026-09-17 09:02 +08:00
