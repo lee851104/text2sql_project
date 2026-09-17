@@ -543,9 +543,7 @@ def _insert_scope(
         "plants": len(plant_names),
         "daily_columns": dict(scoped_columns),
         "bucket_only_plants": bucket_only,
-        "source_sha256": {
-            paths[name].name: sha256_file(paths[name]) for name in SCOPE_SOURCES
-        },
+        "source_sha256": {paths[name].name: sha256_file(paths[name]) for name in SCOPE_SOURCES},
     }
 
 

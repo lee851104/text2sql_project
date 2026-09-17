@@ -166,8 +166,7 @@ def _bucket_only_guard() -> SemanticGuard:
         target_name="高屏發電廠",
         severity="refuse",
         reason=(
-            "高屏發電廠在每日尖峰資料中沒有自己的欄位，"
-            "出力併在「其他小水力」這個 10 廠合計欄位裡。"
+            "高屏發電廠在每日尖峰資料中沒有自己的欄位，出力併在「其他小水力」這個 10 廠合計欄位裡。"
         ),
         suggestion="改查高屏發電廠的機組裝置容量與歲修排程。",
         evidence={"bucket": "其他小水力", "member_plants": 10},

@@ -176,7 +176,9 @@ def parse_generation_cost_rows(
         if source_group is None:
             raise DataValidationError(f"generation_cost.csv:{index} 缺少電力來源群組")
         for column, (year, basis) in GENERATION_COST_COLUMNS.items():
-            cost = parse_number(row.get(column, ""), context=f"generation_cost.csv:{index}:{column}")
+            cost = parse_number(
+                row.get(column, ""), context=f"generation_cost.csv:{index}:{column}"
+            )
             if cost is None or cost < 0:
                 raise DataValidationError(f"generation_cost.csv:{index} 成本不可小於 0")
             records.append((source_group, name, year, basis, cost))

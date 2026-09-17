@@ -108,9 +108,22 @@ class SemanticGuard:
         compact = re.sub(r"\s+", "", question)
 
         cost_types = (
-            "火力", "核能", "抽蓄", "再生能源", "慣常水力", "風力", "太陽光電",
-            "地熱", "汽電共生", "民營電廠", "燃油", "燃煤", "燃氣", "發購電",
-            "自發電力小計", "購入電力小計",
+            "火力",
+            "核能",
+            "抽蓄",
+            "再生能源",
+            "慣常水力",
+            "風力",
+            "太陽光電",
+            "地熱",
+            "汽電共生",
+            "民營電廠",
+            "燃油",
+            "燃煤",
+            "燃氣",
+            "發購電",
+            "自發電力小計",
+            "購入電力小計",
         )
         if "成本" in compact and not any(name in compact for name in cost_types):
             year = entities.date_range.start[:4] if entities.date_range else "2025"

@@ -132,11 +132,9 @@ def test_bucket_only_plant_still_reads_the_shared_bucket(
 
 
 @pytest.mark.integration
-def test_system_wide_views_are_never_restricted(
-    scoped_database: Path, guard: ScopeGuard
-) -> None:
-    sql = 'SELECT COUNT(*) FROM v_system LIMIT 1'
-    cost_sql = 'SELECT COUNT(*) FROM v_generation_cost LIMIT 1'
+def test_system_wide_views_are_never_restricted(scoped_database: Path, guard: ScopeGuard) -> None:
+    sql = "SELECT COUNT(*) FROM v_system LIMIT 1"
+    cost_sql = "SELECT COUNT(*) FROM v_generation_cost LIMIT 1"
 
     scoped_sql, scoped_params = guard.apply(sql, (), plant="高屏發電廠")
 
@@ -155,12 +153,8 @@ def test_rewrite_keeps_original_parameters_bound_to_their_own_placeholders(
         'WHERE "日期" >= ? AND "日期" <= ? ORDER BY "日期" LIMIT 5'
     )
 
-    scoped_sql, scoped_params = guard.apply(
-        sql, ("2026-07-01", "2026-07-03"), plant="林口發電廠"
-    )
-    rows = _rewrite_rows(
-        scoped_database, guard, sql, ("2026-07-01", "2026-07-03"), "林口發電廠"
-    )
+    scoped_sql, scoped_params = guard.apply(sql, ("2026-07-01", "2026-07-03"), plant="林口發電廠")
+    rows = _rewrite_rows(scoped_database, guard, sql, ("2026-07-01", "2026-07-03"), "林口發電廠")
 
     assert scoped_params[-2:] == ("2026-07-01", "2026-07-03")
     assert scoped_sql.count("?") == len(scoped_params)
