@@ -55,7 +55,7 @@
 | `pyproject.toml`、`uv.lock`、`Makefile`、`.env.example`、`.gitignore`、`.github/` | D | 依賴或安全例外須由受影響 Owner 審查 |
 | `README.md`、`docs/SERVING.md`、`docs/TEAM_4_ROLES.md`、`docs/releases/`、`docs/superpowers/` | D | 內容正確性由相應 Owner 提供驗收證據 |
 
-> **尚未裁決**：`tests/test_serving_auth.py` 同時出現在 C 與 D 的最低驗收清單，違反「每個 production 檔案只有一位主要 Owner」。四人裁決前，合併門檻會擋下所有合併並提示此衝突；裁決後請同步修正本文件與 `.claude/skills/pre-merge-check/references/ownership.json`。
+> **2026-09-17 裁決**：`tests/test_serving_auth.py` 原先同時列在 C 與 D 的最低驗收清單，違反「每個 production 檔案只有一位主要 Owner」，現歸 **C**。登入安全的測試不應由整合角色自行變更即通過；D 仍會在跨契約變更時跑全套 pytest，不會漏掉這個檔案。
 
 D 的 Integration Owner 身分只負責共用契約、合併順序、主分支品質及發布，不代表可以未經審查改寫 A／B／C 的模組。
 
@@ -150,7 +150,7 @@ D 的 Integration Owner 身分只負責共用契約、合併順序、主分支�
 你的第一責任是依 A／B／C 的公開 service contract 完成整合，不把領域邏輯複製進 route 或前端。維持 query runtime 與 provenance 同一 snapshot、多 worker 切版同步、結構化安全錯誤、離線／線上模式、資料管理登入與五頁籤操作。前端不得拼接不可信 HTML，不得把密碼、CSRF 或 API key 放進瀏覽器儲存；需支援 360px、鍵盤、IME、live region 與圖表 fallback。
 
 最低驗收：
-- uv run pytest -q tests/test_serving.py tests/test_serving_auth.py tests/test_runtime_modes.py tests/test_runtime_consistency.py tests/test_data_management_api.py tests/test_presentation.py tests/test_windows_launcher.py
+- uv run pytest -q tests/test_serving.py tests/test_runtime_modes.py tests/test_runtime_consistency.py tests/test_data_management_api.py tests/test_presentation.py tests/test_windows_launcher.py
 - uv run pytest -q
 - uv run ruff format --check .
 - uv run ruff check .

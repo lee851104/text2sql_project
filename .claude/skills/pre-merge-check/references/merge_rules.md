@@ -79,9 +79,9 @@
 
 ### 三個爭議的處置（2026-09-17 裁決）
 
-1. **`tests/test_serving_auth.py` 同時出現在 C 與 D 的最低驗收清單裡 —— 刻意不裁決。**
-   `ownership.json` 如實保留 C 與 D 兩條規則，讓「所有權規則一致性」檢查 BLOCK 並指名這個衝突。
-   工具不替人選一個：選錯就會有人該看沒看到，而且錯誤會被藏起來。四人裁決後刪掉多餘那條即可解除。
+1. **`tests/test_serving_auth.py` 歸 C。** 原先同時列在 C 與 D 的最低驗收清單，由「所有權規則一致性」
+   檢查 BLOCK 後裁決：登入安全的測試不該由整合角色自行變更即通過；D 在跨契約變更時仍跑全套 pytest，
+   不會漏掉這個檔案。`docs/TEAM_4_ROLES.md` 已同步移除 D 清單裡的該行。
 2. **`src/text2sql/db.py`（`ReadOnlySQLite`）改歸 C。** 唯讀保證是 C 的第一責任，檔案跟著責任走，
    比照 `sql_guard.py`、`semantic_guard.py` 從 `src/text2sql/` 劃出的既有做法。`tests/test_readonly_db.py` 一併歸 C。
 3. **`src/align/pitfalls.py` 留在 A，但列為跨組介面。** 改到就要求附交接單給 C。

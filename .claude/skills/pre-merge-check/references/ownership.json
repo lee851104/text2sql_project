@@ -91,7 +91,6 @@
     {"owner": "D", "pattern": "docs/releases/"},
     {"owner": "D", "pattern": "docs/superpowers/"},
     {"owner": "D", "pattern": "tests/test_serving.py"},
-    {"owner": "D", "pattern": "tests/test_serving_auth.py"},
     {"owner": "D", "pattern": "tests/test_runtime_modes.py"},
     {"owner": "D", "pattern": "tests/test_runtime_consistency.py"},
     {"owner": "D", "pattern": "tests/test_data_management_api.py"},
