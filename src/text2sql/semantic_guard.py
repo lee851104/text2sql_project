@@ -182,6 +182,21 @@ class SemanticGuard:
                 evidence={"unsupported_scope": "unit detail"},
             )
 
+        # 這些電廠在每日尖峰資料沒有自己的欄位，出力併在共用彙總欄裡。回空表會被讀成
+        # 「資料缺漏」，因此明講來源限制並指向查得到的替代問法。
+        daily_words = ("出力", "尖峰", "發電量", "負載")
+        for rule in self._targets("PLANT_DAILY_ONLY_IN_BUCKET"):
+            if self._target_in_question(rule.target_name, compact) and any(
+                word in compact for word in daily_words
+            ):
+                return self._decision(
+                    "refuse",
+                    rule.code,
+                    rule.reason,
+                    rule.suggestion,
+                    evidence={"target": rule.target_name, **rule.evidence},
+                )
+
         trend_words = ("趨勢", "同比", "年增率", "近兩年", "去年和今年", "每月長期", "跨期", "走勢")
         residual_rules = self._targets("RESIDUAL_TREND")
         residual_hit = (
@@ -321,6 +336,19 @@ class SemanticGuard:
                 "改查類別彙總出力。",
                 evidence={"params": list(string_params)},
             )
+
+        if {"機組欄位", "尖峰出力_萬瓩"} & all_columns:
+            for rule in self._targets("PLANT_DAILY_ONLY_IN_BUCKET"):
+                if self._target_in_question(rule.target_name, question) or any(
+                    self._target_in_question(rule.target_name, value) for value in string_params
+                ):
+                    return self._decision(
+                        "refuse",
+                        rule.code,
+                        rule.reason,
+                        rule.suggestion,
+                        evidence={"target": rule.target_name, **rule.evidence},
+                    )
 
         trend_words = ("趨勢", "同比", "年增率", "近兩年", "長期", "跨期", "走勢")
         residual_filter = "是殘差欄" in all_columns and (

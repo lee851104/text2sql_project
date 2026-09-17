@@ -11,7 +11,7 @@ from align.pitfalls import generate_pitfalls
 from eval.cases import SEMANTIC_NEGATIVE_CONTROLS
 from text2sql.entities import extract_entities
 from text2sql.llm import GeneratedQuery
-from text2sql.semantic_guard import SemanticGuard, load_semantic_context
+from text2sql.semantic_guard import SemanticGuard, SemanticPitfall, load_semantic_context
 
 ROOT = Path(__file__).parents[1]
 DATA_RANGE = ("2025-01-01", "2026-07-31")
@@ -157,3 +157,51 @@ def test_unspecified_generation_cost_requires_clarification(
 
     assert (decision.code, decision.severity) == ("GENERATION_COST_TYPE_REQUIRED", "clarify")
     assert "2025年火力發電成本是多少？" in decision.suggestions
+
+
+def _bucket_only_guard() -> SemanticGuard:
+    rule = SemanticPitfall(
+        code="PLANT_DAILY_ONLY_IN_BUCKET",
+        target_kind="plant",
+        target_name="高屏發電廠",
+        severity="refuse",
+        reason=(
+            "高屏發電廠在每日尖峰資料中沒有自己的欄位，出力併在「其他小水力」這個 10 廠合計欄位裡。"
+        ),
+        suggestion="改查高屏發電廠的機組裝置容量與歲修排程。",
+        evidence={"bucket": "其他小水力", "member_plants": 10},
+    )
+    return SemanticGuard(data_range=DATA_RANGE, peak_columns=PEAK_COLUMNS, pitfalls=[rule])
+
+
+def test_plant_without_its_own_daily_column_is_refused_with_the_source_limit() -> None:
+    guard = _bucket_only_guard()
+    question = "高屏發電廠昨天的尖峰出力是多少？"
+
+    decision = guard.check_question(question, extract_entities(question))
+
+    assert (decision.severity, decision.code) == ("refuse", "PLANT_DAILY_ONLY_IN_BUCKET")
+    assert "其他小水力" in decision.reason
+    assert decision.evidence["member_plants"] == 10
+
+
+def test_bucket_only_rule_does_not_block_that_plant_s_equipment_questions() -> None:
+    guard = _bucket_only_guard()
+    question = "高屏發電廠有哪些機組？裝置容量多少？"
+
+    decision = guard.check_question(question, extract_entities(question))
+
+    assert decision.severity == "pass"
+
+
+def test_bucket_only_rule_also_blocks_sql_that_filters_on_that_plant() -> None:
+    guard = _bucket_only_guard()
+    sql = 'SELECT "機組欄位", "尖峰出力_萬瓩" FROM v_peak WHERE "電廠" = ? LIMIT 10'
+
+    decision = guard.check_sql(
+        "查一下這個廠的出力",
+        GeneratedQuery(sql, ("高屏發電廠",)),
+        extract_entities("查一下這個廠的出力"),
+    )
+
+    assert (decision.severity, decision.code) == ("refuse", "PLANT_DAILY_ONLY_IN_BUCKET")

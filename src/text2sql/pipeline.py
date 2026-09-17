@@ -15,6 +15,7 @@ from text2sql.llm import GeneratedQuery, LLMProtocol, parse_generated_query
 from text2sql.prompt import build_prompt
 from text2sql.retriever import TfidfRetriever
 from text2sql.router import route
+from text2sql.scope_guard import ScopeError, ScopeGuard
 from text2sql.semantic_guard import SemanticDecision
 from text2sql.sql_guard import SqlGuard, SqlGuardResult
 
@@ -65,6 +66,7 @@ class Text2SQLPipeline:
         peak_columns: set[str],
         plants: set[str] | None = None,
         semantic_guard: SemanticGuardProtocol | None = None,
+        scope_guard: ScopeGuard | None = None,
         max_attempts: int = 3,
         top_k: int = 5,
         ngram_min: int = 2,
@@ -87,6 +89,7 @@ class Text2SQLPipeline:
         self.peak_columns = peak_columns
         self.plants = plants or set()
         self.semantic_guard = semantic_guard or AllowAllSemanticGuard()
+        self.scope_guard = scope_guard
         self.max_attempts = max_attempts
         self.top_k = top_k
 
@@ -115,6 +118,16 @@ class Text2SQLPipeline:
             }
         )
 
+    def _apply_scope(
+        self, generated: GeneratedQuery, plant: str | None
+    ) -> tuple[str, tuple[object, ...]]:
+        """Restrict validated SQL to one plant's rows, or pass it through unchanged."""
+        if plant is None:
+            return generated.sql, generated.params
+        if self.scope_guard is None:
+            raise ScopeError("此服務未載入授權對照，無法提供電廠帳號查詢。")
+        return self.scope_guard.apply(generated.sql, generated.params, plant=plant)
+
     @staticmethod
     def _semantic_error(
         decision: SemanticDecision, trace: list[dict[str, Any]]
@@ -129,7 +142,8 @@ class Text2SQLPipeline:
             evidence=decision.evidence,
         )
 
-    def query(self, question: str) -> PipelineResponse:
+    def query(self, question: str, *, plant: str | None = None) -> PipelineResponse:
+        """Answer ``question``; ``plant`` restricts the result to that plant's own rows."""
         trace: list[dict[str, Any]] = []
         with self._corpus_lock:
             corpus = self.corpus
@@ -218,7 +232,22 @@ class Text2SQLPipeline:
 
             started = perf_counter()
             try:
-                columns, rows = self.run_sql(generated.sql, generated.params)
+                execute_sql, execute_params = self._apply_scope(generated, plant)
+            except ScopeError as error:
+                self._trace(trace, "scope_guard", started, attempt=attempt, error=str(error))
+                return PipelineResponse(
+                    False,
+                    data={"trace": trace},
+                    error_code="SCOPE_DENIED",
+                    error=str(error),
+                    severity="refuse",
+                    evidence={"plant": plant},
+                )
+            self._trace(trace, "scope_guard", started, attempt=attempt, plant=plant)
+
+            started = perf_counter()
+            try:
+                columns, rows = self.run_sql(execute_sql, execute_params)
             except Exception as error:
                 prior_error = f"SQL_EXECUTION_ERROR: {type(error).__name__}: {error}"
                 self._trace(trace, "execute", started, attempt=attempt, error=prior_error)
@@ -248,6 +277,7 @@ class Text2SQLPipeline:
                     "columns": columns,
                     "rows": [list(row) for row in rows],
                     "record_count": len(rows),
+                    "scope": {"plant": plant} if plant is not None else None,
                     "disclosures": disclosures,
                     "trace": trace,
                 },

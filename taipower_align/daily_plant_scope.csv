@@ -1,0 +1,65 @@
+﻿b_column_id,b_column,access_scope,known_plant_ids,known_plant_names,membership_status,note,source_urls
+1,其他小水力,shared,16|17|1|19|12|9|13|22|14|20,桂山發電廠|石門發電廠|卓蘭發電廠|萬大發電廠|明潭發電廠|大甲溪發電廠|曾文發電廠|高屏發電廠|東部發電廠|蘭陽發電廠,partial,殘差彙總；列出主檔可對應部分，組成可能隨資料版本改變。,https://data.gov.tw/dataset/19995|https://data.gov.tw/dataset/8934
+2,卓蘭,plant,1,卓蘭發電廠,complete,依所屬電廠控管；同廠多機或分廠合計仍屬本廠資料。,https://data.gov.tw/dataset/19995|https://data.gov.tw/dataset/8934
+3,協和 (#1-#4),plant,2,協和發電廠,complete,依所屬電廠控管；同廠多機或分廠合計仍屬本廠資料。,https://data.gov.tw/dataset/19995|https://data.gov.tw/dataset/8934
+4,南部 (#1-#4),plant,4,南部發電廠,complete,依所屬電廠控管；同廠多機或分廠合計仍屬本廠資料。,https://data.gov.tw/dataset/19995|https://data.gov.tw/dataset/8934
+5,台中#1,plant,5,台中發電廠,complete,依所屬電廠控管；同廠多機或分廠合計仍屬本廠資料。,https://data.gov.tw/dataset/19995|https://data.gov.tw/dataset/8934
+6,台中#10,plant,5,台中發電廠,complete,依所屬電廠控管；同廠多機或分廠合計仍屬本廠資料。,https://data.gov.tw/dataset/19995|https://data.gov.tw/dataset/8934
+7,台中#2,plant,5,台中發電廠,complete,依所屬電廠控管；同廠多機或分廠合計仍屬本廠資料。,https://data.gov.tw/dataset/19995|https://data.gov.tw/dataset/8934
+8,台中#3,plant,5,台中發電廠,complete,依所屬電廠控管；同廠多機或分廠合計仍屬本廠資料。,https://data.gov.tw/dataset/19995|https://data.gov.tw/dataset/8934
+9,台中#4,plant,5,台中發電廠,complete,依所屬電廠控管；同廠多機或分廠合計仍屬本廠資料。,https://data.gov.tw/dataset/19995|https://data.gov.tw/dataset/8934
+10,台中#5,plant,5,台中發電廠,complete,依所屬電廠控管；同廠多機或分廠合計仍屬本廠資料。,https://data.gov.tw/dataset/19995|https://data.gov.tw/dataset/8934
+11,台中#6,plant,5,台中發電廠,complete,依所屬電廠控管；同廠多機或分廠合計仍屬本廠資料。,https://data.gov.tw/dataset/19995|https://data.gov.tw/dataset/8934
+12,台中#7,plant,5,台中發電廠,complete,依所屬電廠控管；同廠多機或分廠合計仍屬本廠資料。,https://data.gov.tw/dataset/19995|https://data.gov.tw/dataset/8934
+13,台中#8,plant,5,台中發電廠,complete,依所屬電廠控管；同廠多機或分廠合計仍屬本廠資料。,https://data.gov.tw/dataset/19995|https://data.gov.tw/dataset/8934
+14,台中#9,plant,5,台中發電廠,complete,依所屬電廠控管；同廠多機或分廠合計仍屬本廠資料。,https://data.gov.tw/dataset/19995|https://data.gov.tw/dataset/8934
+15,和平#1,plant,23,和平電廠,complete,依所屬電廠控管；同廠多機或分廠合計仍屬本廠資料。,https://data.gov.tw/dataset/19995|https://www.taipower.com.tw/2289/59899/59902/|https://www.taipower.com.tw/2289/2558/2387/10656/|https://www.moeaea.gov.tw/ecw/populace/content/Content.aspx?menu_id=999
+16,和平#2,plant,23,和平電廠,complete,依所屬電廠控管；同廠多機或分廠合計仍屬本廠資料。,https://data.gov.tw/dataset/19995|https://www.taipower.com.tw/2289/59899/59902/|https://www.taipower.com.tw/2289/2558/2387/10656/|https://www.moeaea.gov.tw/ecw/populace/content/Content.aspx?menu_id=999
+17,嘉惠(#1~#2),plant,30,嘉惠電廠,complete,依所屬電廠控管；同廠多機或分廠合計仍屬本廠資料。,https://data.gov.tw/dataset/19995|https://www.taipower.com.tw/2289/59899/59902/|https://www.taipower.com.tw/2289/2558/2387/10656/|https://www.moeaea.gov.tw/ecw/populace/content/Content.aspx?menu_id=999
+18,國光 #1,plant,25,國光電廠,complete,依所屬電廠控管；同廠多機或分廠合計仍屬本廠資料。,https://data.gov.tw/dataset/19995|https://www.taipower.com.tw/2289/59899/59902/|https://www.taipower.com.tw/2289/2558/2387/10656/|https://www.moeaea.gov.tw/ecw/populace/content/Content.aspx?menu_id=999
+19,大林#1,plant,7,大林發電廠,complete,依所屬電廠控管；同廠多機或分廠合計仍屬本廠資料。,https://data.gov.tw/dataset/19995|https://data.gov.tw/dataset/8934
+20,大林#2,plant,7,大林發電廠,complete,依所屬電廠控管；同廠多機或分廠合計仍屬本廠資料。,https://data.gov.tw/dataset/19995|https://data.gov.tw/dataset/8934
+21,大林(#5-#6),plant,7,大林發電廠,complete,依所屬電廠控管；同廠多機或分廠合計仍屬本廠資料。,https://data.gov.tw/dataset/19995|https://data.gov.tw/dataset/8934
+22,大潭 (#1-#9),plant,8,大潭發電廠,complete,依所屬電廠控管；同廠多機或分廠合計仍屬本廠資料。,https://data.gov.tw/dataset/19995|https://data.gov.tw/dataset/8934
+23,大觀,plant,10,大觀發電廠,complete,依所屬電廠控管；同廠多機或分廠合計仍屬本廠資料。,https://data.gov.tw/dataset/19995|https://data.gov.tw/dataset/8934
+24,大觀二,plant,10,大觀發電廠,complete,依所屬電廠控管；同廠多機或分廠合計仍屬本廠資料。,https://data.gov.tw/dataset/19995|https://data.gov.tw/dataset/8934
+25,天輪,plant,9,大甲溪發電廠,complete,依所屬電廠控管；同廠多機或分廠合計仍屬本廠資料。,https://data.gov.tw/dataset/19995|https://data.gov.tw/dataset/8934
+26,太陽能發電,shared,,,unknown,太陽能合計，網站少數光電站不代表完整組成。,https://data.gov.tw/dataset/19995|https://data.gov.tw/dataset/8934
+27,德基,plant,9,大甲溪發電廠,complete,依所屬電廠控管；同廠多機或分廠合計仍屬本廠資料。,https://data.gov.tw/dataset/19995|https://data.gov.tw/dataset/8934
+28,新桃#1,plant,26,新桃電廠,complete,依所屬電廠控管；同廠多機或分廠合計仍屬本廠資料。,https://data.gov.tw/dataset/19995|https://www.taipower.com.tw/2289/59899/59902/|https://www.taipower.com.tw/2289/2558/2387/10656/|https://www.moeaea.gov.tw/ecw/populace/content/Content.aspx?menu_id=999
+29,明潭,plant,12,明潭發電廠,complete,依所屬電廠控管；同廠多機或分廠合計仍屬本廠資料。,https://data.gov.tw/dataset/19995|https://data.gov.tw/dataset/8934
+30,星元#1,plant,28,星元電廠,complete,依所屬電廠控管；同廠多機或分廠合計仍屬本廠資料。,https://data.gov.tw/dataset/19995|https://www.taipower.com.tw/2289/59899/59902/|https://www.taipower.com.tw/2289/2558/2387/10656/|https://www.moeaea.gov.tw/ecw/populace/content/Content.aspx?menu_id=999
+31,星彰#1,plant,27,星彰電廠,complete,依所屬電廠控管；同廠多機或分廠合計仍屬本廠資料。,https://data.gov.tw/dataset/19995|https://www.taipower.com.tw/2289/59899/59902/|https://www.taipower.com.tw/2289/2558/2387/10656/|https://www.moeaea.gov.tw/ecw/populace/content/Content.aspx?menu_id=999|https://starenergypower.com.tw/changbin_intro.php
+32,林口#1,plant,15,林口發電廠,complete,依所屬電廠控管；同廠多機或分廠合計仍屬本廠資料。,https://data.gov.tw/dataset/19995|https://data.gov.tw/dataset/8934
+33,林口#2,plant,15,林口發電廠,complete,依所屬電廠控管；同廠多機或分廠合計仍屬本廠資料。,https://data.gov.tw/dataset/19995|https://data.gov.tw/dataset/8934
+34,林口#3,plant,15,林口發電廠,complete,依所屬電廠控管；同廠多機或分廠合計仍屬本廠資料。,https://data.gov.tw/dataset/19995|https://data.gov.tw/dataset/8934
+35,核一#1,plant,32,核一廠,complete,依所屬電廠控管；同廠多機或分廠合計仍屬本廠資料。,https://data.gov.tw/dataset/19995|https://www.taipower.com.tw/2289/2363/2380/2382/10534/normalPost
+36,核一#2,plant,32,核一廠,complete,依所屬電廠控管；同廠多機或分廠合計仍屬本廠資料。,https://data.gov.tw/dataset/19995|https://www.taipower.com.tw/2289/2363/2380/2382/10534/normalPost
+37,核三#1,plant,34,核三廠,complete,依所屬電廠控管；同廠多機或分廠合計仍屬本廠資料。,https://data.gov.tw/dataset/19995|https://www.taipower.com.tw/2289/2363/2380/2382/10534/normalPost
+38,核三#2,plant,34,核三廠,complete,依所屬電廠控管；同廠多機或分廠合計仍屬本廠資料。,https://data.gov.tw/dataset/19995|https://www.taipower.com.tw/2289/2363/2380/2382/10534/normalPost
+39,核二#1,plant,33,核二廠,complete,依所屬電廠控管；同廠多機或分廠合計仍屬本廠資料。,https://data.gov.tw/dataset/19995|https://www.taipower.com.tw/2289/2363/2380/2382/10534/normalPost
+40,核二#2,plant,33,核二廠,complete,依所屬電廠控管；同廠多機或分廠合計仍屬本廠資料。,https://data.gov.tw/dataset/19995|https://www.taipower.com.tw/2289/2363/2380/2382/10534/normalPost
+41,氣渦輪,shared,5,台中發電廠,partial,全系統合計；只對到台中部分機組，不能視為台中電廠出力。,https://data.gov.tw/dataset/19995|https://data.gov.tw/dataset/8934
+42,水里,plant,12,明潭發電廠,complete,依所屬電廠控管；同廠多機或分廠合計仍屬本廠資料。,https://data.gov.tw/dataset/19995|https://data.gov.tw/dataset/8934
+43,汽電共生,shared,,,unknown,汽電共生合計，無完整場站組成。,https://data.gov.tw/dataset/19995|https://data.gov.tw/dataset/8934
+44,海湖 (#1-#2),plant,24,海湖電廠,complete,依所屬電廠控管；同廠多機或分廠合計仍屬本廠資料。,https://data.gov.tw/dataset/19995|https://www.taipower.com.tw/2289/59899/59902/|https://www.taipower.com.tw/2289/2558/2387/10656/|https://www.moeaea.gov.tw/ecw/populace/content/Content.aspx?menu_id=999
+45,碧海,plant,14,東部發電廠,complete,依所屬電廠控管；同廠多機或分廠合計仍屬本廠資料。,https://data.gov.tw/dataset/19995|https://data.gov.tw/dataset/8934
+46,立霧,plant,14,東部發電廠,complete,依所屬電廠控管；同廠多機或分廠合計仍屬本廠資料。,https://data.gov.tw/dataset/19995|https://data.gov.tw/dataset/8934
+47,興達 (#1-#5),plant,18,興達發電廠,complete,依所屬電廠控管；同廠多機或分廠合計仍屬本廠資料。,https://data.gov.tw/dataset/19995|https://data.gov.tw/dataset/8934
+48,興達#1,plant,18,興達發電廠,complete,依所屬電廠控管；同廠多機或分廠合計仍屬本廠資料。,https://data.gov.tw/dataset/19995|https://data.gov.tw/dataset/8934
+49,興達#2,plant,18,興達發電廠,complete,依所屬電廠控管；同廠多機或分廠合計仍屬本廠資料。,https://data.gov.tw/dataset/19995|https://data.gov.tw/dataset/8934
+50,興達#3,plant,18,興達發電廠,complete,依所屬電廠控管；同廠多機或分廠合計仍屬本廠資料。,https://data.gov.tw/dataset/19995|https://data.gov.tw/dataset/8934
+51,興達#4,plant,18,興達發電廠,complete,依所屬電廠控管；同廠多機或分廠合計仍屬本廠資料。,https://data.gov.tw/dataset/19995|https://data.gov.tw/dataset/8934
+52,萬大,plant,19,萬大發電廠,complete,依所屬電廠控管；同廠多機或分廠合計仍屬本廠資料。,https://data.gov.tw/dataset/19995|https://data.gov.tw/dataset/8934
+53,谷關,plant,9,大甲溪發電廠,complete,依所屬電廠控管；同廠多機或分廠合計仍屬本廠資料。,https://data.gov.tw/dataset/19995|https://data.gov.tw/dataset/8934
+54,豐德(#1-#3),plant,31,豐德電廠,complete,依所屬電廠控管；同廠多機或分廠合計仍屬本廠資料。,https://data.gov.tw/dataset/19995|https://www.taipower.com.tw/2289/59899/59902/|https://www.taipower.com.tw/2289/2558/2387/10656/|https://www.moeaea.gov.tw/ecw/populace/content/Content.aspx?menu_id=999|https://www.sunbapower.com.tw/service/
+55,通霄 (#1-#6、GT#9),plant,21,通霄發電廠,complete,依所屬電廠控管；同廠多機或分廠合計仍屬本廠資料。,https://data.gov.tw/dataset/19995|https://data.gov.tw/dataset/8934
+56,鉅工,plant,12,明潭發電廠,complete,依所屬電廠控管；同廠多機或分廠合計仍屬本廠資料。,https://data.gov.tw/dataset/19995|https://data.gov.tw/dataset/8934
+57,離島,shared,11|6|3,尖山發電廠|塔山發電廠|協和電廠－珠山分廠,complete,尖山、塔山、珠山合計，不能拆成各廠出力。,https://data.gov.tw/dataset/19995|https://data.gov.tw/dataset/8934
+58,青山,plant,9,大甲溪發電廠,complete,依所屬電廠控管；同廠多機或分廠合計仍屬本廠資料。,https://data.gov.tw/dataset/19995|https://data.gov.tw/dataset/8934
+59,風力發電,shared,,,unknown,風力合計，網站少數風場不代表完整組成。,https://data.gov.tw/dataset/19995|https://data.gov.tw/dataset/8934
+60,馬鞍,plant,9,大甲溪發電廠,complete,依所屬電廠控管；同廠多機或分廠合計仍屬本廠資料。,https://data.gov.tw/dataset/19995|https://data.gov.tw/dataset/8934
+61,麥寮#1,plant,29,麥寮電廠,complete,依所屬電廠控管；同廠多機或分廠合計仍屬本廠資料。,https://data.gov.tw/dataset/19995|https://www.taipower.com.tw/2289/59899/59902/|https://www.taipower.com.tw/2289/2558/2387/10656/|https://www.moeaea.gov.tw/ecw/populace/content/Content.aspx?menu_id=999
+62,麥寮#2,plant,29,麥寮電廠,complete,依所屬電廠控管；同廠多機或分廠合計仍屬本廠資料。,https://data.gov.tw/dataset/19995|https://www.taipower.com.tw/2289/59899/59902/|https://www.taipower.com.tw/2289/2558/2387/10656/|https://www.moeaea.gov.tw/ecw/populace/content/Content.aspx?menu_id=999
+63,麥寮#3,plant,29,麥寮電廠,complete,依所屬電廠控管；同廠多機或分廠合計仍屬本廠資料。,https://data.gov.tw/dataset/19995|https://www.taipower.com.tw/2289/59899/59902/|https://www.taipower.com.tw/2289/2558/2387/10656/|https://www.moeaea.gov.tw/ecw/populace/content/Content.aspx?menu_id=999
+64,龍澗,plant,14,東部發電廠,complete,依所屬電廠控管；同廠多機或分廠合計仍屬本廠資料。,https://data.gov.tw/dataset/19995|https://data.gov.tw/dataset/8934

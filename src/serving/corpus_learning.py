@@ -563,6 +563,13 @@ class CorpusLearningService:
                     "reason": "query_unsuccessful",
                 }
             data = payload["data"]
+            if data.get("scope"):
+                # 電廠帳號看到的是受限子集，不能當成這個問句的標準答案。
+                return {
+                    "accepted": False,
+                    "status": "ignored",
+                    "reason": "plant_scoped_query",
+                }
             return self.submit(
                 question=str(data["question"]),
                 sql=str(data["sql"]),

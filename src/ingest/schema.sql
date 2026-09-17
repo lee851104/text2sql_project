@@ -122,7 +122,41 @@ CREATE TABLE meta_manifest (
     data_checksum TEXT NOT NULL
 );
 
+-- 帳號授權對照。dim_plant 只收錄有機組主檔的台電水火力電廠，但每日尖峰欄位還包含
+-- 民營與核能電廠，因此授權名冊獨立成表，不影響星狀模型的既有列數與外鍵。
+-- plant_id 1–22 及 b_column_id 必須與重建後的 dim_plant／dim_b_column 完全一致，
+-- 由 build_db 在建庫時逐筆比對；編號一旦漂移就中止建庫，不容許靜默錯置。
+CREATE TABLE dim_plant_scope (
+    plant_id INTEGER PRIMARY KEY,
+    plant_name TEXT NOT NULL UNIQUE,
+    plant_type TEXT NOT NULL CHECK (plant_type IN ('水力', '火力', '核能')),
+    fuel_types TEXT NOT NULL,
+    ownership TEXT NOT NULL CHECK (ownership IN ('台電', '民營')),
+    aliases TEXT NOT NULL DEFAULT ''
+);
+
+CREATE TABLE b_column_scope (
+    b_column_id INTEGER PRIMARY KEY REFERENCES dim_b_column(id),
+    access_scope TEXT NOT NULL CHECK (access_scope IN ('plant', 'shared')),
+    membership_status TEXT NOT NULL CHECK (membership_status IN ('complete', 'partial', 'unknown')),
+    note TEXT NOT NULL DEFAULT ''
+);
+
+CREATE TABLE bridge_b_column_plant (
+    b_column_id INTEGER NOT NULL REFERENCES dim_b_column(id),
+    plant_id INTEGER NOT NULL REFERENCES dim_plant_scope(plant_id),
+    PRIMARY KEY (b_column_id, plant_id)
+);
+
+CREATE TABLE outage_scope (
+    outage_id INTEGER PRIMARY KEY REFERENCES dim_outage(id),
+    plant_id INTEGER NOT NULL REFERENCES dim_plant_scope(plant_id),
+    mapping_level TEXT NOT NULL CHECK (mapping_level IN ('unit', 'plant_only'))
+);
+
 CREATE INDEX idx_daily_peak_column_date ON fact_daily_peak (b_column_id, date);
+CREATE INDEX idx_b_column_plant_plant ON bridge_b_column_plant (plant_id);
+CREATE INDEX idx_outage_scope_plant ON outage_scope (plant_id);
 CREATE INDEX idx_unit_name ON dim_unit (unit_name);
 CREATE INDEX idx_pitfall_target ON meta_pitfall (target_kind, target_name);
 CREATE INDEX idx_generation_cost_year_type ON fact_generation_cost (year, generation_type);
