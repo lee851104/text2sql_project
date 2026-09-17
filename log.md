@@ -2,6 +2,26 @@
 
 > 這份檔案在每個可驗證、可回退的儲存點更新。回退前需保留使用者原有的未提交變更。
 
+## CP-014 — 合併門檻 Skill 與 main 的 ruff 基線修復
+
+- 時間：2026-09-17 09:02 +08:00
+- 狀態：已完成
+- 目的：把 `docs/TEAM_4_ROLES.md` 文末「儲存點與合併檢查表」那七條人工檢查，變成每次合併前都跑得出同一份證據的自動門檻，避免四人分支併入 main 時靠口頭確認。
+- 新增 Skill：`.claude/skills/pre-merge-check/`，四件式結構。`scripts/check_merge.py` 執行 16 項檢查；`references/ownership.json` 以資料形式保存 74 條所有權、24 條禁入路徑、5 組機密樣式與允許清單，分工異動只改這個檔案不動程式；`references/merge_rules.md` 記錄每條檢查的規範出處；`templates/merge_report.md.template` 固定報告骨架。
+- 三級判定：BLOCK（衝突、機密外洩、禁入檔案、大型檔案、空白字元、ruff format、ruff check、pytest、node --check）／WARN（比較基準、工作目錄狀態、Owner 所有權、落後 main、commit 格式、log.md 儲存點、測試同步、文件同步）／PASS。任一 BLOCK 即 BLOCK；有 WARN 或 SKIP 即 WARN；有檢查未執行時不得判 PASS。離開碼 0／1／2 可接自動化。
+- 所有權採警告不阻擋：跨 Owner 在 TEAM_4_ROLES 中本來就合法，只需附交接單，故判斷權保留給人。比對以最長 pattern 優先，`log.md` 列為共享例外，比不到規則的檔案標為未指派並警告。
+- 本檢查唯讀：不執行 merge、push 或任何改動分支的操作，只輸出報告到 `reports/merge_check/`（已列入 .gitignore）。
+- 防假綠燈：比較基準一律取 `origin/<base>`，本機 main 落後時自動改用遠端並在報告載明（實測本機 `9a8ecad` 落後 `origin/main` `81fe958` 兩個 commit）；工作目錄有未提交變更時，ruff／pytest 驗的是工作目錄而非該 commit，列為 WARN 使其無法判定 PASS。
+- main 基線修復（事後確認為重工）：本分支先以 `ruff format` 重排 8 個受版控檔案並修正 `src/ingest/build_db.py` 的 import 順序；修復前模擬 CI 乾淨簽出時 `ruff check` 5 個錯誤、`ruff format --check` 7 個檔案不符。合併 `origin/main` 時發現 PR #2（`chore: fix CI formatting checks`）已獨立完成同一件事，且 8 個檔案逐字元相同，故本分支的 `style:` commit 不產生任何實際差異。此事由門檻的「與 main 的同步狀態」警告先行揭露 —— 若沿用落後的本機 main 當基準就不會發現。
+- 版控衛生：`extensions/`（暫存實驗）、`.codex-*/`（Codex 建置暫存，內含 node_modules 上百個 .py 會被 ruff 掃到）、`reports/merge_check/`（本檢查產出）列入 .gitignore。
+- 自動驗收：`uv run ruff format --check .`、`uv run ruff check .`、`uv run pytest -q`（197 passed）、`node --check src/serving/static/app.js`、`git diff --check` 全數通過；`create-skill` 的 `validate.py` 對本 Skill 回報 ERROR 0 / WARN 0。
+- 功能驗收：以合成 git repo 驗證埋入 `.env`＋`sk-` 金鑰、`data/` 產物、行尾空白與真實衝突時全部正確判 BLOCK（exit 2）；commit 格式、缺 log.md、缺測試、跨 Owner 正確判 WARN；本機 main 落後遠端時自動改用 `origin/main` 比較。修正兩個實測缺陷：git 對中文檔名的八進位跳脫使 `*.bat` 規則失效，以及 loopback 展示密碼 `PowerQuery@123` 被誤判為外洩（已列入允許清單並在報告留痕）。
+- 所有權實證審查：TEAM_4_ROLES 只在各角色最低驗收點名了部分測試檔，其餘原為檔名推論。改以「測試 import 哪個 production 模組」為依據重審，修正 6 條：`test_naming.py` B→A、`test_pitfalls.py` C→A、`test_readonly_db.py` C→B、`test_raw_data.py` A→D、`ATTRIBUTION.md` D→A，`reports/` 由整包歸 A 拆為資料品質產物歸 A、`eval_*` 與 `figures/` 歸 C。審查依據已記入 `references/merge_rules.md`。
+- 三個所有權爭議的處置：`src/text2sql/db.py`（`ReadOnlySQLite`）與 `tests/test_readonly_db.py` 改歸 C，唯讀保證是 C 的第一責任，比照 guards 從 `src/text2sql/` 劃出；`src/align/pitfalls.py` 留在 A 但列為跨組介面，改到即要求附交接單給 C；`tests/test_serving_auth.py` 原先同時列在 C 與 D 的最低驗收清單，先由新增的「所有權規則一致性」檢查 BLOCK 指名衝突，裁決後歸 C（登入安全的測試不應由整合角色自行變更即通過；D 在跨契約變更時仍跑全套 pytest），並移除 D 清單裡的該行。`docs/TEAM_4_ROLES.md` 的分工表、角色 Prompt 與檔案所有權表已同步，並加註尚未裁決項。
+- 新增兩項檢查：「所有權規則一致性」（同一路徑指派給多位 Owner 即 BLOCK，因為此時任何所有權判定都不可信）與「跨組介面交接」（改到 `handoff` 清單中的檔案即 WARN 並要求交接單）。後者擋的是評測結果失真，與 benchmark／corpus 隔離的洩漏控制無關。
+- 已知限制：ruff／pytest 只能反映目前簽出的工作目錄，檢查非當前分支時標記 SKIP 並將判定壓在 WARN，不自動切換分支以免影響使用者未提交的變更。尚未建立針對本 Skill 自身的自動化測試；PASS 判定至今未在實際執行中產生過。
+- 回退方式：本儲存點對 `origin/main` 的實際差異只有 `.claude/skills/pre-merge-check/`、`.gitignore`、`docs/TEAM_4_ROLES.md` 與本檔，回退 `feat/pre-merge-gate` 的合併即可；`style: apply ruff format to tracked sources` 與 PR #2 內容相同，回退它不會改變任何檔案內容。CP-001～013、已發布 Release 與使用者原有未提交變更（`reports/data_quality.json`）保持不動。
+
 ## CP-013 — 資料治理、專案交接與 Windows 一鍵展示
 
 - 時間：2026-09-13 22:25 +08:00

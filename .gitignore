@@ -14,6 +14,12 @@ data/
 /manifest.json
 /releases/**/*.zip
 
+# 合併門檻檢查報告：本機每次執行都會產生一份，屬於過程紀錄不是專案產出
+/reports/merge_check/
+
+# 暫存實驗目錄，不屬於專案產出
+/extensions/
+
 # ── 機密 ──
 .env
 *.key
@@ -34,3 +40,6 @@ venv/
 Thumbs.db
 .vscode/
 .idea/
+
+# Codex 建置暫存目錄（含 node_modules），不屬於專案產出
+/.codex-*/
