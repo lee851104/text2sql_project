@@ -864,7 +864,7 @@ def main() -> int:
                 {
                     "result": result,
                     "branch": branch,
-                    "base": base,
+                    "base": base_ref,
                     "report": str(out_path),
                     "findings": [f.as_dict() for f in findings],
                 },

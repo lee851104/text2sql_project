@@ -16,8 +16,10 @@
 - 版控衛生：`extensions/`（暫存實驗）、`.codex-*/`（Codex 建置暫存，內含 node_modules 上百個 .py 會被 ruff 掃到）、`reports/merge_check/`（本檢查產出）列入 .gitignore。
 - 自動驗收：`uv run ruff format --check .`、`uv run ruff check .`、`uv run pytest -q`（197 passed）、`node --check src/serving/static/app.js`、`git diff --check` 全數通過；`create-skill` 的 `validate.py` 對本 Skill 回報 ERROR 0 / WARN 0。
 - 功能驗收：以合成 git repo 驗證埋入 `.env`＋`sk-` 金鑰、`data/` 產物、行尾空白與真實衝突時全部正確判 BLOCK（exit 2）；commit 格式、缺 log.md、缺測試、跨 Owner 正確判 WARN；本機 main 落後遠端時自動改用 `origin/main` 比較。修正兩個實測缺陷：git 對中文檔名的八進位跳脫使 `*.bat` 規則失效，以及 loopback 展示密碼 `PowerQuery@123` 被誤判為外洩（已列入允許清單並在報告留痕）。
-- 已知限制：ruff／pytest 只能反映目前簽出的工作目錄，檢查非當前分支時標記 SKIP 並將判定壓在 WARN，不自動切換分支以免影響使用者未提交的變更。尚未建立針對本 Skill 自身的自動化測試。
-- 回退方式：依序回退 `feat: add pre-merge gate skill` 與 `style: apply ruff format to tracked sources` 這兩個 commit。CP-001～013、已發布 Release 與使用者原有未提交變更（`reports/data_quality.json`）保持不動。
+- 所有權實證審查：TEAM_4_ROLES 只在各角色最低驗收點名了部分測試檔，其餘原為檔名推論。改以「測試 import 哪個 production 模組」為依據重審，修正 6 條：`test_naming.py` B→A、`test_pitfalls.py` C→A、`test_readonly_db.py` C→B、`test_raw_data.py` A→D、`ATTRIBUTION.md` D→A，`reports/` 由整包歸 A 拆為資料品質產物歸 A、`eval_*` 與 `figures/` 歸 C。審查依據已記入 `references/merge_rules.md`。
+- 待四人裁決的所有權爭議（`docs/TEAM_4_ROLES.md` 本身的矛盾，尚未改動該文件）：`tests/test_serving_auth.py` 同時列在 C 與 D 的最低驗收清單，暫歸 C；`src/text2sql/db.py` 的 `ReadOnlySQLite` 依檔案規則屬 B，但「維持唯讀 SQL」寫在 C 的第一責任；`src/align/pitfalls.py` 位於 A 的目錄但產出 C 用於評測的語意陷阱。
+- 已知限制：ruff／pytest 只能反映目前簽出的工作目錄，檢查非當前分支時標記 SKIP 並將判定壓在 WARN，不自動切換分支以免影響使用者未提交的變更。尚未建立針對本 Skill 自身的自動化測試；PASS 判定至今未在實際執行中產生過。
+- 回退方式：依序回退 `fix: correct ownership rules from evidence-based audit`、`feat: add pre-merge gate skill` 與 `style: apply ruff format to tracked sources` 這三個 commit。CP-001～013、已發布 Release 與使用者原有未提交變更（`reports/data_quality.json`）保持不動。
 
 ## CP-013 — 資料治理、專案交接與 Windows 一鍵展示
 

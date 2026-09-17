@@ -53,6 +53,39 @@
 **四位成員都可以擔任 A／B／C／D 任一角色**，所以檢查的是「這批變更橫跨幾個 Owner 範圍」，
 不是「這個人是誰」。要針對特定角色驗收時才加 `--owner A`。
 
+### 測試檔的歸屬依據（2026-09-17 實證審查）
+
+`docs/TEAM_4_ROLES.md` 只在各角色「最低驗收」點名了部分測試檔，其餘是審查出來的。
+**判斷依據是測試 import 哪個 production 模組，不是檔名**，因為檔名會誤導：
+
+| 測試檔 | import 的模組 | 歸屬 | 備註 |
+|---|---|---|---|
+| `test_naming.py` | `align.naming` | A | 檔名像命名規則，實際是 `src/align/` 的名稱正規化 |
+| `test_pitfalls.py` | `align.crosswalk`、`align.pitfalls` | A | 檔名像 C 的語意陷阱，實際模組在 `src/align/` |
+| `test_readonly_db.py` | `text2sql.db` | B | 唯讀 SQL 聽起來像 C，但 C 只擁有兩個 guard 檔 |
+| `test_raw_data.py` | `serving.raw_data` | D | 名字像資料，實際是 `src/serving/` 的 HTTP 讀取層 |
+| `test_llm.py` | `text2sql.llm` | B | |
+| `test_promotion_gate.py` | `eval.promotion_gate` | C | |
+| `test_foundation.py` | `project_tasks` | D | |
+| `test_crosswalk.py`／`test_fetch.py`／`test_outage_align.py` | `align.*`、`ingest.*` | A | |
+
+`reports/` 是混合的：`data_quality.json`（`ingest/build_db.py` 產生）、`alignment.json`、
+`outage_unmatched.txt`（`align/__main__.py` 產生）歸 A；`eval_latest.json`、
+`eval_history.jsonl`、`figures/`（`eval/run_eval.py` 產生）歸 C。
+
+`ATTRIBUTION.md` 是資料來源顯名與快照版本，屬於 A 的「資料文件」，不是 D 的共用文件。
+
+### 三個尚未裁決的爭議
+
+這三項超出我能單方面決定的範圍，**需要四人確認後再改 `ownership.json`**：
+
+1. **`tests/test_serving_auth.py` 同時出現在 C 與 D 的最低驗收清單裡。** 目前歸 C（安全優先）。
+   這是 `docs/TEAM_4_ROLES.md` 本身的矛盾，建議在該文件裡一併修正。
+2. **`src/text2sql/db.py`（`ReadOnlySQLite`）** 依檔案規則屬 B，但「維持唯讀 SQL」寫在 C 的第一責任裡。
+   要嘛把它列入 C 的擁有範圍，要嘛在 C 的責任描述中註明它靠 B 的模組實作。
+3. **`src/align/pitfalls.py`** 在 A 的目錄裡，但產出的是 C 用來評測的語意陷阱。
+   目前歸 A（依檔案位置），跨組介面建議以交接單約定。
+
 ## 機密偵測的誤判處理
 
 只掃**新增的行**，跳過 `*.lock` 與 `tests/`。報告只記 `檔案:行號` 與樣式名稱，**不會把命中的內容寫進報告**。
