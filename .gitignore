@@ -43,3 +43,7 @@ Thumbs.db
 
 # Codex 建置暫存目錄（含 node_modules），不屬於專案產出
 /.codex-*/
+
+# 簡報建置暫存與簡報原始檔，不屬於專案產出
+/.presentation-build/
+/簡報_專案架構/
