@@ -1,0 +1,157 @@
+{
+  "_source": "docs/TEAM_4_ROLES.md（分工版本 2026-09-13／PowerQuery TW 0.3.0）＋ .github/workflows/ci.yml",
+  "_note": "分工異動時只改這個檔案，不要改 scripts/check_merge.py。pattern 以 / 結尾代表整個目錄；比對時最長的 pattern 優先（所以 src/serving/ 給 D，但 src/serving/admin_auth.py 給 C）。",
+  "base_branch": "main",
+  "max_file_bytes": 5242880,
+
+  "owners": {
+    "A": "資料生命週期與熱插拔",
+    "B": "Text2SQL、LLM 與語料治理",
+    "C": "安全、身分驗證與獨立評測",
+    "D": "API、runtime、前端與整合發表（Integration Owner）"
+  },
+
+  "shared": ["log.md"],
+
+  "ignore": ["reports/merge_check/"],
+
+  "rules": [
+    {"owner": "A", "pattern": "taipower_align/"},
+    {"owner": "A", "pattern": "src/align/"},
+    {"owner": "A", "pattern": "src/ingest/"},
+    {"owner": "A", "pattern": "src/serving/data_management.py"},
+    {"owner": "A", "pattern": "configs/align.yaml"},
+    {"owner": "A", "pattern": "configs/outage_overrides.yaml"},
+    {"owner": "A", "pattern": "docs/DATA_DICTIONARY.md"},
+    {"owner": "A", "pattern": "reports/"},
+    {"owner": "A", "pattern": "tests/test_database.py"},
+    {"owner": "A", "pattern": "tests/test_data_management.py"},
+    {"owner": "A", "pattern": "tests/test_outage_align.py"},
+    {"owner": "A", "pattern": "tests/test_crosswalk.py"},
+    {"owner": "A", "pattern": "tests/test_fetch.py"},
+    {"owner": "A", "pattern": "tests/test_raw_data.py"},
+
+    {"owner": "B", "pattern": "src/text2sql/"},
+    {"owner": "B", "pattern": "src/serving/corpus_learning.py"},
+    {"owner": "B", "pattern": "corpus/"},
+    {"owner": "B", "pattern": "configs/llm.yaml"},
+    {"owner": "B", "pattern": "configs/retriever.yaml"},
+    {"owner": "B", "pattern": "docs/TEXT2SQL_PIPELINE.md"},
+    {"owner": "B", "pattern": "tests/test_entities_aliases.py"},
+    {"owner": "B", "pattern": "tests/test_router.py"},
+    {"owner": "B", "pattern": "tests/test_retriever.py"},
+    {"owner": "B", "pattern": "tests/test_pipeline.py"},
+    {"owner": "B", "pattern": "tests/test_corpus_builder.py"},
+    {"owner": "B", "pattern": "tests/test_corpus_learning.py"},
+    {"owner": "B", "pattern": "tests/test_llm.py"},
+    {"owner": "B", "pattern": "tests/test_naming.py"},
+
+    {"owner": "C", "pattern": "src/text2sql/sql_guard.py"},
+    {"owner": "C", "pattern": "src/text2sql/semantic_guard.py"},
+    {"owner": "C", "pattern": "src/eval/"},
+    {"owner": "C", "pattern": "benchmarks/"},
+    {"owner": "C", "pattern": "src/serving/admin_auth.py"},
+    {"owner": "C", "pattern": "configs/guard.yaml"},
+    {"owner": "C", "pattern": "docs/EVALUATION.md"},
+    {"owner": "C", "pattern": "docs/SEMANTIC_GUARD.md"},
+    {"owner": "C", "pattern": "docs/SYSTEM_CARD.md"},
+    {"owner": "C", "pattern": "tests/test_sql_guard.py"},
+    {"owner": "C", "pattern": "tests/test_semantic_guard.py"},
+    {"owner": "C", "pattern": "tests/test_eval.py"},
+    {"owner": "C", "pattern": "tests/test_no_leakage.py"},
+    {"owner": "C", "pattern": "tests/test_admin_auth.py"},
+    {"owner": "C", "pattern": "tests/test_serving_auth.py"},
+    {"owner": "C", "pattern": "tests/test_pitfalls.py"},
+    {"owner": "C", "pattern": "tests/test_promotion_gate.py"},
+    {"owner": "C", "pattern": "tests/test_readonly_db.py"},
+
+    {"owner": "D", "pattern": "src/serving/"},
+    {"owner": "D", "pattern": "src/cli.py"},
+    {"owner": "D", "pattern": "src/project_tasks.py"},
+    {"owner": "D", "pattern": "configs/config.yaml"},
+    {"owner": "D", "pattern": "scripts/"},
+    {"owner": "D", "pattern": "*.bat"},
+    {"owner": "D", "pattern": "pyproject.toml"},
+    {"owner": "D", "pattern": "uv.lock"},
+    {"owner": "D", "pattern": "Makefile"},
+    {"owner": "D", "pattern": ".env.example"},
+    {"owner": "D", "pattern": ".gitignore"},
+    {"owner": "D", "pattern": ".github/"},
+    {"owner": "D", "pattern": ".claude/"},
+    {"owner": "D", "pattern": "README.md"},
+    {"owner": "D", "pattern": "ATTRIBUTION.md"},
+    {"owner": "D", "pattern": "PUBLIC_OFFLINE_SERVING.md"},
+    {"owner": "D", "pattern": "releases/"},
+    {"owner": "D", "pattern": "docs/SERVING.md"},
+    {"owner": "D", "pattern": "docs/TEAM_4_ROLES.md"},
+    {"owner": "D", "pattern": "docs/releases/"},
+    {"owner": "D", "pattern": "docs/superpowers/"},
+    {"owner": "D", "pattern": "tests/test_serving.py"},
+    {"owner": "D", "pattern": "tests/test_runtime_modes.py"},
+    {"owner": "D", "pattern": "tests/test_runtime_consistency.py"},
+    {"owner": "D", "pattern": "tests/test_data_management_api.py"},
+    {"owner": "D", "pattern": "tests/test_presentation.py"},
+    {"owner": "D", "pattern": "tests/test_windows_launcher.py"},
+    {"owner": "D", "pattern": "tests/test_foundation.py"}
+  ],
+
+  "forbidden": [
+    {"pattern": ".env", "reason": "機密檔，.gitignore 明列；只有 .env.example 可進版控"},
+    {"pattern": "**/.env", "reason": "機密檔，.gitignore 明列"},
+    {"pattern": "*.key", "reason": "金鑰檔，.gitignore 明列"},
+    {"pattern": "*.pem", "reason": "私鑰／憑證檔"},
+    {"pattern": "*.pfx", "reason": "私鑰／憑證檔"},
+    {"pattern": "data/", "reason": "資料產物依規格 §9 不進版控（raw／interim／processed 皆是）"},
+    {"pattern": "*.db", "reason": "執行期 SQLite 資料庫不進版控"},
+    {"pattern": "*.sqlite", "reason": "執行期 SQLite 資料庫不進版控"},
+    {"pattern": "*.sqlite3", "reason": "執行期 SQLite 資料庫不進版控"},
+    {"pattern": "logs/", "reason": ".gitignore 明列"},
+    {"pattern": ".powerquery-public/", "reason": "執行期工作區，.gitignore 明列"},
+    {"pattern": ".powerquery-data/", "reason": "執行期資料工作區"},
+    {"pattern": ".powerquery-learning/", "reason": "學習工作區"},
+    {"pattern": "架構參考/", "reason": "課程教材含未去識別化真實電號，.gitignore 明列"},
+    {"pattern": "files/", "reason": "原始快照由 GitHub Releases 保存，不重複提交"},
+    {"pattern": "manifest.csv", "reason": "原始快照 manifest 由 Releases 保存"},
+    {"pattern": "manifest.json", "reason": "原始快照 manifest 由 Releases 保存"},
+    {"pattern": "releases/**/*.zip", "reason": "release 壓縮包由 GitHub Releases 保存"},
+    {"pattern": "__pycache__/", "reason": "Python 快取"},
+    {"pattern": "**/__pycache__/**", "reason": "Python 快取"},
+    {"pattern": "*.pyc", "reason": "Python 快取"},
+    {"pattern": ".venv/", "reason": "虛擬環境不進版控"},
+    {"pattern": ".ruff_cache/", "reason": "工具快取"},
+    {"pattern": ".pytest_cache/", "reason": "工具快取"}
+  ],
+
+  "secret_patterns": [
+    {"name": "OpenAI API key", "regex": "sk-[A-Za-z0-9_-]{20,}"},
+    {"name": "AWS access key id", "regex": "AKIA[0-9A-Z]{16}"},
+    {"name": "GitHub token", "regex": "gh[pousr]_[A-Za-z0-9]{30,}"},
+    {"name": "private key block", "regex": "-----BEGIN [A-Z ]*PRIVATE KEY-----"},
+    {"name": "硬編碼 api key／secret／token", "regex": "(?i)(api[_-]?key|secret|token|passwd|password) *[:=] *[\"'][^\"' ]{12,}[\"']"}
+  ],
+
+  "_secret_allowlist_note": "已知且刻意進版控的值。確認過才加，每一條都要寫 reason；也可以在該行加註解 pre-merge-check: allow-secret 單點排除。",
+  "secret_allowlist": [
+    {
+      "regex": "PowerQuery@123",
+      "reason": "loopback-only 公開展示預設密碼，log.md CP-013 與 docs/SERVING.md 明載，刻意進版控；遠端登入一律拒絕"
+    }
+  ],
+
+  "conventional_commit_types": [
+    "feat", "fix", "docs", "style", "refactor", "perf", "test", "build", "ci", "chore", "revert"
+  ],
+
+  "doc_sync": [
+    {
+      "when": ["src/serving/app.py", "src/serving/runtime.py", "src/serving/data_management.py", "src/serving/admin_auth.py"],
+      "expect_any": ["src/serving/API_CONTRACT.md", "docs/SERVING.md", "README.md"],
+      "reason": "HTTP 行為或 runtime 有變更時，API 契約／啟動文件必須同步（TEAM_4_ROLES 合併檢查表）"
+    },
+    {
+      "when": ["configs/"],
+      "expect_any": ["README.md", "docs/", ".env.example"],
+      "reason": "設定項變更需要同步說明文件，避免其他 Owner 不知道新旗標"
+    }
+  ]
+}
