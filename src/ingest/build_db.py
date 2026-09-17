@@ -24,8 +24,8 @@ from align.pitfalls import generate_pitfalls
 from ingest.validate import (
     DAILY_SYSTEM_COLUMNS,
     PROJECT_ROOT,
-    parse_number,
     parse_generation_cost_rows,
+    parse_number,
     parse_source_date,
     parse_unit_date,
     read_csv,

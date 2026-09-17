@@ -1,0 +1,42 @@
+# 合併門檻檢查報告 — `{{BRANCH}}` → `{{BASE}}`
+
+> 判定：**{{RESULT}}** —— {{RESULT_TEXT}}
+
+| 項目 | 內容 |
+|---|---|
+| 來源分支 | `{{BRANCH}}` |
+| 目標分支 | `{{BASE}}` |
+| 分歧點 | `{{MERGE_BASE_SHORT}}` |
+| 待合併 commit | {{COMMIT_COUNT}} 個 |
+| 異動檔案 | {{FILE_COUNT}} 個 |
+| 涉及 Owner | {{OWNER_SUMMARY}} |
+| 檢查時間 | {{GENERATED_AT}} |
+
+判定依據：`docs/TEAM_4_ROLES.md`（四人所有權表與儲存點合併檢查表）、`.github/workflows/ci.yml`、
+`.claude/skills/pre-merge-check/references/merge_rules.md`。
+
+## 判定摘要
+
+| 檢查項目 | 結果 | 結論 |
+|---|---|---|
+{{SUMMARY_TABLE}}
+
+## 必須修正（BLOCK）
+
+{{BLOCK_SECTION}}
+
+## 需人工確認（WARN）
+
+{{WARN_SECTION}}
+
+## 已通過（PASS）
+
+{{PASS_SECTION}}
+
+## 下一步
+
+{{NEXT_ACTION}}
+
+---
+
+本報告由 `.claude/skills/pre-merge-check` 產生；本檢查只讀不寫，不會執行 merge、push 或改動任何分支。
