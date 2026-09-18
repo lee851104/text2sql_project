@@ -218,7 +218,16 @@ def resolve_base(base: str, do_fetch: bool) -> tuple[str, Finding]:
     """
     remote = f"origin/{base}"
     if do_fetch:
-        git("fetch", "origin", base, timeout=600)
+        # 明寫 refspec：`git fetch origin main` 只保證更新 FETCH_HEAD，
+        # 在 CI 的淺層／單分支 checkout 下不會建立 refs/remotes/origin/main，
+        # 後面就會找不到基準而整個中止
+        git(
+            "fetch",
+            "--no-tags",
+            "origin",
+            f"+refs/heads/{base}:refs/remotes/origin/{base}",
+            timeout=600,
+        )
 
     has_remote = git("rev-parse", "--verify", "--quiet", remote).returncode == 0
     has_local = git("rev-parse", "--verify", "--quiet", base).returncode == 0

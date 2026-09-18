@@ -2,6 +2,9 @@ name: merge-gate
 
 # 在每個 PR 上跑合併門檻，並把報告貼成 PR 留言給所有人看。
 # 使用 Actions 內建的 GITHUB_TOKEN，不需要任何額外憑證。
+#
+# 所有產物都寫到 $RUNNER_TEMP，不碰工作目錄 —— 門檻會把工作目錄裡的
+# 未提交檔案算成「髒」，寫在 repo 裡會讓它報告自己弄出來的 WARN。
 
 on:
   pull_request:
@@ -21,6 +24,14 @@ jobs:
           # 門檻需要完整歷史才能算 merge-base 與逐 commit 檢查
           fetch-depth: 0
 
+      - name: Fetch the base branch
+        # checkout 只建立 PR 分支的遠端追蹤 ref，門檻需要 origin/<base> 當比較基準。
+        # 這裡先驗一次，讓基準取不到時直接失敗，而不是等門檻中止才發現。
+        run: |
+          git fetch --no-tags origin \
+            "+refs/heads/${{ github.event.pull_request.base.ref }}:refs/remotes/origin/${{ github.event.pull_request.base.ref }}"
+          git rev-parse --verify "origin/${{ github.event.pull_request.base.ref }}"
+
       - uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
@@ -37,22 +48,48 @@ jobs:
           uv run python .claude/skills/pre-merge-check/scripts/check_merge.py \
             --base "${{ github.event.pull_request.base.ref }}" \
             --fetch \
-            --out gate-report.md
-          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+            --out "$RUNNER_TEMP/gate-report.md" 2>&1 | tee "$RUNNER_TEMP/gate-output.txt"
+          code=${PIPESTATUS[0]}
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+          echo "門檻離開碼：$code"
+
+      - name: Build the comment body
+        if: always()
+        run: |
+          if [ -s "$RUNNER_TEMP/gate-report.md" ]; then
+            cp "$RUNNER_TEMP/gate-report.md" "$RUNNER_TEMP/comment.md"
+          else
+            # 門檻自己掛掉時要講出來，不能安靜地什麼都不貼
+            {
+              echo "# 合併門檻檢查報告"
+              echo
+              echo "> **門檻執行失敗**（離開碼 ${{ steps.gate.outputs.exit_code }}），沒有產生報告。"
+              echo "> 這代表門檻本身有問題，不代表這個 PR 沒問題。"
+              echo
+              echo '```text'
+              tail -n 40 "$RUNNER_TEMP/gate-output.txt" || echo "（沒有輸出）"
+              echo '```'
+            } > "$RUNNER_TEMP/comment.md"
+          fi
 
       - name: Post the report as a pull request comment
-        if: always() && hashFiles('gate-report.md') != ''
+        if: always()
         # fork 發出的 PR 拿不到 pull-requests: write，貼不上去不該讓門檻整個失敗
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
         run: |
-          gh pr comment "$PR" --body-file gate-report.md --edit-last \
-            || gh pr comment "$PR" --body-file gate-report.md
+          gh pr comment "$PR" --body-file "$RUNNER_TEMP/comment.md" --edit-last \
+            || gh pr comment "$PR" --body-file "$RUNNER_TEMP/comment.md"
 
-      - name: Fail the check when the gate blocks
-        if: steps.gate.outputs.exit_code == '2'
+      - name: Fail on BLOCK or on a broken gate
+        if: always()
         run: |
-          echo "合併門檻判定 BLOCK，詳見 PR 留言裡的報告。"
-          exit 1
+          code="${{ steps.gate.outputs.exit_code }}"
+          case "$code" in
+            0) echo "PASS" ;;
+            1) echo "WARN —— 可合併，但報告裡有需要人工確認的項目" ;;
+            2) echo "BLOCK —— 詳見 PR 留言裡的報告"; exit 1 ;;
+            *) echo "門檻執行失敗（離開碼 $code）—— 門檻本身壞了，先修門檻"; exit 1 ;;
+          esac

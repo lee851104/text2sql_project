@@ -235,3 +235,28 @@ def test_cli_exits_2_and_writes_a_report_when_blocking(repo: Path, tmp_path: Pat
     body = report.read_text(encoding="utf-8")
     assert "**BLOCK**" in body
     assert "禁止進版控的檔案" in body
+
+
+def test_cli_exits_3_when_the_gate_itself_cannot_run(repo: Path, tmp_path: Path) -> None:
+    """離開碼契約：3 代表門檻自己壞了，不是分支有問題。
+
+    CI 的 merge-gate workflow 依賴這個區分 —— 3 必須讓檢查失敗並貼出錯誤，
+    否則門檻掛掉會被當成通過。
+    """
+    proc = subprocess.run(
+        [
+            sys.executable,
+            str(GATE_SCRIPT),
+            "no-such-branch",
+            "--no-ci",
+            "--out",
+            str(tmp_path / "r.md"),
+        ],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    assert proc.returncode == 3, proc.stdout + proc.stderr
+    assert not (tmp_path / "r.md").exists()

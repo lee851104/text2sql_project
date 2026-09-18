@@ -2,6 +2,19 @@
 
 > 這份檔案在每個可驗證、可回退的儲存點更新。回退前需保留使用者原有的未提交變更。
 
+## CP-018 — 修復 CI 門檻靜默失敗
+
+- 時間：2026-09-18 17:40 +08:00
+- 狀態：已完成
+- 現象：CP-017 的 merge-gate workflow 在 PR #4 上回報 Success，但沒有貼出任何報告，且 gate job 只跑了 9 秒（光 pytest 在 CI 就要約 50 秒）。實際上門檻根本沒執行到 ruff 與 pytest。
+- 根因一（門檻中止）：`actions/checkout` 只建立 PR 分支的遠端追蹤 ref。`--fetch` 原本執行 `git fetch origin main`，這只保證更新 `FETCH_HEAD`，不會建立 `refs/remotes/origin/main`，因此 `resolve_base()` 找不到基準而 `die()`（離開碼 3）。本機刪除 `refs/remotes/origin/main` 後複現：`git fetch origin main` 之後該 ref 仍不存在，改用明寫 refspec `+refs/heads/main:refs/remotes/origin/main` 則正確重建。
+- 根因二（失敗被當成通過，較嚴重）：workflow 只讓離開碼 2 失敗，離開碼 3 因此被視為成功；報告未產生又使貼留言步驟被 `hashFiles` 條件跳過，於是門檻壞掉時全程無聲。
+- 修正：`resolve_base()` 的 fetch 改為明寫 refspec；workflow 另加一個獨立的 base 分支 fetch 步驟並以 `git rev-parse --verify` 確認；離開碼改為 `0`／`1` 通過、`2` BLOCK 失敗、其餘一律視為門檻故障並失敗；報告不存在時改貼「門檻執行失敗」留言並附最後 40 行輸出，不再靜默跳過。
+- 測試：`tests/test_merge_gate.py` 新增離開碼契約測試（不存在的分支 → 離開碼 3 且不產生報告），鎖住 workflow 依賴的這個區分。全檔 13 項通過。
+- CI 實證：PR #5 上 `github-actions` 已成功貼出完整報告（判定 WARN、15 PASS），證實修正有效，比較基準該項顯示「以 origin/main 為基準」，確認基準解析已正常。
+- 追加修正（門檻報告自己造成的 WARN）：workflow 原本把 `gate-output.txt` 與 `gate-report.md` 寫在 repo 根目錄，門檻的「工作目錄狀態」把它們算成未提交變更，於是每個 PR 都會多出一個自己造成的 WARN 並使判定無法為 PASS。所有產物改寫入 `$RUNNER_TEMP`；同時把 `--fetch` 加回門檻呼叫，消除報告中「未加 --fetch」這句在 CI 情境下會誤導的註記（獨立的 base fetch 步驟保留，作用是讓基準取不到時提早失敗）。
+- 回退方式：回退本 CP 對應的 commit；CP-017 的 workflow 會回到會靜默失敗的版本。
+
 ## CP-017 — 合併門檻報告自動貼上 PR
 
 - 時間：2026-09-18 17:05 +08:00
