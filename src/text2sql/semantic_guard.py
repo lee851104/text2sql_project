@@ -256,6 +256,22 @@ class SemanticGuard:
                 evidence={"default_range": list(self.data_range)},
             )
 
+        renewable_words = ("太陽能", "太陽光電", "光電", "風力", "地熱", "再生能源", "綠電")
+        nationwide_words = ("全國", "全台", "全臺", "台灣", "臺灣", "各縣市", "全部")
+        for rule in self._targets("RENEWABLE_SELF_BUILT_ONLY"):
+            if (
+                any(word in compact for word in renewable_words)
+                and any(word in compact for word in nationwide_words)
+                and any(word in compact for word in ("發電量", "度數", "發了多少", "總量"))
+            ):
+                return self._decision(
+                    "disclose",
+                    rule.code,
+                    rule.reason,
+                    rule.suggestion,
+                    evidence=dict(rule.evidence),
+                )
+
         resolution = resolve_peak_column(compact, self.peak_columns)
         if resolution.ambiguous:
             return self._decision(
@@ -402,6 +418,18 @@ class SemanticGuard:
         question_decision = self.check_question(question, entities)
         if question_decision.code != "OK":
             return question_decision
+
+        # 這個檢視的涵蓋範圍只有台電自建場站，任何查詢都必須帶著範圍說明回去，
+        # 否則數字看起來合理但比全國實際值小一個數量級。
+        if any(table.name == "v_re_generation" for table in tree.find_all(exp.Table)):
+            for rule in self._targets("RENEWABLE_SELF_BUILT_ONLY"):
+                return self._decision(
+                    "disclose",
+                    rule.code,
+                    rule.reason,
+                    rule.suggestion,
+                    evidence=dict(rule.evidence),
+                )
 
         where = tree.args.get("where")
         if where is not None:

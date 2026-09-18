@@ -246,7 +246,12 @@ staging corpus → benchmark 回歸通過 → 正式 corpus
 | 站名對齊 | 64／65（98.5%），未處理前為 10／65 |
 | 場址明細 | 93 列，容量 757,960 瓩，縣市解析 93／93 |
 | 發電量 | 1,976 列，1,959 筆可用、16 筆缺值、1 筆修復 |
-| 未對齊 | 僅 `中屯風力`；月報證實該站存在，是場址主檔漏收，保留原名不猜測 |
+| 未對齊 | 0。`中屯風力` 經月報證實存在（4,800 瓩、112.10.19 起安全性停機），以補充檔補上並標為 `supplemented` |
+| 已上線 | `dim_re_site` 65 站、`fact_re_monthly` 1,976 月、`v_re_generation` 可查詢 |
+
+對齊率與覆蓋率分開報：**對齊率 98.5%** 只算兩個官方檔真正對上的 64 站，
+**覆蓋率 100%** 才包含補充檔補上的那一站，避免把「補上的」講成「對上的」。
+任何查到 `v_re_generation` 的問題都會附 `RENEWABLE_SELF_BUILT_ONLY` 範圍揭露。
 
 缺值一律存 NULL 而不是 0，`suspect` 值不列入加總，未對齊的名稱保留原值。
 規則放在 [`src/align/renewable.py`](src/align/renewable.py)（無 I/O 純函式），
@@ -266,6 +271,8 @@ dim_plant ──< dim_unit ──< bridge_b_column
                               │
                               ├── dim_date
                               └── dim_outage
+
+dim_re_site ──< fact_re_monthly        台電自建再生能源，月粒度淨發電量
 
 meta_manifest   資料版本、涵蓋期間與來源
 meta_pitfall    已知限制、受影響對象與守門規則依據

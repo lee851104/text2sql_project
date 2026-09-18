@@ -40,6 +40,11 @@ def test_database_contains_star_schema_and_semantic_views(tmp_path: Path) -> Non
     assert report["table_counts"]["fact_daily_peak"] == 36_928
     assert report["table_counts"]["fact_daily_system"] == 577
     assert report["table_counts"]["dim_outage"] == 138
+    assert report["table_counts"]["dim_re_site"] == 65
+    assert report["table_counts"]["fact_re_monthly"] == 1_976
+    # 場址主檔 93 列明細（4 列小計已剔除）加 1 筆補充檔；直接加總 97 列會多算近一倍。
+    assert report["renewable"]["capacity_kw"] == 762_760
+    assert report["renewable"]["unmatched"] == []
 
     with sqlite3.connect(target) as connection:
         views = {
@@ -48,7 +53,14 @@ def test_database_contains_star_schema_and_semantic_views(tmp_path: Path) -> Non
                 "SELECT name FROM sqlite_master WHERE type = 'view' ORDER BY name"
             )
         }
-        assert views == {"v_generation_cost", "v_outage", "v_peak", "v_system", "v_unit"}
+        assert views == {
+            "v_generation_cost",
+            "v_outage",
+            "v_peak",
+            "v_re_generation",
+            "v_system",
+            "v_unit",
+        }
         assert connection.execute("SELECT COUNT(*) FROM v_peak").fetchone()[0] == 36_928
         assert connection.execute("SELECT COUNT(*) FROM v_system").fetchone()[0] == 577
         assert (

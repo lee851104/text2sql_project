@@ -62,6 +62,7 @@ VIEW_SOURCE_SLOTS = {
     "v_peak": ("daily_csv", "daily_long_csv", "crosswalk_csv", "units_csv"),
     "v_outage": ("outage_csv", "units_csv"),
     "v_generation_cost": ("generation_cost_csv",),
+    "v_re_generation": ("re_sites_csv", "re_generation_csv", "re_sites_supplement_csv"),
 }
 
 

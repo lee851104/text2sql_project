@@ -10,6 +10,7 @@ import pytest
 
 from align.renewable import (
     align_stations,
+    build_station_records,
     chinese_part,
     is_subtotal,
     normalize_station,
@@ -156,3 +157,131 @@ class TestAlignStations:
         assert summary["matched"] == 1
         assert summary["generation_only"] == 1
         assert summary["unmatched"] == ["中屯風力"]
+
+
+class TestSupplementedStations:
+    """場址主檔漏收的站，靠補充檔補上時必須和官方對齊結果分得開。"""
+
+    def test_supplement_matches_as_a_distinct_status(self) -> None:
+        links = align_stations(
+            ["石門風力發電站"],
+            ["石門風力", "中屯風力"],
+            supplement_names=["中屯風力發電站"],
+        )
+        statuses = {link.key: link.status for link in links}
+        assert statuses == {"石門風力": "matched", "中屯風力": "supplemented"}
+
+    def test_official_master_wins_over_a_supplement(self) -> None:
+        links = align_stations(
+            ["中屯風力發電站"], ["中屯風力"], supplement_names=["中屯風力發電站"]
+        )
+        assert [link.status for link in links] == ["matched"]
+
+    def test_summary_separates_alignment_from_coverage(self) -> None:
+        """對齊率只算兩個官方檔真的對上的，補充檔算進覆蓋率。"""
+        summary = summarize_alignment(
+            align_stations(
+                ["石門風力發電站"],
+                ["石門風力", "中屯風力"],
+                supplement_names=["中屯風力發電站"],
+            )
+        )
+        assert summary["match_rate"] == 0.5
+        assert summary["coverage_rate"] == 1.0
+        assert summary["unmatched"] == []
+        assert summary["supplemented_names"] == ["中屯風力"]
+
+
+class TestBuildStationRecords:
+    KEY_MAP = {
+        "發電站編號": "發電站編號",
+        "發電站名稱": "發電站名稱",
+        "能源別": "能源別",
+        "地址": "地址",
+        "裝置容量(瓩)": "裝置容量(瓩)",
+        "風機數量": "風機數量",
+        "型號": "型號",
+        "申設狀態": "申設狀態",
+    }
+
+    @staticmethod
+    def _site(station_id: str, name: str, capacity: str, **overrides: str) -> dict[str, str]:
+        row = {
+            "發電站編號": station_id,
+            "發電站名稱": name,
+            "能源別": "陸域風力/Onshore Wind",
+            "地址": "彰化縣伸港鄉",
+            "裝置容量(瓩)": capacity,
+            "風機數量": "4",
+            "型號": "Vestas V47",
+            "申設狀態": "取得執照",
+        }
+        row.update(overrides)
+        return row
+
+    def test_sums_the_sites_of_one_station(self) -> None:
+        """彰工風力在 17141 是 4 個場址，入庫粒度是發電站。"""
+        records = build_station_records(
+            [
+                self._site("1", "彰工風力發電站", "46000"),
+                self._site("2", "彰工風力發電站", "16000"),
+            ],
+            self.KEY_MAP,
+        )
+        assert len(records) == 1
+        assert records[0].capacity_kw == 62000
+        assert records[0].site_count == 2
+        assert records[0].turbine_count == 8
+        assert records[0].county == "彰化縣"
+        assert records[0].source == "official"
+
+    def test_drops_subtotal_rows_so_capacity_cannot_double(self) -> None:
+        records = build_station_records(
+            [
+                self._site("1", "彰工風力發電站", "46000"),
+                self._site("陸域風力小計", "18站", "332940", 地址="含試運轉中機組"),
+            ],
+            self.KEY_MAP,
+        )
+        assert [record.station_name for record in records] == ["彰工風力"]
+        assert sum(record.capacity_kw for record in records) == 46000
+
+    def test_appends_a_supplement_marked_as_such(self) -> None:
+        records = build_station_records(
+            [self._site("1", "彰工風力發電站", "46000")],
+            self.KEY_MAP,
+            supplement_rows=[
+                {
+                    "station_name": "中屯風力發電站",
+                    "energy_type": "陸域風力",
+                    "capacity_kw": "4800",
+                    "unit_count": "8",
+                    "county": "澎湖縣",
+                    "status_note": "112.10.19起安全性停機",
+                }
+            ],
+        )
+        supplemented = [record for record in records if record.source == "supplement"]
+        assert len(supplemented) == 1
+        assert supplemented[0].station_name == "中屯風力"
+        assert supplemented[0].capacity_kw == 4800
+        assert supplemented[0].note == "112.10.19起安全性停機"
+
+    def test_never_lets_a_supplement_shadow_the_official_master(self) -> None:
+        records = build_station_records(
+            [self._site("1", "彰工風力發電站", "46000")],
+            self.KEY_MAP,
+            supplement_rows=[
+                {
+                    "station_name": "彰工風力發電站",
+                    "energy_type": "陸域風力",
+                    "capacity_kw": "1",
+                    "unit_count": "1",
+                    "county": "彰化縣",
+                    "status_note": "",
+                }
+            ],
+        )
+        assert len(records) == 1
+        assert records[0].source == "official"
+        assert records[0].capacity_kw == 46000

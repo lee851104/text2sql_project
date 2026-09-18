@@ -14,8 +14,10 @@
 | 發電站名稱對齊，產出可稽核 crosswalk | ✅ 64/65 對齊（98.5%） |
 | 人工裁決與依據 | ✅ `configs/renewable_overrides.yaml` |
 | 規則測試 | ✅ 34 項，全部取自真實列 |
-| `dim_re_site`／`fact_re_monthly`／`v_re_generation` | ⬜ 未開始 |
-| 限定「台電自建」範圍的 disclose 規則 | ⬜ 未開始 |
+| 場址主檔漏收的站以可查證來源補上 | ✅ `taipower_align/re_sites_supplement.csv` |
+| `dim_re_site`／`fact_re_monthly`／`v_re_generation` | ✅ 65 站、1,976 月 |
+| 限定「台電自建」範圍的 disclose 規則 | ✅ `RENEWABLE_SELF_BUILT_ONLY` |
+| 離線 router 可回答（無需 API key） | ✅ `renewable_generation`／`renewable_site` |
 | 8931 補 `dim_b_column` 的無主檔欄位 | ⬜ 未開始 |
 
 執行 `uv run python -m align` 會重建 `taipower_align/re_station_crosswalk.csv`
@@ -167,11 +169,9 @@ JSON 頂層帶 `DateTime`（實測 `2026-09-18T19:40:00`），是整份快照的
 ## 接入順序
 
 0. ~~**清洗與對齊層**~~ —— 已完成，見上方。
-1. **17141 場址主檔** —— 單位與 `units.csv` 相同、只有 97 列、結構最單純。剔除小計列後
-   建立 `dim_re_site`，地址解析縣市併入 `dim_plant`。
-2. **17140 月發電量** —— 建立 `fact_re_monthly` 與 `v_re_generation`，以 1 產生的名稱
-   crosswalk 對齊。同時新增 disclose 規則限定「台電自建」範圍，並放寬 `SemanticGuard`
-   對「發電量」一詞的一律攔截：改為在有 `fact_re_monthly` 可答時給出範圍受限的答案。
+1. ~~**17141 場址主檔**~~ —— 已完成。剔除小計後建立 `dim_re_site`，粒度為一列一發電站。
+2. ~~**17140 月發電量**~~ —— 已完成。`fact_re_monthly` 1,976 列、`v_re_generation` 上線，
+   `RENEWABLE_SELF_BUILT_ONLY` 在問句層與 SQL 層都會附範圍揭露。
 3. **8931 機組容量** —— 只取 `機組名稱` 與 `裝置容量(MW)` 兩欄補 `dim_b_column` 的
    21 個無主檔欄位（×1000 換算）。`淨發電量` 欄不入事實表。`備註` 的運轉狀態先寫成
    `meta_pitfall` 規則，不建獨立維度。

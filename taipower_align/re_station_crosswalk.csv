@@ -1,6 +1,6 @@
 station_key,status,energy_type,county,site_name,generation_name,site_count,capacity_kw,months,total_kwh,missing_months
 中大,matched,太陽能,桃園市,中大,中大,1,40,31,88993,0
-中屯風力,generation_only,陸域風力,,,中屯風力,0,0,21,0,15
+中屯風力,supplemented,陸域風力,澎湖縣,中屯風力發電站,中屯風力,0,4800,21,0,15
 中科,matched,太陽能,台中市,中科,中科,1,198,31,634530,0
 中部儲運中心太陽光電,matched,太陽能,台中市,中部儲運中心太陽光電發電站,中部儲運中心太陽光電,1,92,31,245263,0
 仁澤地熱,matched,地熱,宜蘭縣,仁澤地熱,仁澤地熱,1,840,31,6945014,0

@@ -57,6 +57,102 @@ def parse_county(address: str) -> str | None:
     return match.group(1) if match else None
 
 
+def chinese_key_map(fieldnames: Iterable[str]) -> dict[str, str]:
+    """Map the Chinese side of each bilingual header back to its raw column name."""
+    return {chinese_part(name): name for name in fieldnames}
+
+
+@dataclass(frozen=True)
+class StationRecord:
+    """One 發電站 after the 場址 rows of 17141 are aggregated.
+
+    17141 記錄的是場址，同一個發電站可以有多個場址（彰工風力有 4 個）。
+    入庫粒度是發電站，因此容量與風機數相加、型號與申設狀態以 `|` 併列。
+    `source` 區分官方主檔與補充檔，兩者在查詢結果中必須可分辨。
+    """
+
+    station_name: str
+    energy_type: str
+    county: str
+    site_count: int
+    capacity_kw: int
+    turbine_count: int | None
+    models: str
+    application_status: str
+    source: str
+    note: str
+
+
+def _joined(values: Iterable[str]) -> str:
+    return "|".join(sorted({value.strip() for value in values if value.strip()}))
+
+
+def _optional_int(value: str) -> int | None:
+    text = value.strip()
+    return int(text) if text.isdigit() else None
+
+
+def build_station_records(
+    site_rows: Iterable[Mapping[str, str]],
+    key_map: Mapping[str, str],
+    *,
+    supplement_rows: Iterable[Mapping[str, str]] = (),
+) -> list[StationRecord]:
+    """Aggregate 17141 場址 rows into one record per station, then append supplements.
+
+    Subtotal rows are dropped here rather than by the caller, so no caller can
+    forget and double the capacity.  A supplement whose station already exists in
+    the official master is ignored — the official row wins.
+    """
+    grouped: dict[str, list[Mapping[str, str]]] = {}
+    for row in site_rows:
+        if is_subtotal(row[key_map["發電站編號"]]):
+            continue
+        grouped.setdefault(normalize_station(row[key_map["發電站名稱"]]), []).append(row)
+
+    records = [
+        StationRecord(
+            station_name=name,
+            energy_type=_joined(chinese_part(row[key_map["能源別"]]) for row in rows),
+            county=_joined(
+                county for county in (parse_county(row[key_map["地址"]]) for row in rows) if county
+            ),
+            site_count=len(rows),
+            capacity_kw=sum(int(row[key_map["裝置容量(瓩)"]]) for row in rows),
+            turbine_count=sum(
+                count
+                for count in (_optional_int(row[key_map["風機數量"]]) for row in rows)
+                if count is not None
+            )
+            or None,
+            models=_joined(chinese_part(row[key_map["型號"]]) for row in rows),
+            application_status=_joined(row[key_map["申設狀態"]] for row in rows),
+            source="official",
+            note="",
+        )
+        for name, rows in sorted(grouped.items())
+    ]
+
+    known = {record.station_name for record in records}
+    records.extend(
+        StationRecord(
+            station_name=normalize_station(row["station_name"]),
+            energy_type=row["energy_type"].strip(),
+            county=row["county"].strip(),
+            site_count=0,
+            capacity_kw=int(row["capacity_kw"]),
+            turbine_count=_optional_int(row.get("unit_count", "")),
+            models="",
+            application_status="",
+            source="supplement",
+            note=row.get("status_note", "").strip(),
+        )
+        for row in supplement_rows
+        if normalize_station(row["station_name"]) not in known
+    )
+    return sorted(records, key=lambda record: record.station_name)
+
+
 @dataclass(frozen=True)
 class GenerationValue:
     """One `發電量(度)` cell with its parse outcome.
@@ -110,6 +206,8 @@ class StationLink:
     site_name: str | None
     generation_name: str | None
     status: str
+    """`matched`（兩個官方檔都有）、`supplemented`（場址主檔沒有，靠
+    `re_sites_supplement.csv` 的第三方來源補上）、`site_only`、`generation_only`。"""
 
 
 def align_stations(
@@ -117,15 +215,25 @@ def align_stations(
     generation_names: Iterable[str],
     *,
     aliases: Mapping[str, str] | None = None,
+    supplement_names: Iterable[str] = (),
 ) -> list[StationLink]:
     """Match 17141 sites to 17140 generation rows on the normalized station key.
 
     `aliases` maps a **generation-side** normalized key to the **site-side** key it
     was manually confirmed to be; anything not covered stays `site_only` or
     `generation_only` with its original name preserved.
+
+    `supplement_names` are stations the official 場址主檔 omits but a cited source
+    confirms.  They match as `supplemented`, never as `matched`, so a reader can
+    always tell how many stations the two official files really agreed on.
     """
     alias_map = dict(aliases or {})
     sites = {normalize_station(name): chinese_part(name) for name in site_names}
+    supplement = {
+        normalize_station(name): chinese_part(name)
+        for name in supplement_names
+        if normalize_station(name) not in sites
+    }
     generation: dict[str, str] = {}
     for name in generation_names:
         generation[alias_map.get(normalize_station(name), normalize_station(name))] = chinese_part(
@@ -135,19 +243,28 @@ def align_stations(
     links = [
         StationLink(
             key=key,
-            site_name=sites.get(key),
+            site_name=sites.get(key) or supplement.get(key),
             generation_name=generation.get(key),
-            status=(
-                "matched"
-                if key in sites and key in generation
-                else "site_only"
-                if key in sites
-                else "generation_only"
-            ),
+            status=_link_status(key, sites, supplement, generation),
         )
-        for key in sorted(set(sites) | set(generation))
+        for key in sorted(set(sites) | set(supplement) | set(generation))
     ]
     return links
+
+
+def _link_status(
+    key: str,
+    sites: Mapping[str, str],
+    supplement: Mapping[str, str],
+    generation: Mapping[str, str],
+) -> str:
+    if key in generation:
+        if key in sites:
+            return "matched"
+        if key in supplement:
+            return "supplemented"
+        return "generation_only"
+    return "site_only"
 
 
 def summarize_alignment(links: Iterable[StationLink]) -> dict[str, object]:
@@ -155,12 +272,18 @@ def summarize_alignment(links: Iterable[StationLink]) -> dict[str, object]:
     items = list(links)
     by_status = {
         status: sum(link.status == status for link in items)
-        for status in ("matched", "site_only", "generation_only")
+        for status in ("matched", "supplemented", "site_only", "generation_only")
     }
     total = len(items)
+    covered = by_status["matched"] + by_status["supplemented"]
     return {
         "total": total,
         **by_status,
+        # 只算兩個官方檔真正對上的比率，補充檔不計入，避免把覆蓋率當成對齊率。
         "match_rate": round(by_status["matched"] / total, 4) if total else 0.0,
-        "unmatched": sorted(link.key for link in items if link.status != "matched"),
+        "coverage_rate": round(covered / total, 4) if total else 0.0,
+        "unmatched": sorted(
+            link.key for link in items if link.status in {"site_only", "generation_only"}
+        ),
+        "supplemented_names": sorted(link.key for link in items if link.status == "supplemented"),
     }

@@ -51,6 +51,11 @@ def _renewable_alignment(overrides):
     align_root = PROJECT_ROOT / "taipower_align"
     sites, site_key = _read_bilingual_csv(align_root / "re_sites.csv")
     generation, gen_key = _read_bilingual_csv(align_root / "re_generation.csv")
+    supplement_path = align_root / "re_sites_supplement.csv"
+    supplement: list[dict[str, str]] = []
+    if supplement_path.is_file():
+        with supplement_path.open(encoding="utf-8-sig", newline="") as handle:
+            supplement = list(csv.DictReader(handle))
 
     subtotals = [row for row in sites if is_subtotal(row[site_key["發電站編號"]])]
     detail = [row for row in sites if not is_subtotal(row[site_key["發電站編號"]])]
@@ -65,8 +70,10 @@ def _renewable_alignment(overrides):
         [row[site_key["發電站名稱"]] for row in detail],
         [row[gen_key["發電站名稱"]] for row in generation],
         aliases=overrides.get("station_aliases") or {},
+        supplement_names=[row["station_name"] for row in supplement],
     )
     aliases = overrides.get("station_aliases") or {}
+    supplement_by_key = {normalize_station(row["station_name"]): row for row in supplement}
     site_rows: dict[str, list] = {}
     for row in detail:
         site_rows.setdefault(normalize_station(row[site_key["發電站名稱"]]), []).append(row)
@@ -79,12 +86,15 @@ def _renewable_alignment(overrides):
     for link in links:
         owned = site_rows.get(link.key, [])
         produced = gen_rows.get(link.key, [])
+        extra = supplement_by_key.get(link.key)
         counties = {
             county for county in (parse_county(row[site_key["地址"]]) for row in owned) if county
-        }
-        energies = {chinese_part(row[site_key["能源別"]]) for row in owned} or {
-            chinese_part(row[gen_key["能源別"]]) for row, _ in produced
-        }
+        } or ({extra["county"]} if extra else set())
+        energies = (
+            {chinese_part(row[site_key["能源別"]]) for row in owned}
+            or ({extra["energy_type"]} if extra else set())
+            or {chinese_part(row[gen_key["能源別"]]) for row, _ in produced}
+        )
         crosswalk.append(
             {
                 "station_key": link.key,
@@ -94,7 +104,8 @@ def _renewable_alignment(overrides):
                 "site_name": link.site_name or "",
                 "generation_name": link.generation_name or "",
                 "site_count": len(owned),
-                "capacity_kw": sum(int(row[site_key["裝置容量(瓩)"]]) for row in owned),
+                "capacity_kw": sum(int(row[site_key["裝置容量(瓩)"]]) for row in owned)
+                or (int(extra["capacity_kw"]) if extra else 0),
                 "months": len(produced),
                 "total_kwh": sum(value.kwh for _, value in produced if value.kwh is not None),
                 "missing_months": sum(value.kwh is None for _, value in produced),
@@ -118,6 +129,7 @@ def _renewable_alignment(overrides):
             "subtotal": len(subtotals),
             "capacity_kw": sum(int(row[site_key["裝置容量(瓩)"]]) for row in detail),
             "subtotal_capacity_kw": sum(int(row[site_key["裝置容量(瓩)"]]) for row in subtotals),
+            "supplement": len(supplement),
         },
         "generation": {
             "rows": len(generation),

@@ -205,3 +205,70 @@ def test_bucket_only_rule_also_blocks_sql_that_filters_on_that_plant() -> None:
     )
 
     assert (decision.severity, decision.code) == ("refuse", "PLANT_DAILY_ONLY_IN_BUCKET")
+
+
+RENEWABLE_PITFALL = SemanticPitfall(
+    code="RENEWABLE_SELF_BUILT_ONLY",
+    target_kind="global",
+    target_name="",
+    severity="disclose",
+    reason="v_re_generation 只涵蓋台電自建的再生能源場站，約為全國風光地熱的 3～4%。",
+    suggestion="回答時必須註明僅限台電自建場站。",
+    evidence={"view": "v_re_generation", "capacity_kw": 762760},
+)
+
+
+@pytest.fixture(scope="module")
+def renewable_guard() -> SemanticGuard:
+    return SemanticGuard(
+        data_range=DATA_RANGE, peak_columns=PEAK_COLUMNS, pitfalls=[RENEWABLE_PITFALL]
+    )
+
+
+class TestRenewableScopeDisclosure:
+    """這份資料只涵蓋台電自建場站，答案若不附範圍就會小一個數量級。"""
+
+    @pytest.mark.parametrize(
+        "question",
+        [
+            "2025年全台太陽能發電量是多少",
+            "全國風力發了多少度",
+            "台灣各縣市再生能源總量",
+        ],
+    )
+    def test_nationwide_renewable_question_discloses_the_scope(
+        self, renewable_guard: SemanticGuard, question: str
+    ) -> None:
+        decision = renewable_guard.check_question(question, extract_entities(question))
+        assert decision.severity == "disclose"
+        assert decision.code == "RENEWABLE_SELF_BUILT_ONLY"
+
+    def test_any_query_on_the_view_carries_the_scope_note(
+        self, renewable_guard: SemanticGuard
+    ) -> None:
+        query = GeneratedQuery(
+            sql='SELECT "發電站", SUM("發電量_度") FROM v_re_generation '
+            'WHERE "年度" = ? GROUP BY 1 LIMIT 20',
+            params=[2025],
+        )
+        decision = renewable_guard.check_sql("查詢", query, extract_entities("2025年"))
+        assert decision.severity == "disclose"
+        assert decision.code == "RENEWABLE_SELF_BUILT_ONLY"
+
+    @pytest.mark.parametrize(
+        "question",
+        ["台電自建風力2025年發了多少度", "2026年7月備轉容量率最低是哪一天"],
+    )
+    def test_questions_within_scope_are_not_flagged(
+        self, renewable_guard: SemanticGuard, question: str
+    ) -> None:
+        decision = renewable_guard.check_question(question, extract_entities(question))
+        assert decision.severity == "pass"
+
+    def test_other_views_are_untouched(self, renewable_guard: SemanticGuard) -> None:
+        query = GeneratedQuery(
+            sql='SELECT "日期", "尖峰負載_萬瓩" FROM v_system WHERE "日期" = ? LIMIT 1',
+            params=["2026-07-05"],
+        )
+        decision = renewable_guard.check_sql("查詢", query, extract_entities("2026年7月5日"))
+        assert decision.severity == "pass"

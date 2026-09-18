@@ -2,6 +2,21 @@
 
 > 這份檔案在每個可驗證、可回退的儲存點更新。回退前需保留使用者原有的未提交變更。
 
+## CP-022 — 再生能源資料表、語意檢視與範圍守門
+
+- 時間：2026-09-18 21:51 +08:00
+- 狀態：已完成
+- 補充檔：新增 `taipower_align/re_sites_supplement.csv`。`中屯風力發電站` 在 17141 場址主檔缺漏，依台電 11307 簡明月報第 8 頁補上 4,800 瓩、8 部機組、澎湖縣與「112.10.19起安全性停機」，並記錄來源網址。官方原檔維持不可變，補充資料獨立成檔，`source` 欄位讓兩者在查詢結果中可分辨。
+- 對齊率與覆蓋率分開：`summarize_alignment` 新增 `supplemented` 狀態與 `coverage_rate`。對齊率 98.5%（兩個官方檔真正對上的 64 站）與覆蓋率 100%（含補充的 65 站）分別報告，避免把補上的講成對上的。
+- Schema v4：新增 `dim_re_site`（一列一發電站，17141 同站多場址在入庫時彙總）與 `fact_re_monthly`（一站一月，`generation_kwh` 為淨發電量、缺值存 NULL，`value_status` 保留解析結果），以及語意檢視 `v_re_generation`。兩表同時納入表計數與資料庫內容 checksum。
+- 資料源：`ingest.fetch` 的三份新資料接入 `configs/config.yaml` 與建庫流程；`_insert_renewable` 對找不到主檔的發電量列採取回報並略過，不建立臆測對應。實測 65 站、1,976 月、0 筆無主檔。
+- 範圍守門：`RENEWABLE_SELF_BUILT_ONLY` 以 `meta_pitfall` 的 global 列驅動，問句層攔截「全國／全台／各縣市 + 再生能源 + 發電量」的問法，SQL 層則對任何觸及 `v_re_generation` 的查詢附上揭露。涵蓋範圍約為全國風光地熱的 3～4%，不附範圍的答案會小一個數量級。
+- 查詢面：`v_re_generation` 加入 `SqlGuard` 欄位白名單、`ScopeGuard` 的 `SHARED_VIEWS`（再生能源場站不在 34 筆電廠主檔的組織範圍內）與 `app.py` 的來源追溯對照；語料新增 1 條 DDL、2 條領域文件與 2 個範例。
+- 離線可用：`router.py` 新增 `renewable_generation` 與 `renewable_site` 兩個零成本 intent，公開離線展示不需 API key 即可回答。只說「風力」時涵蓋陸域與離岸，不替使用者挑一種。
+- 驗收：`ruff format --check`、`ruff check`、`git diff --check HEAD` 通過；`pytest -q` **276 passed**（新增 7 項對齊測試與 6 項守門測試）；`python -m align` status=pass；`python -m eval.run_eval` 意圖 100%、執行 100%、語意陷阱 100%，無回歸。實機以 CLI 驗證三個問句，均回傳資料且帶 `RENEWABLE_SELF_BUILT_ONLY` 揭露。
+- 未完成：8931 尚未用於補 `dim_b_column` 的 21 個無主檔欄位；火力與核能仍然沒有任何發電量資料。
+- 回退方式：回退 `feat: serve台電自建再生能源發電量 with scope disclosure` 這個 commit 並重建資料庫；CP-020／CP-021 的清洗與對齊層不受影響。
+
 ## CP-021 — 再生能源踩坑紀錄與缺值查證
 
 - 時間：2026-09-18 21:21 +08:00

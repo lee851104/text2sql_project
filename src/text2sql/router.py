@@ -21,6 +21,13 @@ def classify_intent(question: str) -> str:
     question = re.sub(r"\s+", "", question)
     if "成本" in question:
         return "generation_cost"
+    # 再生能源只有 v_re_generation 有電量資料；每日尖峰資料的風光欄位是瞬時出力，
+    # 因此只在問句明講「發電量／度數」或「自建」時才走這條路，不搶尖峰出力的題目。
+    if _renewable_words(question):
+        if any(word in question for word in ("裝置容量", "場站", "發電站", "幾座", "哪些站")):
+            return "renewable_site"
+        if any(word in question for word in ("發電量", "度數", "發了多少", "總發電")):
+            return "renewable_generation"
     system_words = ("負載", "備轉", "供電能力", "工業用電", "民生用電", "系統指標")
 
     if (
@@ -184,6 +191,49 @@ def _system_metric(question: str) -> str | None:
     )
 
 
+def _renewable_words(question: str) -> bool:
+    return "自建" in question or any(
+        word in question
+        for word in ("陸域風力", "離岸風力", "太陽能", "太陽光電", "地熱", "再生能源")
+    )
+
+
+def _renewable_energy_type(question: str) -> str | None:
+    """Narrow to one 能源別, or None to cover every renewable type."""
+    compact = re.sub(r"\s+", "", question)
+    return next(
+        (
+            name
+            for phrase, name in (
+                ("離岸風力", "離岸風力"),
+                ("陸域風力", "陸域風力"),
+                ("太陽光電", "太陽能"),
+                ("太陽能", "太陽能"),
+                ("地熱", "地熱"),
+            )
+            if phrase in compact
+        ),
+        None,
+    )
+
+
+def _renewable_filters(question: str, entities: Entities) -> tuple[str, tuple[object, ...]]:
+    clauses: list[str] = []
+    params: list[object] = []
+    energy = _renewable_energy_type(question)
+    if energy:
+        clauses.append('"能源別" = ?')
+        params.append(energy)
+    elif "風力" in question:
+        # 只說「風力」時涵蓋陸域與離岸，不替使用者挑一種。
+        clauses.append('"能源別" LIKE ?')
+        params.append("%風力%")
+    if entities.date_range:
+        clauses.append('"年度" = ?')
+        params.append(int(entities.date_range.start[:4]))
+    return (" WHERE " + " AND ".join(clauses) if clauses else ""), tuple(params)
+
+
 def _generation_cost_type(question: str) -> str | None:
     compact = re.sub(r"\s+", "", question)
     return next(
@@ -242,6 +292,26 @@ def route(
                 'FROM v_generation_cost WHERE "發電方式" = ? ORDER BY "年度" DESC LIMIT 20',
                 (generation_type,),
             )
+
+    if intent == "renewable_generation":
+        where, params = _renewable_filters(question, entities)
+        return RoutedQuery(
+            intent,
+            'SELECT "能源別", SUM("發電量_度") AS "發電量_度" '
+            f"FROM v_re_generation{where} "
+            'GROUP BY "能源別" ORDER BY "發電量_度" DESC LIMIT 20',
+            params,
+        )
+
+    if intent == "renewable_site":
+        where, params = _renewable_filters(question, entities)
+        return RoutedQuery(
+            intent,
+            'SELECT DISTINCT "發電站", "縣市", "能源別", "裝置容量_瓩", "主檔來源" '
+            f"FROM v_re_generation{where} "
+            'ORDER BY "裝置容量_瓩" DESC LIMIT 20',
+            params,
+        )
 
     if intent == "system_metric":
         metric = _system_metric(question)

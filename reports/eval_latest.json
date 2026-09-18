@@ -1,6 +1,6 @@
 {
   "schema_version": "eval-report-v1",
-  "generated_at": "2026-09-13T06:09:25.939640+00:00",
+  "generated_at": "2026-09-18T13:49:58.315478+00:00",
   "mode": "offline_deterministic_rules",
   "database": "data/processed/power.db",
   "data_range": {
@@ -75,9 +75,9 @@
     "rag": {
       "metric": "top1_intent_accuracy",
       "enabled": {
-        "passed": 31,
+        "passed": 30,
         "total": 60,
-        "accuracy": 0.5166666666666667
+        "accuracy": 0.5
       },
       "disabled_default_other": {
         "passed": 6,

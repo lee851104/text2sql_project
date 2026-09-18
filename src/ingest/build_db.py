@@ -21,6 +21,13 @@ from align.crosswalk import CrosswalkRecord, parse_crosswalk
 from align.grain import classify_category, classify_grain
 from align.outage_align import align_outage_rows, summarize_outage_alignment
 from align.pitfalls import generate_pitfalls
+from align.renewable import (
+    build_station_records,
+    chinese_key_map,
+    normalize_station,
+    parse_generation,
+    repair_generation,
+)
 from ingest.validate import (
     DAILY_SYSTEM_COLUMNS,
     PROJECT_ROOT,
@@ -34,9 +41,10 @@ from ingest.validate import (
     validate_files,
 )
 
-SCHEMA_VERSION = "3"
+SCHEMA_VERSION = "4"
 
 SCOPE_SOURCES = ("plants_csv", "daily_scope_csv", "outage_scope_csv")
+RENEWABLE_SOURCES = ("re_sites_csv", "re_generation_csv", "re_sites_supplement_csv")
 
 
 class DatabasePublishError(PermissionError):
@@ -71,7 +79,119 @@ def _load_rows(paths: dict[str, Path]) -> dict[str, list[dict[str, str]]]:
     }
     rows["outage_csv"] = read_csv(paths["outage_csv"])[1] if paths["outage_csv"].is_file() else []
     rows["generation_cost_csv"] = read_csv(paths["generation_cost_csv"])[1]
+    for name in RENEWABLE_SOURCES:
+        rows[name] = read_csv(paths[name])[1] if paths[name].is_file() else []
     return rows
+
+
+def _load_renewable_overrides(root: Path) -> dict[str, Any]:
+    path = root / "configs/renewable_overrides.yaml"
+    if not path.is_file():
+        return {}
+    with path.open(encoding="utf-8") as handle:
+        return yaml.safe_load(handle) or {}
+
+
+def _insert_renewable(
+    connection: sqlite3.Connection,
+    sites: list[dict[str, str]],
+    generation: list[dict[str, str]],
+    supplement: list[dict[str, str]],
+    *,
+    overrides: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Load 17141／17140 into dim_re_site and fact_re_monthly.
+
+    A generation row whose station has no master — official or supplement — is
+    reported back and skipped rather than given an invented site, the same way an
+    unmatched outage keeps its raw name instead of guessing a unit.
+    """
+    if not sites or not generation:
+        return {"sites": 0, "months": 0, "unmatched": []}
+
+    site_key = chinese_key_map(sites[0])
+    gen_key = chinese_key_map(generation[0])
+    records = build_station_records(sites, site_key, supplement_rows=supplement)
+    connection.executemany(
+        """INSERT INTO dim_re_site (
+               id, station_name, energy_type, county, site_count, capacity_kw,
+               turbine_count, models, application_status, source, note
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        [
+            (
+                index,
+                record.station_name,
+                record.energy_type,
+                record.county or None,
+                record.site_count,
+                record.capacity_kw,
+                record.turbine_count,
+                record.models,
+                record.application_status,
+                record.source,
+                record.note,
+            )
+            for index, record in enumerate(records, start=1)
+        ],
+    )
+    site_ids = {record.station_name: index for index, record in enumerate(records, start=1)}
+
+    aliases = overrides.get("station_aliases") or {}
+    repairs = overrides.get("generation_repairs") or {}
+    months: list[tuple[Any, ...]] = []
+    unmatched: set[str] = set()
+    for row in generation:
+        key = normalize_station(row[gen_key["發電站名稱"]])
+        key = aliases.get(key, key)
+        site_id = site_ids.get(key)
+        if site_id is None:
+            unmatched.add(key)
+            continue
+        value = repair_generation(parse_generation(row[gen_key["發電量(度)"]]), repairs)
+        months.append(
+            (
+                site_id,
+                int(row[gen_key["年度"]]),
+                int(row[gen_key["月份"]]),
+                value.kwh,
+                value.status,
+                value.raw,
+            )
+        )
+    connection.executemany(
+        """INSERT INTO fact_re_monthly (
+               site_id, year, month, generation_kwh, value_status, raw_value
+           ) VALUES (?, ?, ?, ?, ?, ?)""",
+        months,
+    )
+    capacity_kw = sum(record.capacity_kw for record in records)
+    connection.execute(
+        """INSERT INTO meta_pitfall (
+               pitfall_code, target_kind, target_name, severity, reason, suggestion, evidence
+           ) VALUES (?, 'global', NULL, 'disclose', ?, ?, ?)""",
+        (
+            "RENEWABLE_SELF_BUILT_ONLY",
+            f"v_re_generation 只涵蓋台電自建的再生能源場站，"
+            f"合計裝置容量 {capacity_kw:,} 瓩，約為全國風光地熱的 3～4%。"
+            "民間電廠與其他售電業的案場不在其中，不能當成全國或縣市總量。",
+            "回答時必須註明僅限台電自建場站；若問的是全國、全台或某縣市的再生能源總量，"
+            "本資料無法作答。",
+            json.dumps(
+                {
+                    "capacity_kw": capacity_kw,
+                    "stations": len(records),
+                    "view": "v_re_generation",
+                },
+                ensure_ascii=False,
+            ),
+        ),
+    )
+    return {
+        "sites": len(records),
+        "months": len(months),
+        "capacity_kw": capacity_kw,
+        "unmatched": sorted(unmatched),
+    }
 
 
 def _insert_generation_costs(
@@ -559,6 +679,8 @@ def _table_counts(connection: sqlite3.Connection) -> dict[str, int]:
         "fact_daily_system",
         "dim_outage",
         "fact_generation_cost",
+        "dim_re_site",
+        "fact_re_monthly",
         "meta_pitfall",
         "dim_plant_scope",
         "b_column_scope",
@@ -584,6 +706,8 @@ def _database_content_checksum(connection: sqlite3.Connection) -> str:
         "fact_daily_system",
         "dim_outage",
         "fact_generation_cost",
+        "dim_re_site",
+        "fact_re_monthly",
         "meta_pitfall",
         "dim_plant_scope",
         "b_column_scope",
@@ -613,6 +737,7 @@ def build_database(
             "outage_csv",
             "generation_cost_csv",
             *SCOPE_SOURCES,
+            *RENEWABLE_SOURCES,
         }
         unknown_sources = set(source_paths) - allowed_sources
         if unknown_sources:
@@ -658,6 +783,13 @@ def build_database(
                 overrides=_load_outage_overrides(root),
             )
             _insert_generation_costs(connection, rows["generation_cost_csv"])
+            renewable_summary = _insert_renewable(
+                connection,
+                rows["re_sites_csv"],
+                rows["re_generation_csv"],
+                rows["re_sites_supplement_csv"],
+                overrides=_load_renewable_overrides(root),
+            )
             _insert_derived_pitfalls(connection, crosswalk_records, ratio_max=upper_ratio)
             scope_summary = _insert_scope(connection, rows, paths)
 
@@ -711,6 +843,7 @@ def build_database(
         "ratio_thresholds": {"expected_min": lower_ratio, "expected_max": upper_ratio},
         "outage_alignment": outage_summary,
         "plant_scope": scope_summary,
+        "renewable": renewable_summary,
     }
     if report_path is not None:
         report_path.parent.mkdir(parents=True, exist_ok=True)

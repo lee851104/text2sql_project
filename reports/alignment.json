@@ -26,7 +26,8 @@
       "detail": 93,
       "subtotal": 4,
       "capacity_kw": 757960,
-      "subtotal_capacity_kw": 756459
+      "subtotal_capacity_kw": 756459,
+      "supplement": 1
     },
     "generation": {
       "rows": 1976,
@@ -40,10 +41,13 @@
     "stations": {
       "total": 65,
       "matched": 64,
+      "supplemented": 1,
       "site_only": 0,
-      "generation_only": 1,
+      "generation_only": 0,
       "match_rate": 0.9846,
-      "unmatched": [
+      "coverage_rate": 1.0,
+      "unmatched": [],
+      "supplemented_names": [
         "中屯風力"
       ]
     }
