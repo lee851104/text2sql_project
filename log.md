@@ -11,8 +11,9 @@
 - 移除項目：`owner_of()`、`check_ownership()`、`check_rules_integrity()`、`check_handoff()` 四個函式與 `--owner` 參數；報告與主控台不再輸出涉及 Owner。
 - 規則檔改名並精簡：`references/ownership.json` → `references/gate_rules.json`，刪去 `owners`、`shared`、`rules`（79 條所有權）、`handoff` 四個區段；保留 `base_branch`、`ignore`、`forbidden`、`secret_patterns`、`secret_allowlist`、`conventional_commit_types`、`doc_sync`、`max_file_bytes`。
 - 檢查項目由 19 項減為 14 項：比較基準、合併衝突、與 main 同步、機密外洩、禁入檔案、大型檔案、空白字元、commit 格式、log.md 儲存點、測試同步、文件同步、工作目錄狀態，以及 ruff format／ruff check／pytest／node --check 四項 CI 等價驗收。三級判定與離開碼不變。
-- 文件同步：`SKILL.md` 的 description、Purpose、選項與步驟已移除所有權相關內容；`references/merge_rules.md` 改寫，新增「範圍：只檢查對齊，不檢查分工」一節，並記錄已知落差（本機 `ruff .` 會掃到未被 gitignore 的暫存目錄，範圍比 CI 乾淨簽出大，曾因 `extensions/` 產生 28 個無關錯誤造成假 BLOCK）。
+- 文件同步：`SKILL.md` 的 description、Purpose、選項與步驟已移除所有權相關內容；`references/merge_rules.md` 改寫，新增「範圍：只檢查對齊，不檢查分工」一節，並補上 ruff 掃描範圍對齊 CI 的作法與 `--force-exclude` 的必要性。
 - 驗收：`uv run ruff format --check`、`uv run ruff check` 對 `check_merge.py` 皆通過；`create-skill` 的 `validate.py` 回報 ERROR 0；以 `--base 81fe958` 實跑確認 14 項檢查全部可執行且無所有權殘留。
+- 修復 ruff 掃描範圍：CI 是乾淨簽出只看得到受版控檔案，本機 `ruff .` 會連未 gitignore 的暫存目錄一起掃，曾因 `extensions/` 產生 28 個無關錯誤造成假 BLOCK。改為明列 `git ls-files '*.py' '*.pyi'` 的結果並加 `--force-exclude`（明確傳路徑時 ruff 會忽略 pyproject 的 `exclude`，不加會多掃 `taipower_align`），報告附上「N 個受版控檔案，與 CI 範圍一致」。以未進版控且未被忽略的爛格式檔案實測：`ruff check .` 報 5 個錯，新範圍 All checks passed，而「工作目錄狀態」仍正確提醒該檔案存在。
 - 回退方式：回退本 CP 對應的 commit 即可恢復 CP-014 的所有權版本；`docs/TEAM_4_ROLES.md` 未在本次變更，不受影響。
 
 ## CP-015 — 電廠分權分支的格式修復與 main 同步

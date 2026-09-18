@@ -504,12 +504,29 @@ def check_doc_sync(files: list[str], rules: dict) -> Finding:
 # --------------------------------------------------------------------------
 # CI 等價驗收
 # --------------------------------------------------------------------------
+MAX_CMDLINE = 24000  # Windows 命令列上限保守值
+
+
+def ruff_scope() -> tuple[list[str], str]:
+    """決定 ruff 要掃哪些檔案。
+
+    CI 跑在乾淨簽出上，只看得到受版控的檔案；本機的 `ruff .` 會連未進版控的
+    暫存目錄一起掃（實測 `extensions/` 一口氣貢獻 28 個與分支無關的錯誤），
+    因而報出 CI 根本不會有的 BLOCK。這裡改成明列受版控檔案，對齊 CI 的範圍。
+
+    `--force-exclude` 不可省：明確傳入路徑時，ruff 預設會忽略 pyproject 的
+    `exclude`（本專案排除 `taipower_align`），不加就會多掃出一堆錯。
+    """
+    proc = git("ls-files", "-z", "*.py", "*.pyi")
+    files = [p for p in proc.stdout.split("\0") if p] if proc.returncode == 0 else []
+    if not files:
+        return ["."], "（取不到受版控清單，退回掃描整個工作目錄）"
+    if sum(len(f) + 3 for f in files) > MAX_CMDLINE:
+        return ["."], f"（受版控檔案 {len(files)} 個，超出命令列長度上限，退回掃描整個工作目錄）"
+    return ["--force-exclude", *files], f"（{len(files)} 個受版控檔案，與 CI 範圍一致）"
+
+
 def ci_findings(skip_reason: str | None) -> list[Finding]:
-    specs = [
-        ("ci.format", "ruff format --check", ["ruff", "format", "--check", "."]),
-        ("ci.lint", "ruff check", ["ruff", "check", "."]),
-        ("ci.test", "pytest", ["pytest", "-q"]),
-    ]
     if skip_reason:
         out = [
             Finding(
@@ -517,12 +534,23 @@ def ci_findings(skip_reason: str | None) -> list[Finding]:
                 title,
                 "SKIP",
                 f"未執行：{skip_reason}",
-                fix=f"`git switch <分支>` 後重跑本檢查，或在該分支上直接執行 `{' '.join(cmd)}`。",
+                fix=f"`git switch <分支>` 後重跑本檢查，或在該分支上直接執行 `uv run {title}`。",
             )
-            for key, title, cmd in specs
+            for key, title in (
+                ("ci.format", "ruff format --check"),
+                ("ci.lint", "ruff check"),
+                ("ci.test", "pytest"),
+            )
         ]
         out.append(Finding("ci.js", "node --check app.js", "SKIP", f"未執行：{skip_reason}"))
         return out
+
+    scope, scope_note = ruff_scope()
+    specs = [
+        ("ci.format", "ruff format --check", ["ruff", "format", "--check", *scope], True),
+        ("ci.lint", "ruff check", ["ruff", "check", *scope], True),
+        ("ci.test", "pytest", ["pytest", "-q"], False),
+    ]
 
     uv = shutil.which("uv")
     prefix = [uv, "run"] if uv else [sys.executable, "-m"]
@@ -533,9 +561,9 @@ def ci_findings(skip_reason: str | None) -> list[Finding]:
     ver_note = f"（{ver}）" if ver.startswith("ruff") else ""
 
     findings = []
-    for key, title, cmd in specs:
+    for key, title, cmd, is_ruff in specs:
         proc = run([*prefix, *cmd])
-        note = ver_note if cmd[0] == "ruff" else ""
+        note = f"{ver_note}{scope_note}" if is_ruff else ""
         if proc.returncode == 0:
             findings.append(Finding(key, title, "PASS", f"通過。{note}"))
         else:
@@ -547,11 +575,11 @@ def ci_findings(skip_reason: str | None) -> list[Finding]:
                     "BLOCK",
                     f"失敗（exit {proc.returncode}），CI 會擋下這次合併。{note}",
                     evidence=trim(tail[-20:]),
-                    fix=f"在分支上修到 `{' '.join(['uv', 'run', *cmd])}` 乾淨通過為止。"
+                    fix=f"在分支上修到 `uv run {title}` 乾淨通過為止。"
                     + (
                         "　本機 ruff 版本與 CI 不同時會出現 CI 不會有的失敗，"
                         "先 `uv sync --extra dev` 對齊再判斷。"
-                        if cmd[0] == "ruff"
+                        if is_ruff
                         else ""
                     ),
                 )
