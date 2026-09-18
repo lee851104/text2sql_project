@@ -11,7 +11,8 @@
 - 根因二（失敗被當成通過，較嚴重）：workflow 只讓離開碼 2 失敗，離開碼 3 因此被視為成功；報告未產生又使貼留言步驟被 `hashFiles` 條件跳過，於是門檻壞掉時全程無聲。
 - 修正：`resolve_base()` 的 fetch 改為明寫 refspec；workflow 另加一個獨立的 base 分支 fetch 步驟並以 `git rev-parse --verify` 確認；離開碼改為 `0`／`1` 通過、`2` BLOCK 失敗、其餘一律視為門檻故障並失敗；報告不存在時改貼「門檻執行失敗」留言並附最後 40 行輸出，不再靜默跳過。
 - 測試：`tests/test_merge_gate.py` 新增離開碼契約測試（不存在的分支 → 離開碼 3 且不產生報告），鎖住 workflow 依賴的這個區分。全檔 13 項通過。
-- 未能取得的證據：瀏覽器未登入 GitHub，無法讀取 Actions 的 step 日誌，根因一屬於依現象與本機複現推斷，尚未由 CI 日誌直接證實。下一個 PR 的執行結果即可驗證。
+- CI 實證：PR #5 上 `github-actions` 已成功貼出完整報告（判定 WARN、15 PASS），證實修正有效，比較基準該項顯示「以 origin/main 為基準」，確認基準解析已正常。
+- 追加修正（門檻報告自己造成的 WARN）：workflow 原本把 `gate-output.txt` 與 `gate-report.md` 寫在 repo 根目錄，門檻的「工作目錄狀態」把它們算成未提交變更，於是每個 PR 都會多出一個自己造成的 WARN 並使判定無法為 PASS。所有產物改寫入 `$RUNNER_TEMP`；同時把 `--fetch` 加回門檻呼叫，消除報告中「未加 --fetch」這句在 CI 情境下會誤導的註記（獨立的 base fetch 步驟保留，作用是讓基準取不到時提早失敗）。
 - 回退方式：回退本 CP 對應的 commit；CP-017 的 workflow 會回到會靜默失敗的版本。
 
 ## CP-017 — 合併門檻報告自動貼上 PR
