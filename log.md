@@ -2,6 +2,19 @@
 
 > 這份檔案在每個可驗證、可回退的儲存點更新。回退前需保留使用者原有的未提交變更。
 
+## CP-017 — 合併門檻報告自動貼上 PR
+
+- 時間：2026-09-18 17:05 +08:00
+- 狀態：已完成
+- 目的：讓門檻報告從「只存在執行者本機」變成「PR 上所有人都看得到」，不必靠口頭轉述判定結果。
+- 新增 `.github/workflows/merge-gate.yml`：`on: pull_request` 執行門檻，把報告以 `gh pr comment --edit-last` 貼成留言（就地更新，不洗版），並在判定 BLOCK 時讓該檢查失敗。使用 Actions 內建的 `GITHUB_TOKEN`，不需要額外憑證，也不需要任何人經手 token。
+- checkout 取 `head.ref` 而非 PR 的合併預覽 commit，因為門檻評的是分支本身；搭配 `fetch-depth: 0`，否則算不出 merge-base 也讀不到逐個 commit。
+- 只有 BLOCK（離開碼 2）會讓檢查失敗，WARN 不會 —— WARN 的定義是「可合併但需人看一眼」，讓它擋住合併會養成無視紅燈的習慣。判定取腳本離開碼，不解析報告文字。
+- 貼留言步驟設 `continue-on-error`：fork 發出的 PR 拿不到 `pull-requests: write`，貼不上去不該讓門檻整個失敗。
+- 腳本修正：判斷「要檢查的分支是不是目前簽出的」改比 SHA 而非分支名稱。CI 簽出後常是 detached HEAD（`--abbrev-ref HEAD` 會回 `HEAD`），只比名稱會誤判成「不是目前分支」而白白跳過 ruff／pytest，使 CI 上的門檻永遠拿不到 PASS。
+- 驗收：`ruff check`、`ruff format --check` 通過；workflow YAML 以 `yaml.safe_load` 驗證可解析；門檻對本分支自檢通過。
+- 回退方式：刪除 `.github/workflows/merge-gate.yml` 即停止自動貼留言；SHA 比對修正可獨立保留，它在本機執行時同樣正確。
+
 ## CP-016 — 合併門檻縮回格式對齊範圍
 
 - 時間：2026-09-18 09:20 +08:00

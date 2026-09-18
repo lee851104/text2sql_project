@@ -1,0 +1,58 @@
+name: merge-gate
+
+# 在每個 PR 上跑合併門檻，並把報告貼成 PR 留言給所有人看。
+# 使用 Actions 內建的 GITHUB_TOKEN，不需要任何額外憑證。
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # 取分支本身而不是 PR 的合併預覽 commit —— 門檻要評的是這個分支
+          ref: ${{ github.event.pull_request.head.ref }}
+          # 門檻需要完整歷史才能算 merge-base 與逐 commit 檢查
+          fetch-depth: 0
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --extra dev
+
+      - name: Run merge gate
+        id: gate
+        env:
+          OPENAI_API_KEY: ""
+        run: |
+          set +e
+          uv run python .claude/skills/pre-merge-check/scripts/check_merge.py \
+            --base "${{ github.event.pull_request.base.ref }}" \
+            --fetch \
+            --out gate-report.md
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+
+      - name: Post the report as a pull request comment
+        if: always() && hashFiles('gate-report.md') != ''
+        # fork 發出的 PR 拿不到 pull-requests: write，貼不上去不該讓門檻整個失敗
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          gh pr comment "$PR" --body-file gate-report.md --edit-last \
+            || gh pr comment "$PR" --body-file gate-report.md
+
+      - name: Fail the check when the gate blocks
+        if: steps.gate.outputs.exit_code == '2'
+        run: |
+          echo "合併門檻判定 BLOCK，詳見 PR 留言裡的報告。"
+          exit 1
