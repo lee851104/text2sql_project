@@ -8,8 +8,9 @@ SQLite 沒有 GRANT 或使用者系統，授權只能在應用層執行。這個
 `SqlGuard` 驗證的 SQL 重寫一次：每個受管檢視的參照都被包進一層只含本帳號可見列的
 子查詢，因此 JOIN、子查詢與聚合都會自動套用，不必修改提示詞、語料或檢視定義。
 
-`v_system` 與 `v_generation_cost` 不受管。全系統尖峰負載與備轉容量屬輸供電事業部電力
-調度處，發電成本屬會計處，兩者都沒有電廠欄位，也不是任何一廠的廠務資料。
+`v_system`、`v_generation_cost` 與 `v_re_generation` 不受管。全系統尖峰負載與備轉容量屬
+輸供電事業部電力調度處，發電成本屬會計處，兩者都沒有電廠欄位；再生能源場站屬再生能源
+處，不在 34 筆電廠主檔的組織範圍內，也沒有可對應的電廠。
 """
 
 from __future__ import annotations
@@ -23,7 +24,7 @@ from pathlib import Path
 from sqlglot import exp, parse_one
 from sqlglot.errors import ParseError
 
-SHARED_VIEWS = frozenset({"v_system", "v_generation_cost"})
+SHARED_VIEWS = frozenset({"v_system", "v_generation_cost", "v_re_generation"})
 
 SCOPE_KEYS = {
     "v_unit": "電廠",

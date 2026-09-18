@@ -9,6 +9,11 @@ paths:
   daily_long_csv: taipower_align/daily_long.csv
   outage_csv: taipower_align/outage.csv
   generation_cost_csv: taipower_align/generation_cost.csv
+  nuclear_units_csv: taipower_align/nuclear_units.csv
+  units_generation_json: taipower_align/units_generation.json
+  re_sites_csv: taipower_align/re_sites.csv
+  re_generation_csv: taipower_align/re_generation.csv
+  re_sites_supplement_csv: taipower_align/re_sites_supplement.csv
   plants_csv: taipower_align/plants.csv
   daily_scope_csv: taipower_align/daily_plant_scope.csv
   outage_scope_csv: taipower_align/outage_plant_map.csv

@@ -35,7 +35,12 @@ CREATE TABLE dim_b_column (
     b_column TEXT NOT NULL UNIQUE,
     grain TEXT NOT NULL,
     category TEXT NOT NULL,
-    has_unit_master INTEGER NOT NULL CHECK (has_unit_master IN (0, 1))
+    has_unit_master INTEGER NOT NULL CHECK (has_unit_master IN (0, 1)),
+    -- 沒有機組主檔的欄位（核能、IPP、汽電共生與風光彙總）改由 configs/b_column_capacity.yaml
+    -- 指定的官方來源填入。capacity_source 記錄是核能主檔、8931 明細還是 8931 小計，
+    -- 8931 是每 10 分鐘覆寫的快照，因此另附當次快照的 SHA-256 前綴。
+    capacity_kw INTEGER CHECK (capacity_kw IS NULL OR capacity_kw > 0),
+    capacity_source TEXT NOT NULL DEFAULT ''
 );
 
 CREATE TABLE bridge_b_column (
@@ -96,6 +101,38 @@ CREATE TABLE fact_generation_cost (
     accounting_basis TEXT NOT NULL,
     cost_per_kwh REAL NOT NULL CHECK (cost_per_kwh >= 0),
     UNIQUE (source_group, generation_type, year)
+);
+
+-- 再生能源場址主檔。粒度為「一列一發電站」，17141 同站的多個場址在入庫時
+-- 彙總：容量與風機數相加，型號與申設狀態以 | 併列。場址層級的明細保留在
+-- taipower_align/re_sites.csv，不進資料庫。
+CREATE TABLE dim_re_site (
+    id INTEGER PRIMARY KEY,
+    station_name TEXT NOT NULL UNIQUE,
+    energy_type TEXT NOT NULL,
+    county TEXT,
+    site_count INTEGER NOT NULL CHECK (site_count >= 0),
+    capacity_kw INTEGER NOT NULL CHECK (capacity_kw >= 0),
+    turbine_count INTEGER,
+    models TEXT NOT NULL DEFAULT '',
+    application_status TEXT NOT NULL DEFAULT '',
+    -- official：兩個官方檔都有；supplement：場址主檔漏收，由 re_sites_supplement.csv
+    -- 以可查證的第三方來源補上，兩者在查詢結果中必須可分辨。
+    source TEXT NOT NULL CHECK (source IN ('official', 'supplement')),
+    note TEXT NOT NULL DEFAULT ''
+);
+
+-- 月發電量。generation_kwh 為淨發電量（經台電簡明月報表 2-2 交叉驗證），
+-- 官方標記無資料時存 NULL 而不是 0；value_status 保留該格的解析結果。
+CREATE TABLE fact_re_monthly (
+    site_id INTEGER NOT NULL REFERENCES dim_re_site(id),
+    year INTEGER NOT NULL CHECK (year BETWEEN 1900 AND 2200),
+    month INTEGER NOT NULL CHECK (month BETWEEN 1 AND 12),
+    generation_kwh INTEGER,
+    value_status TEXT NOT NULL
+        CHECK (value_status IN ('ok', 'missing', 'suspect', 'invalid', 'repaired')),
+    raw_value TEXT NOT NULL,
+    PRIMARY KEY (site_id, year, month)
 );
 
 CREATE TABLE meta_pitfall (
@@ -160,6 +197,8 @@ CREATE INDEX idx_outage_scope_plant ON outage_scope (plant_id);
 CREATE INDEX idx_unit_name ON dim_unit (unit_name);
 CREATE INDEX idx_pitfall_target ON meta_pitfall (target_kind, target_name);
 CREATE INDEX idx_generation_cost_year_type ON fact_generation_cost (year, generation_type);
+CREATE INDEX idx_re_monthly_year_month ON fact_re_monthly (year, month);
+CREATE INDEX idx_re_site_energy ON dim_re_site (energy_type);
 
 CREATE VIEW v_unit AS
 SELECT
@@ -183,7 +222,11 @@ SELECT
     c.grain AS "粒度",
     c.category AS "類別",
     COALESCE(b.n_units, 0) AS "涵蓋機組數",
-    b.cap_a_wankw AS "對應裝置容量_萬瓩",
+    COALESCE(b.cap_a_wankw, ROUND(c.capacity_kw / 10000.0, 4)) AS "對應裝置容量_萬瓩",
+    CASE
+        WHEN b.cap_a_wankw IS NOT NULL THEN 'crosswalk'
+        ELSE c.capacity_source
+    END AS "容量來源",
     COALESCE(b.is_residual, 0) AS "是殘差欄",
     COALESCE(b.is_bucket, 0) AS "是彙總欄",
     c.has_unit_master AS "有機組主檔"
@@ -216,6 +259,21 @@ SELECT
 FROM dim_outage AS o
 LEFT JOIN dim_unit AS u ON u.id = o.unit_id
 LEFT JOIN dim_plant AS p ON p.id = u.plant_id;
+
+CREATE VIEW v_re_generation AS
+SELECT
+    f.year AS "年度",
+    f.month AS "月份",
+    s.station_name AS "發電站",
+    s.energy_type AS "能源別",
+    s.county AS "縣市",
+    f.generation_kwh AS "發電量_度",
+    s.capacity_kw AS "裝置容量_瓩",
+    s.site_count AS "場址數",
+    f.value_status AS "數值狀態",
+    s.source AS "主檔來源"
+FROM fact_re_monthly AS f
+JOIN dim_re_site AS s ON s.id = f.site_id;
 
 CREATE VIEW v_generation_cost AS
 SELECT

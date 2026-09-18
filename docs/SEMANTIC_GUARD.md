@@ -13,8 +13,8 @@
 
 `SemanticGuard.from_database()` 以唯讀方式從 `meta_manifest` 讀取目前資料期間，並從 `meta_pitfall` 讀取殘差欄、電廠總量不完整與容量缺口對象。新資料重建後，守門對象會跟著對齊產物更新，不另外在查詢層維護電廠清單。
 
-## 九條結構化規則
+## 十條結構化規則
 
-`PEAK_SUM_ACROSS_DAYS`、`UNIT_MISMATCH`、`NO_UNIT_DETAIL`、`RESIDUAL_TREND`、`PLANT_TOTAL_INCOMPLETE`、`KNOWN_CAPACITY_GAP`、`ZERO_PERIOD_AMBIGUOUS`、`AMBIGUOUS_UNIT_NAME` 與 `DATA_RANGE_OUT_OF_BOUNDS` 都回傳穩定的 `code`、`severity`、說明、建議與 evidence，前端不需要比對中文錯誤字串。
+`PEAK_SUM_ACROSS_DAYS`、`UNIT_MISMATCH`、`NO_UNIT_DETAIL`、`RESIDUAL_TREND`、`PLANT_TOTAL_INCOMPLETE`、`KNOWN_CAPACITY_GAP`、`ZERO_PERIOD_AMBIGUOUS`、`AMBIGUOUS_UNIT_NAME`、`DATA_RANGE_OUT_OF_BOUNDS` 與 `RENEWABLE_SELF_BUILT_ONLY` 都回傳穩定的 `code`、`severity`、說明、建議與 evidence，前端不需要比對中文錯誤字串。
 
 陷阱 45 題用來測命中率；測試同時保留 20 個規則反例，包含「單日跨機組加總」、「同單位容量比較」、「殘差欄單日值」與「有明確期間的零出力」，避免以「全部攔下」來虛增安全指標。

@@ -33,7 +33,7 @@
       "end_date": "2027-02-23"
     }
   ],
-  "schema_version": "3",
+  "schema_version": "5",
   "database": "D:\\@spin\\text2SQL_project\\data\\processed\\power.db",
   "table_counts": {
     "dim_plant": 22,
@@ -46,13 +46,15 @@
     "fact_daily_system": 577,
     "dim_outage": 138,
     "fact_generation_cost": 72,
-    "meta_pitfall": 18,
+    "dim_re_site": 65,
+    "fact_re_monthly": 1976,
+    "meta_pitfall": 21,
     "dim_plant_scope": 34,
     "b_column_scope": 64,
     "bridge_b_column_plant": 72,
     "outage_scope": 138
   },
-  "database_content_checksum": "18892876a0f3318c35e8d69da840a25f847eeba244820c0aabbba01659ff137c",
+  "database_content_checksum": "25cb3fd0322f484242c891f003b1859d1fd8a1ed438ad2852ca6b5aa4e3c76fe",
   "ratio_thresholds": {
     "expected_min": 0.8,
     "expected_max": 1.06
@@ -94,5 +96,38 @@
       "daily_plant_scope.csv": "5ab99c9e945315b2a1db32384060d03342a68ffde42750e1194401653a42c95e",
       "outage_plant_map.csv": "fc8ac4004a2383118343bd3c0f22987cf20801252bf7858013acd8ae9780edc5"
     }
+  },
+  "renewable": {
+    "sites": 65,
+    "months": 1976,
+    "capacity_kw": 762760,
+    "unmatched": []
+  },
+  "b_column_capacity": {
+    "configured": 21,
+    "filled": 18,
+    "by_source": {
+      "nuclear": 6,
+      "realtime": 9,
+      "realtime_subtotal": 3,
+      "unavailable": 3
+    },
+    "capacity_kw": 33048800,
+    "unavailable": [
+      "麥寮#1",
+      "麥寮#2",
+      "麥寮#3"
+    ],
+    "unknown_columns": [],
+    "ratio_violations": [
+      {
+        "b_column": "星彰#1",
+        "ratio": 1.0673
+      },
+      {
+        "b_column": "汽電共生",
+        "ratio": 3.3158
+      }
+    ]
   }
 }

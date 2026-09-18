@@ -17,10 +17,18 @@ from typing import Any
 
 import yaml
 
+from align.column_capacity import build_column_capacities, summarize_column_capacities
 from align.crosswalk import CrosswalkRecord, parse_crosswalk
 from align.grain import classify_category, classify_grain
 from align.outage_align import align_outage_rows, summarize_outage_alignment
 from align.pitfalls import generate_pitfalls
+from align.renewable import (
+    build_station_records,
+    chinese_key_map,
+    normalize_station,
+    parse_generation,
+    repair_generation,
+)
 from ingest.validate import (
     DAILY_SYSTEM_COLUMNS,
     PROJECT_ROOT,
@@ -34,9 +42,11 @@ from ingest.validate import (
     validate_files,
 )
 
-SCHEMA_VERSION = "3"
+SCHEMA_VERSION = "5"
 
 SCOPE_SOURCES = ("plants_csv", "daily_scope_csv", "outage_scope_csv")
+RENEWABLE_SOURCES = ("re_sites_csv", "re_generation_csv", "re_sites_supplement_csv")
+CAPACITY_SOURCES = ("nuclear_units_csv", "units_generation_json")
 
 
 class DatabasePublishError(PermissionError):
@@ -71,7 +81,213 @@ def _load_rows(paths: dict[str, Path]) -> dict[str, list[dict[str, str]]]:
     }
     rows["outage_csv"] = read_csv(paths["outage_csv"])[1] if paths["outage_csv"].is_file() else []
     rows["generation_cost_csv"] = read_csv(paths["generation_cost_csv"])[1]
+    for name in RENEWABLE_SOURCES:
+        rows[name] = read_csv(paths[name])[1] if paths[name].is_file() else []
+    nuclear = paths["nuclear_units_csv"]
+    rows["nuclear_units_csv"] = read_csv(nuclear)[1] if nuclear.is_file() else []
+    realtime = paths["units_generation_json"]
+    rows["units_generation_json"] = (
+        json.loads(realtime.read_text(encoding="utf-8-sig")).get("aaData", [])
+        if realtime.is_file()
+        else []
+    )
     return rows
+
+
+def _insert_column_capacities(
+    connection: sqlite3.Connection,
+    column_ids: Mapping[str, int],
+    *,
+    root: Path,
+    realtime_rows: list[dict[str, str]],
+    nuclear_rows: list[dict[str, str]],
+    snapshot_sha: str,
+) -> dict[str, Any]:
+    """Fill the capacity of B columns that have no unit master.
+
+    The mapping is keyed by B column name, so a column the configuration names but
+    the daily file does not have is a stale mapping, not a silent no-op: it is
+    reported rather than skipped.
+    """
+    config_path = root / "configs/b_column_capacity.yaml"
+    if not config_path.is_file() or not realtime_rows or not nuclear_rows:
+        return {"configured": 0, "filled": 0, "unknown_columns": []}
+    with config_path.open(encoding="utf-8") as handle:
+        mapping = (yaml.safe_load(handle) or {}).get("columns") or {}
+
+    capacities = build_column_capacities(
+        mapping, realtime_rows=realtime_rows, nuclear_rows=nuclear_rows
+    )
+    unknown = [item.b_column for item in capacities if item.b_column not in column_ids]
+    connection.executemany(
+        "UPDATE dim_b_column SET capacity_kw = ?, capacity_source = ? WHERE id = ?",
+        [
+            (
+                item.capacity_kw,
+                f"{item.source}:{item.source_detail}@{snapshot_sha[:12]}"
+                if item.source.startswith("realtime")
+                else f"{item.source}:{item.source_detail}"
+                if item.capacity_kw is not None
+                else "",
+                column_ids[item.b_column],
+            )
+            for item in capacities
+            if item.b_column in column_ids
+        ],
+    )
+    # 填進來的容量仍要通過與 crosswalk 相同的容量比檢查。汽電共生就是實例：8931 登記的
+    # 是售予台電的契約容量，每日尖峰欄位量的卻是整體出力，兩者相除會超過 300%。分母不對
+    # 的欄位不能默默留著，否則「容量利用率」會算出荒謬的數字。
+    ratio_max = _load_align_limits(root)[1]
+    gaps: list[tuple[str, float, float, float]] = []
+    for item in capacities:
+        if item.capacity_kw is None or item.b_column not in column_ids:
+            continue
+        observed = connection.execute(
+            "SELECT MAX(peak_wankw) FROM fact_daily_peak WHERE b_column_id = ?",
+            (column_ids[item.b_column],),
+        ).fetchone()[0]
+        capacity_wankw = item.capacity_kw / 10000.0
+        if observed is None or capacity_wankw <= 0:
+            continue
+        ratio = observed / capacity_wankw
+        if ratio > ratio_max:
+            gaps.append((item.b_column, capacity_wankw, observed, round(ratio, 4)))
+
+    connection.executemany(
+        """INSERT INTO meta_pitfall (
+               pitfall_code, target_kind, target_name, severity, reason, suggestion, evidence
+           ) VALUES ('KNOWN_CAPACITY_GAP', 'column', ?, 'disclose', ?, ?, ?)""",
+        [
+            (
+                column,
+                f"{column} 的實測最大出力 {observed:.1f} 萬瓩超過填入的裝置容量 "
+                f"{capacity:.1f} 萬瓩（{ratio:.0%}）。瞬時出力略高於銘牌屬正常，"
+                "但比值偏高時代表兩個數字的口徑可能不同，不宜直接相除當成容量利用率。",
+                "改以出力本身比較，或改查有機組主檔的具名機組；需要利用率時請先確認容量口徑。",
+                json.dumps(
+                    {"capacity_wankw": capacity, "observed_max_wankw": observed, "ratio": ratio},
+                    ensure_ascii=False,
+                ),
+            )
+            for column, capacity, observed, ratio in gaps
+        ],
+    )
+    return {
+        **summarize_column_capacities(capacities),
+        "unknown_columns": unknown,
+        "ratio_violations": [{"b_column": column, "ratio": ratio} for column, _, _, ratio in gaps],
+    }
+
+
+def _load_renewable_overrides(root: Path) -> dict[str, Any]:
+    path = root / "configs/renewable_overrides.yaml"
+    if not path.is_file():
+        return {}
+    with path.open(encoding="utf-8") as handle:
+        return yaml.safe_load(handle) or {}
+
+
+def _insert_renewable(
+    connection: sqlite3.Connection,
+    sites: list[dict[str, str]],
+    generation: list[dict[str, str]],
+    supplement: list[dict[str, str]],
+    *,
+    overrides: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Load 17141／17140 into dim_re_site and fact_re_monthly.
+
+    A generation row whose station has no master — official or supplement — is
+    reported back and skipped rather than given an invented site, the same way an
+    unmatched outage keeps its raw name instead of guessing a unit.
+    """
+    if not sites or not generation:
+        return {"sites": 0, "months": 0, "unmatched": []}
+
+    site_key = chinese_key_map(sites[0])
+    gen_key = chinese_key_map(generation[0])
+    records = build_station_records(sites, site_key, supplement_rows=supplement)
+    connection.executemany(
+        """INSERT INTO dim_re_site (
+               id, station_name, energy_type, county, site_count, capacity_kw,
+               turbine_count, models, application_status, source, note
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        [
+            (
+                index,
+                record.station_name,
+                record.energy_type,
+                record.county or None,
+                record.site_count,
+                record.capacity_kw,
+                record.turbine_count,
+                record.models,
+                record.application_status,
+                record.source,
+                record.note,
+            )
+            for index, record in enumerate(records, start=1)
+        ],
+    )
+    site_ids = {record.station_name: index for index, record in enumerate(records, start=1)}
+
+    aliases = overrides.get("station_aliases") or {}
+    repairs = overrides.get("generation_repairs") or {}
+    months: list[tuple[Any, ...]] = []
+    unmatched: set[str] = set()
+    for row in generation:
+        key = normalize_station(row[gen_key["發電站名稱"]])
+        key = aliases.get(key, key)
+        site_id = site_ids.get(key)
+        if site_id is None:
+            unmatched.add(key)
+            continue
+        value = repair_generation(parse_generation(row[gen_key["發電量(度)"]]), repairs)
+        months.append(
+            (
+                site_id,
+                int(row[gen_key["年度"]]),
+                int(row[gen_key["月份"]]),
+                value.kwh,
+                value.status,
+                value.raw,
+            )
+        )
+    connection.executemany(
+        """INSERT INTO fact_re_monthly (
+               site_id, year, month, generation_kwh, value_status, raw_value
+           ) VALUES (?, ?, ?, ?, ?, ?)""",
+        months,
+    )
+    capacity_kw = sum(record.capacity_kw for record in records)
+    connection.execute(
+        """INSERT INTO meta_pitfall (
+               pitfall_code, target_kind, target_name, severity, reason, suggestion, evidence
+           ) VALUES (?, 'global', NULL, 'disclose', ?, ?, ?)""",
+        (
+            "RENEWABLE_SELF_BUILT_ONLY",
+            f"v_re_generation 只涵蓋台電自建的再生能源場站，"
+            f"合計裝置容量 {capacity_kw:,} 瓩，約為全國風光地熱的 3～4%。"
+            "民間電廠與其他售電業的案場不在其中，不能當成全國或縣市總量。",
+            "回答時必須註明僅限台電自建場站；若問的是全國、全台或某縣市的再生能源總量，"
+            "本資料無法作答。",
+            json.dumps(
+                {
+                    "capacity_kw": capacity_kw,
+                    "stations": len(records),
+                    "view": "v_re_generation",
+                },
+                ensure_ascii=False,
+            ),
+        ),
+    )
+    return {
+        "sites": len(records),
+        "months": len(months),
+        "capacity_kw": capacity_kw,
+        "unmatched": sorted(unmatched),
+    }
 
 
 def _insert_generation_costs(
@@ -198,7 +414,8 @@ def _insert_columns_and_crosswalk(
         category = classify_category(fuels, source_category=source_category)
         has_master = int(record is not None)
         connection.execute(
-            "INSERT INTO dim_b_column VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO dim_b_column "
+            "(id, b_column, grain, category, has_unit_master) VALUES (?, ?, ?, ?, ?)",
             (column_id, column, grain, category, has_master),
         )
         ids[column] = column_id
@@ -559,6 +776,8 @@ def _table_counts(connection: sqlite3.Connection) -> dict[str, int]:
         "fact_daily_system",
         "dim_outage",
         "fact_generation_cost",
+        "dim_re_site",
+        "fact_re_monthly",
         "meta_pitfall",
         "dim_plant_scope",
         "b_column_scope",
@@ -584,6 +803,8 @@ def _database_content_checksum(connection: sqlite3.Connection) -> str:
         "fact_daily_system",
         "dim_outage",
         "fact_generation_cost",
+        "dim_re_site",
+        "fact_re_monthly",
         "meta_pitfall",
         "dim_plant_scope",
         "b_column_scope",
@@ -613,6 +834,8 @@ def build_database(
             "outage_csv",
             "generation_cost_csv",
             *SCOPE_SOURCES,
+            *RENEWABLE_SOURCES,
+            *CAPACITY_SOURCES,
         }
         unknown_sources = set(source_paths) - allowed_sources
         if unknown_sources:
@@ -658,6 +881,23 @@ def build_database(
                 overrides=_load_outage_overrides(root),
             )
             _insert_generation_costs(connection, rows["generation_cost_csv"])
+            capacity_summary = _insert_column_capacities(
+                connection,
+                column_ids,
+                root=root,
+                realtime_rows=rows["units_generation_json"],
+                nuclear_rows=rows["nuclear_units_csv"],
+                snapshot_sha=sha256_file(paths["units_generation_json"])
+                if paths["units_generation_json"].is_file()
+                else "",
+            )
+            renewable_summary = _insert_renewable(
+                connection,
+                rows["re_sites_csv"],
+                rows["re_generation_csv"],
+                rows["re_sites_supplement_csv"],
+                overrides=_load_renewable_overrides(root),
+            )
             _insert_derived_pitfalls(connection, crosswalk_records, ratio_max=upper_ratio)
             scope_summary = _insert_scope(connection, rows, paths)
 
@@ -711,6 +951,8 @@ def build_database(
         "ratio_thresholds": {"expected_min": lower_ratio, "expected_max": upper_ratio},
         "outage_alignment": outage_summary,
         "plant_scope": scope_summary,
+        "renewable": renewable_summary,
+        "b_column_capacity": capacity_summary,
     }
     if report_path is not None:
         report_path.parent.mkdir(parents=True, exist_ok=True)
