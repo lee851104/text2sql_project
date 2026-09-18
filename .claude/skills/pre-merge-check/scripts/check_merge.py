@@ -3,7 +3,7 @@
 
 判定三級：
     BLOCK  不可合併（CI 會掛、機密外洩、或有衝突）
-    WARN   可合併，但需人工確認（跨 Owner、commit 格式、log.md、文件同步…）
+    WARN   可合併，但需人工確認（commit 格式、log.md、文件同步、工作目錄…）
     PASS   全部符合要求
 
 用法:
@@ -33,7 +33,7 @@ for _stream in (sys.stdout, sys.stderr):
         _stream.reconfigure(encoding="utf-8", errors="replace")
 
 SKILL_DIR = Path(__file__).resolve().parent.parent
-RULES_PATH = SKILL_DIR / "references" / "ownership.json"
+RULES_PATH = SKILL_DIR / "references" / "gate_rules.json"
 TEMPLATE_PATH = SKILL_DIR / "templates" / "merge_report.md.template"
 
 RESULT_TEXT = {
@@ -123,25 +123,12 @@ def trim(lines: list[str], limit: int = 25) -> list[str]:
 
 
 # --------------------------------------------------------------------------
-# 所有權比對
+# 路徑比對
 # --------------------------------------------------------------------------
 def match_pattern(path: str, pattern: str) -> bool:
     if pattern.endswith("/"):
         return path == pattern.rstrip("/") or path.startswith(pattern)
     return path == pattern or fnmatch.fnmatch(path, pattern)
-
-
-def owner_of(path: str, rules: dict) -> tuple[str, str]:
-    """回傳 (owner, 命中的 pattern)。最長 pattern 優先。"""
-    for shared in rules.get("shared", []):
-        if match_pattern(path, shared):
-            return "共享", shared
-    best_owner, best_pattern = "?", ""
-    for rule in rules["rules"]:
-        pattern = rule["pattern"]
-        if match_pattern(path, pattern) and len(pattern) > len(best_pattern):
-            best_owner, best_pattern = rule["owner"], pattern
-    return best_owner, best_pattern
 
 
 # --------------------------------------------------------------------------
@@ -320,110 +307,6 @@ def check_behind(base: str, branch: str) -> Finding:
     )
 
 
-def check_rules_integrity(rules: dict) -> Finding:
-    """同一個路徑被指派給兩位 Owner 時，所有權判定沒有意義 —— 先擋下來要人裁決。"""
-    seen: dict[str, set[str]] = {}
-    for rule in rules["rules"]:
-        seen.setdefault(rule["pattern"], set()).add(rule["owner"])
-    dupes = sorted((p, sorted(o)) for p, o in seen.items() if len(o) > 1)
-    if not dupes:
-        return Finding(
-            "rules.integrity", "所有權規則一致性", "PASS", f"{len(seen)} 條規則沒有重複指派。"
-        )
-    return Finding(
-        "rules.integrity",
-        "所有權規則一致性",
-        "BLOCK",
-        f"有 {len(dupes)} 個路徑同時被指派給多位 Owner —— 這種狀態下任何所有權判定都不可信。",
-        evidence=[f"{p}  →  同時指派給 {' 與 '.join(o)}" for p, o in dupes],
-        fix="docs/TEAM_4_ROLES.md 明訂「每個 production 檔案只有一位主要 Owner」，這裡違反了。"
-        "四人裁決後，在 references/ownership.json 刪掉多餘的那一條，"
-        "並同步修正 TEAM_4_ROLES.md，再重跑本檢查。",
-    )
-
-
-def check_handoff(files: list[str], rules: dict) -> Finding:
-    """跨組介面：檔案主人是一個人，但改動會影響另一個人的驗收結果。"""
-    hits = [
-        f"{path}  →  需交接單給 {rule['notify']}：{rule['reason']}"
-        for rule in rules.get("handoff", [])
-        for path in files
-        if match_pattern(path, rule["pattern"])
-    ]
-    if hits:
-        return Finding(
-            "own.handoff",
-            "跨組介面交接",
-            "WARN",
-            f"改到 {len(hits)} 個跨組介面檔案，改動會影響其他 Owner 的驗收結果。",
-            evidence=hits,
-            fix="依 docs/TEAM_4_ROLES.md 的「跨組契約／交接單」格式附上交接單，"
-            "載明輸入／輸出／錯誤／版本與至少一個成功、一個失敗案例。",
-        )
-    return Finding("own.handoff", "跨組介面交接", "PASS", "沒有動到需要跨組交接的介面檔案。")
-
-
-def check_ownership(files: list[str], rules: dict, declared: str | None) -> Finding:
-    ignore = rules.get("ignore", [])
-    graded = [
-        (p, *owner_of(p, rules)) for p in files if not any(match_pattern(p, ig) for ig in ignore)
-    ]
-    owners = sorted({o for _, o, _ in graded if o not in ("共享", "?")})
-    unknown = [p for p, o, _ in graded if o == "?"]
-
-    evidence = [f"{o:<4} {p}" for p, o, _ in sorted(graded, key=lambda x: (x[1], x[0]))]
-    names = rules.get("owners", {})
-    owner_list = "、".join(f"{o}（{names.get(o, '')}）" for o in owners) or "無"
-
-    if declared:
-        outside = [p for p, o, _ in graded if o not in (declared, "共享")]
-        if outside:
-            return Finding(
-                "own.scope",
-                "Owner 檔案所有權",
-                "WARN",
-                f"宣告為成員 {declared}，但有 {len(outside)} 個檔案在其他 Owner 範圍內。",
-                evidence=trim(evidence),
-                fix="附上 docs/TEAM_4_ROLES.md「跨組契約／交接單」格式的交接單，"
-                "或請對應 Owner 審查後再合併。",
-            )
-        return Finding(
-            "own.scope",
-            "Owner 檔案所有權",
-            "PASS",
-            f"變更都落在成員 {declared} 的擁有範圍（含共享的 log.md）。",
-            evidence=trim(evidence),
-        )
-
-    if unknown:
-        return Finding(
-            "own.scope",
-            "Owner 檔案所有權",
-            "WARN",
-            f"涉及 Owner：{owner_list}；另有 {len(unknown)} 個檔案未在所有權表內。",
-            evidence=trim(evidence),
-            fix="把未指派檔案補進 docs/TEAM_4_ROLES.md 所有權表與 "
-            ".claude/skills/pre-merge-check/references/ownership.json，再確認由誰負責審查。",
-        )
-    if len(owners) > 1:
-        return Finding(
-            "own.scope",
-            "Owner 檔案所有權",
-            "WARN",
-            f"這個分支橫跨 {len(owners)} 位 Owner：{owner_list}。",
-            evidence=trim(evidence),
-            fix="依 docs/TEAM_4_ROLES.md，跨 Owner 需附「跨組契約／交接單」並由各 Owner 確認；"
-            "或拆成各自範圍的分支分別合併。",
-        )
-    return Finding(
-        "own.scope",
-        "Owner 檔案所有權",
-        "PASS",
-        f"單一 Owner 範圍：{owner_list}。",
-        evidence=trim(evidence),
-    )
-
-
 def check_forbidden(files: list[str], rules: dict) -> Finding:
     hits = []
     for path in files:
@@ -499,7 +382,7 @@ def check_secrets(merge_base: str, branch: str, rules: dict) -> Finding:
             f"新增的內容有 {len(hits)} 處疑似憑證{note}。報告只記位置，不記內容。",
             evidence=trim(hits),
             fix="移除硬編碼憑證改讀環境變數，**並視為已外洩立刻換發金鑰**，再重寫含機密的 commit。"
-            f"確認是刻意保留的值，就加進 references/ownership.json 的 secret_allowlist，"
+            f"確認是刻意保留的值，就加進 references/gate_rules.json 的 secret_allowlist，"
             f"或在該行加註解 `{ALLOW_MARKER}`。",
         )
     return Finding("git.secrets", "機密字串外洩", "PASS", f"新增內容沒有比對到憑證樣式{note}。")
@@ -742,13 +625,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="分支併入 main 前的合併門檻檢查")
     parser.add_argument("branch", nargs="?", default=None, help="要檢查的分支，預設為目前 HEAD")
     parser.add_argument(
-        "--base", default=None, help="目標分支，預設讀 ownership.json 的 base_branch"
-    )
-    parser.add_argument(
-        "--owner",
-        choices=["A", "B", "C", "D"],
-        default=None,
-        help="宣告這次是哪位成員的工作；省略則自動推斷涉及哪些 Owner",
+        "--base", default=None, help="目標分支，預設讀 gate_rules.json 的 base_branch"
     )
     parser.add_argument(
         "--out", default=None, help="報告輸出路徑，預設 reports/merge_check/<分支>_<時間>.md"
@@ -805,9 +682,6 @@ def main() -> int:
         base_finding,
         check_conflict(base_ref, branch),
         check_behind(base_ref, branch),
-        check_rules_integrity(rules),
-        check_ownership(files, rules, args.owner),
-        check_handoff(files, rules),
         check_secrets(merge_base, branch, rules),
         check_forbidden(live, rules),
         check_large(live, branch, rules),
@@ -831,15 +705,6 @@ def main() -> int:
         result = "WARN"
     else:
         result = "PASS"
-
-    ignore = rules.get("ignore", [])
-    graded = [
-        (p, *owner_of(p, rules)) for p in files if not any(match_pattern(p, ig) for ig in ignore)
-    ]
-    owners = sorted({o for _, o, _ in graded if o not in ("共享", "?")})
-    owner_summary = "、".join(owners) if owners else "無法判定"
-    if any(o == "?" for _, o, _ in graded):
-        owner_summary += "（另有未指派檔案）"
 
     if result == "BLOCK":
         next_action = (
@@ -882,7 +747,6 @@ def main() -> int:
             "MERGE_BASE_SHORT": merge_base[:9],
             "COMMIT_COUNT": len(commits),
             "FILE_COUNT": len(files),
-            "OWNER_SUMMARY": owner_summary,
             "SUMMARY_TABLE": summary_rows,
             "BLOCK_SECTION": render_section(blocks, "_無。_"),
             "WARN_SECTION": render_section(warns + skips, "_無。_"),
@@ -892,10 +756,7 @@ def main() -> int:
     )
 
     print()
-    print(
-        f"分支 {branch} → {base_ref}｜commit {len(commits)}｜"
-        f"檔案 {len(files)}｜Owner {owner_summary}"
-    )
+    print(f"分支 {branch} → {base_ref}｜commit {len(commits)}｜檔案 {len(files)}")
     print("-" * 72)
     for f in findings:
         print(f"{BADGE[f.status]:<10} {f.title:<22} {f.detail}")

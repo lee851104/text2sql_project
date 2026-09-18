@@ -9,10 +9,9 @@
 | 分歧點 | `{{MERGE_BASE_SHORT}}` |
 | 待合併 commit | {{COMMIT_COUNT}} 個 |
 | 異動檔案 | {{FILE_COUNT}} 個 |
-| 涉及 Owner | {{OWNER_SUMMARY}} |
 | 檢查時間 | {{GENERATED_AT}} |
 
-判定依據：`docs/TEAM_4_ROLES.md`（四人所有權表與儲存點合併檢查表）、`.github/workflows/ci.yml`、
+判定依據：`.github/workflows/ci.yml`、`docs/TEAM_4_ROLES.md` 的儲存點合併檢查表、
 `.claude/skills/pre-merge-check/references/merge_rules.md`。
 
 ## 判定摘要

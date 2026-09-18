@@ -1,16 +1,19 @@
 ---
 name: pre-merge-check
-description: 分支要併入 main 前的合併門檻檢查。當使用者說「這個分支可以合併嗎」「合併前先檢查」「merge 前檢查一下」「檢查分支符不符合規範」「能不能併進 main」「幫我看這個 branch 有沒有問題」「pre-merge check」「合併檢查」，或在整理多個待合併分支時使用。依 docs/TEAM_4_ROLES.md 四人所有權表與 .github/workflows/ci.yml 門檻，判定 BLOCK（不可合併）／WARN（可合併但需人工確認）／PASS（符合要求），並產出修正說明 md 檔。
+description: 分支要併入 main 前的合併門檻檢查。當使用者說「這個分支可以合併嗎」「合併前先檢查」「merge 前檢查一下」「檢查分支符不符合規範」「能不能併進 main」「幫我看這個 branch 有沒有問題」「pre-merge check」「合併檢查」，或在整理多個待合併分支時使用。依 .github/workflows/ci.yml 的 CI 門檻與專案版控慣例，檢查格式、機密、commit 訊息、log.md 儲存點與 main 同步狀態是否對齊，判定 BLOCK（不可合併）／WARN（可合併但需人工確認）／PASS（符合要求），並產出修正說明 md 檔。
 ---
 
 ## Purpose（使用時機）
 
-把 `docs/TEAM_4_ROLES.md` 文末「儲存點與合併檢查表」那七條人工檢查，變成每次合併前都跑得出同一份證據的自動門檻。
+把「合併前該確認的格式與規範」變成每次都跑得出同一份證據的自動門檻，不必靠記憶或口頭確認。
+
+檢查的是**機器能判定的對齊問題**：CI 會不會掛、有沒有把不該進版控的東西帶進來、commit 訊息格式、
+`log.md` 有沒有記錄、跟 `main` 同不同步。**誰該負責審查哪些檔案，不在本 Skill 範圍**，由人決定。
 
 **用在：**
 - 有分支要併進 `main`，要先確認符不符合規範
 - 手上有多個待合併分支，要排出「哪些能併、哪些要先修」
-- 想知道某個分支跨了哪幾位 Owner 的檔案、要不要交接單
+- 想在開 PR 前先自己確認一遍，不要讓 CI 紅燈才發現
 
 **不要用在：**
 - 只是想看 diff 或 commit 紀錄 —— 直接用 `git diff` / `git log`
@@ -47,7 +50,6 @@ description: 分支要併入 main 前的合併門檻檢查。當使用者說「�
    常用選項：
    - `--base <branch>` 目標分支，預設 `main`（實際比較 `origin/main`）
    - `--fetch` 先 `git fetch`，確保比較基準是 origin 最新狀態
-   - `--owner A|B|C|D` 宣告這次是哪位成員的工作；省略則自動推斷涉及哪些 Owner
    - `--no-ci` 只跑 git 靜態檢查，不跑 ruff／pytest／node
    - `--out <path>` 指定報告路徑，預設 `reports/merge_check/<分支>_<時間>.md`
    - `--json` 額外輸出結構化結果
@@ -65,17 +67,13 @@ description: 分支要併入 main 前的合併門檻檢查。當使用者說「�
    切分支前先跑 `git status` 確認沒有未提交變更會被影響；有的話先問使用者，不要自作主張 stash。
 
 4. **讀報告，逐項給可執行的修正動作。**
-   BLOCK 項目照報告的「修正」欄說明怎麼做；WARN 項目要明講「需要誰來確認什麼」。
+   BLOCK 項目照報告的「修正」欄說明怎麼做；WARN 項目要明講「要確認什麼」。
    判定依據與各項來源見 `references/merge_rules.md`，不要自己發明規則。
 
-5. **跨 Owner 的 WARN，直接產出交接單草稿。**
-   用 `docs/TEAM_4_ROLES.md` 的「跨組契約／交接單」格式（交接來源／接手 Owner／目的／目前證據／
-   需要的公開契約／不得改變／驗收案例／依賴儲存點），把報告裡的檔案清單填進去。
-
-6. **回報判定與報告路徑（見 Output Format）。**
+5. **回報判定與報告路徑（見 Output Format）。**
    **BLOCK 未清光不得說可以合併。** 合併指令由使用者自己執行，本 Skill 不動 git。
 
-7. **分工或受控檔案有變動時，只改 `references/ownership.json`**，不要改 `scripts/check_merge.py`；
+6. **門檻要調整時，只改 `references/gate_rules.json`**（禁入路徑、機密樣式、commit type、文件同步對應），不要改 `scripts/check_merge.py`；
    改完用 `python -c "import json,pathlib;json.loads(...)"` 確認 JSON 仍合法（指令見 `references/merge_rules.md`）。
 
 ## Output Format（輸出規格）
@@ -85,7 +83,7 @@ description: 分支要併入 main 前的合併門檻檢查。當使用者說「�
 - **判定** —— `BLOCK` / `WARN` / `PASS` 三者之一，逐字附上，不要換成自己的說法
 - **一句話結論** —— 能不能合併；BLOCK 要說「先不要合併」
 - **BLOCK 清單** —— 每項：哪個檢查、失敗原因、具體修正指令
-- **WARN 清單** —— 每項：需要誰確認什麼；跨 Owner 要附交接單草稿
+- **WARN 清單** —— 每項：要確認什麼、由誰確認
 - **未執行項目** —— 哪些 CI 檢查是 SKIP、為什麼，以及怎麼補跑
 - **報告路徑** —— `reports/merge_check/<分支>_<時間>.md` 的實際位置
 
