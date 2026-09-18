@@ -2,6 +2,21 @@
 
 > 這份檔案在每個可驗證、可回退的儲存點更新。回退前需保留使用者原有的未提交變更。
 
+## CP-020 — 再生能源兩份開放資料的清洗與對齊層
+
+- 時間：2026-09-18 21:12 +08:00
+- 狀態：已完成（清洗與對齊層；尚未建立資料表與語意檢視）
+- 資料源：`ingest.fetch` 新增 `d693002`（再生能源各場址）、`d693001`（自建再生能源發電量）與 `d006001`（各機組發電量即時資訊）。`Dataset` 增加 `suffix` 欄位，因為 `d006001` 只提供 JSON；封存副檔名改為跟隨 `suffix`，既有三個 CSV 資料源行為不變。
+- 清洗規則：新增 `src/align/renewable.py`，全部是無 I/O 純函式——雙語字串取中文側、剔除小計列、地址解析縣市、發電量分類為 ok／missing／suspect／invalid、站名正規化與對齊。
+- 實測結果：場址主檔 97 列中 4 列為小計，明細 93 列容量合計 757,960 瓩（97 列直接加總會得 1,514,419 瓩，重複近一倍）；縣市解析 93／93 成功；發電量 1,976 列中 1,959 ok、16 missing、1 repaired。
+- 名稱對齊：去掉「發電站」後綴後，65 站中 64 站對齊，對齊率 98.5%（未處理前僅 10 站）。`configs/renewable_overrides.yaml` 記錄兩組人工確認的別名（高訓中心、龜山加壓站），依據是以裝置容量推算的容量因數 15.0% 與 12.6%，均落在合理範圍。
+- 未對齊：`中屯風力` 在發電量檔有 21 個月但場址主檔沒有它。台電 11307 簡明月報表 2-2 證實該站存在（#1~#8，當月全為 0 度），判定為主檔漏收，保留原名標記 `generation_only`，不建立對應。
+- 壞值處理：`澎湖湖西風力` 2024-07 原始值為 `357,156.00 2`。解析器一律標為 suspect 且不列入加總；經月報交叉驗證（六機毛發電量 382,722 度 − 站級廠用電 25,566 度 = 357,156 度）後，以 overrides 記錄修復並附完整依據。同一驗算也確認本欄是淨發電量而非毛發電量。
+- 產物：`taipower_align/re_station_crosswalk.csv`（65 列，含狀態、能源別、縣市、場址數、容量、月數、可加總度數與缺值月數）；`reports/alignment.json` 新增 `renewable` 區段，對齊率低於 90% 時整份報告判定 fail。
+- 驗收：新增 `tests/test_renewable_align.py` 34 項，案例全部取自官方真實列；`uv run python -m align` 回報 status=pass；`ruff format --check`、`ruff check`、`pytest -q` 全過（262 passed）。`tests/test_foundation.py` 的設定檔清單同步加入新的 overrides 檔。
+- 未執行：`dim_re_site`、`fact_re_monthly`、`v_re_generation` 與限定「台電自建」範圍的 disclose 規則都還沒做；8931 只完成下載與封存，尚未用於補 `dim_b_column`。
+- 回退方式：回退 `feat: clean and align the renewable open-data files` 這個 commit；既有資料庫、語意檢視與查詢行為完全未動。
+
 ## CP-019 — 三份台電開放資料的實測盤點與擴充計畫
 
 - 時間：2026-09-18 19:55 +08:00

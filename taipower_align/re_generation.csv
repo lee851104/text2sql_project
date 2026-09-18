@@ -1,0 +1,1977 @@
+﻿年度/Year,月份/Month,能源別/Energy Type,發電站名稱/Station Name,發電量(度)/Power Generation(kWh)
+2024,01,陸域風力/Onshore Wind,石門風力/Shimen Wind Power,543699
+2024,01,陸域風力/Onshore Wind,林口風力/Linkou Wind Power,1208274
+2024,01,陸域風力/Onshore Wind,蘆竹風力/Luzhu Wind Power,2038141
+2024,01,陸域風力/Onshore Wind,觀園風力/Guanyuan Wind Power,12042746
+2024,01,陸域風力/Onshore Wind,大潭風力/Datan Wind Power,3585134
+2024,01,陸域風力/Onshore Wind,新竹香山風力/Hsinchu Xiangshan Wind Power,1637621
+2024,01,陸域風力/Onshore Wind,台中港區風力/Taichung Harbor Wind Power,9484480
+2024,01,陸域風力/Onshore Wind,台中電廠風力/Taichung Power Plant Wind Power,469518
+2024,01,陸域風力/Onshore Wind,彰工風力Changgong Wind Power,25551421
+2024,01,陸域風力/Onshore Wind,彰化王功風力/Changhua Wanggong Wind Power,7832455
+2024,01,陸域風力/Onshore Wind,彰化永興風力/Changhua Yongxing Wind Power,3211223
+2024,01,陸域風力/Onshore Wind,雲林麥寮風力/Yunlin Mailiao Wind Power,7718339
+2024,01,陸域風力/Onshore Wind,雲林四湖風力/Yunlin Sihu Wind Power,4412170
+2024,01,陸域風力/Onshore Wind,恆春風力/Hengchun Wind Power,1502963
+2024,01,陸域風力/Onshore Wind,中屯風力/Zhongtun Wind Power,-
+2024,01,陸域風力/Onshore Wind,澎湖湖西風力/Penghu Huxi Wind Power,1661796
+2024,01,陸域風力/Onshore Wind,金沙風力/Jinsha Wind Power,1266949
+2024,01,陸域風力/Onshore Wind,澎湖龍門風力/Penghu Longmen Wind Power,1158730
+2024,01,離岸風力/Offshore Wind,離岸一期風力/Offshore Phase1 Wind Power,40230915
+2024,01,太陽能/Solar,大潭電廠太陽光電/Datang Power Plant Solars,91720
+2024,01,太陽能/Solar,北部儲運中心太陽光電/Northern Storage and Transportation Center Solars,59210
+2024,01,太陽能/Solar,龍潭E/S太陽光電/Longtan E/S Solars,13299
+2024,01,太陽能/Solar,竹工E/S太陽光電/Zhugong E/S Solars,18268
+2024,01,太陽能/Solar,台中電廠太陽光電/Taichung Power Plant Solars,301494
+2024,01,太陽能/Solar,台中龍井太陽光電/Taichung Longjing Solars,526593
+2024,01,太陽能/Solar,中科E/S太陽光電/Zhongke E/S Solars,19151
+2024,01,太陽能/Solar,彰化彰濱太陽光電/Changhua Changbin Solars,8070336
+2024,01,太陽能/Solar,彰林E/S太陽光電/Changlin E/S Solars,27659
+2024,01,太陽能/Solar,南投大彎太陽光電/Nantou Dawan Solars,80870
+2024,01,太陽能/Solar,台南鹽田太陽光電/Tainan salt field Solars,18658621
+2024,01,太陽能/Solar,台南七股太陽光電/Tainan Qigu Solars,630327
+2024,01,太陽能/Solar,興達電廠太陽光電/Xingda Power Plant Solars,177490
+2024,01,太陽能/Solar,永安鹽灘地太陽光電/Yongan Salt Flats Solars,378170
+2024,01,太陽能/Solar,燕巢倉庫太陽光電/Yanchao Warehouse Solars,52843
+2024,01,太陽能/Solar,高雄E/S太陽光電/Kaohsiung E/S Solars,72157
+2024,01,太陽能/Solar,高雄保寧太陽光電/Kaohsiung Baoning Solars,62871
+2024,01,太陽能/Solar,鳳山水庫太陽光電/Fengshan Reservoir Solars,194643
+2024,01,太陽能/Solar,核三廠太陽光電/3rd Nuclear Power Plants Solars,117919
+2024,01,太陽能/Solar,澎湖七美太陽光電/Penghu Qimei Solars,6249
+2024,01,太陽能/Solar,澎湖尖山太陽光電/Penghu jianshan Solars,71223
+2024,01,太陽能/Solar,金門金沙太陽光電/Kinmen Jinsha Solars,44059
+2024,01,太陽能/Solar,金門塔山太陽光電/Kinmen Tashan Solars,20527
+2024,01,太陽能/Solar,金門鵲山太陽光電/Kinmen Queshan Solars,4275
+2024,01,太陽能/Solar,馬祖珠山太陽光電/Mazu Zhushan Solars,5221
+2024,01,太陽能/Solar,"淡水3.5萬噸配水池太陽光電/Danshui Distribution Reservoir(35,000 tons) Solar",21161
+2024,01,太陽能/Solar,中大D/S太陽光電/Zhongda D/S Solars,2203
+2024,01,太陽能/Solar,平鎮淨水場太陽光電/Pingzhen Water Treatment Plant Solars,85148
+2024,01,太陽能/Solar,大湳淨水場太陽光電/Danan Water Treatment Plant Solars,62033
+2024,01,太陽能/Solar,龜山加壓站太陽光電/Guishan Booster Station Solars,21488
+2024,01,太陽能/Solar,龍潭淨水場太陽光電/Longtan Water Treatment Plant Solars,27759
+2024,01,太陽能/Solar,卓蘭會館太陽光電/Zhuolan Hostel Solars,3560
+2024,01,太陽能/Solar,東興淨水場太陽光電/Dongxing Water Treatment Plant Solars,60818
+2024,01,太陽能/Solar,后里E/S太陽光電/Houli E/S Solars,9339
+2024,01,太陽能/Solar,中部儲運中心太陽光電/Central Storage and Transportation Center Solars,6900
+2024,01,太陽能/Solar,東勢新伯公太陽光電/Dongshi Xinbogong Solars,67111
+2024,01,太陽能/Solar,嘉義民雄太陽光電/Jiayi Minxiong Solars,3781
+2024,01,太陽能/Solar,嘉義分所太陽光電/Chiayi Agricultural Experiment Branch Solars,25146
+2024,01,太陽能/Solar,義竹工作站太陽光電/Yizhu Workstation Solars,31243
+2024,01,太陽能/Solar,路北E/S太陽光電/Lubei E/S Solars,4621
+2024,01,太陽能/Solar,蘭嶼電廠太陽光電/Lanyu Power Plant Solars,1628
+2024,01,太陽能/Solar,蘭嶼貯存場太陽光電/Lanyu Storage Unit Solars,2366
+2024,01,地熱/Geothermal,仁澤地熱/Renze Geothermal,323485
+2024,02,陸域風力/Onshore Wind,石門風力/Shimen Wind Power,329540
+2024,02,陸域風力/Onshore Wind,林口風力/Linkou Wind Power,1072848
+2024,02,陸域風力/Onshore Wind,蘆竹風力/Luzhu Wind Power,1738015
+2024,02,陸域風力/Onshore Wind,觀園風力/Guanyuan Wind Power,10514249
+2024,02,陸域風力/Onshore Wind,大潭風力/Datan Wind Power,2835612
+2024,02,陸域風力/Onshore Wind,新竹香山風力/Hsinchu Xiangshan Wind Power,1310492
+2024,02,陸域風力/Onshore Wind,台中港區風力/Taichung Harbor Wind Power,8439689
+2024,02,陸域風力/Onshore Wind,台中電廠風力/Taichung Power Plant Wind Power,395868
+2024,02,陸域風力/Onshore Wind,彰工風力Changgong Wind Power,19177118
+2024,02,陸域風力/Onshore Wind,彰化王功風力/Changhua Wanggong Wind Power,6405498
+2024,02,陸域風力/Onshore Wind,彰化永興風力/Changhua Yongxing Wind Power,2765752
+2024,02,陸域風力/Onshore Wind,雲林麥寮風力/Yunlin Mailiao Wind Power,4891931
+2024,02,陸域風力/Onshore Wind,雲林四湖風力/Yunlin Sihu Wind Power,3487020
+2024,02,陸域風力/Onshore Wind,恆春風力/Hengchun Wind Power,1100968
+2024,02,陸域風力/Onshore Wind,中屯風力/Zhongtun Wind Power,-
+2024,02,陸域風力/Onshore Wind,澎湖湖西風力/Penghu Huxi Wind Power,1419044
+2024,02,陸域風力/Onshore Wind,金沙風力/Jinsha Wind Power,1168364
+2024,02,陸域風力/Onshore Wind,澎湖龍門風力/Penghu Longmen Wind Power,-
+2024,02,離岸風力/Offshore Wind,離岸一期風力/Offshore Phase1 Wind Power,28970933
+2024,02,太陽能/Solar,大潭電廠太陽光電/Datang Power Plant Solars,87999
+2024,02,太陽能/Solar,北部儲運中心太陽光電/Northern Storage and Transportation Center Solars,62232
+2024,02,太陽能/Solar,龍潭E/S太陽光電/Longtan E/S Solars,12193
+2024,02,太陽能/Solar,竹工E/S太陽光電/Zhugong E/S Solars,17687
+2024,02,太陽能/Solar,台中電廠太陽光電/Taichung Power Plant Solars,329565
+2024,02,太陽能/Solar,台中龍井太陽光電/Taichung Longjing Solars,593438
+2024,02,太陽能/Solar,中科E/S太陽光電/Zhongke E/S Solars,20653
+2024,02,太陽能/Solar,彰化彰濱太陽光電/Changhua Changbin Solars,9270148
+2024,02,太陽能/Solar,彰林E/S太陽光電/Changlin E/S Solars,28035
+2024,02,太陽能/Solar,南投大彎太陽光電/Nantou Dawan Solars,82448
+2024,02,太陽能/Solar,台南鹽田太陽光電/Tainan salt field Solars,19162662
+2024,02,太陽能/Solar,台南七股太陽光電/Tainan Qigu Solars,664015
+2024,02,太陽能/Solar,興達電廠太陽光電/Xingda Power Plant Solars,182064
+2024,02,太陽能/Solar,永安鹽灘地太陽光電/Yongan Salt Flats Solars,385602
+2024,02,太陽能/Solar,燕巢倉庫太陽光電/Yanchao Warehouse Solars,56228
+2024,02,太陽能/Solar,高雄E/S太陽光電/Kaohsiung E/S Solars,79251
+2024,02,太陽能/Solar,高雄保寧太陽光電/Kaohsiung Baoning Solars,67754
+2024,02,太陽能/Solar,鳳山水庫太陽光電/Fengshan Reservoir Solars,215160
+2024,02,太陽能/Solar,核三廠太陽光電/3rd Nuclear Power Plants Solars,131740
+2024,02,太陽能/Solar,澎湖七美太陽光電/Penghu Qimei Solars,20449
+2024,02,太陽能/Solar,澎湖尖山太陽光電/Penghu jianshan Solars,63233
+2024,02,太陽能/Solar,金門金沙太陽光電/Kinmen Jinsha Solars,42552
+2024,02,太陽能/Solar,金門塔山太陽光電/Kinmen Tashan Solars,20742
+2024,02,太陽能/Solar,金門鵲山太陽光電/Kinmen Queshan Solars,4286
+2024,02,太陽能/Solar,馬祖珠山太陽光電/Mazu Zhushan Solars,4700
+2024,02,太陽能/Solar,"淡水3.5萬噸配水池太陽光電/Danshui Distribution Reservoir(35,000 tons) Solar",23970
+2024,02,太陽能/Solar,中大D/S太陽光電/Zhongda D/S Solars,2122
+2024,02,太陽能/Solar,平鎮淨水場太陽光電/Pingzhen Water Treatment Plant Solars,80595
+2024,02,太陽能/Solar,大湳淨水場太陽光電/Danan Water Treatment Plant Solars,61540
+2024,02,太陽能/Solar,龜山加壓站太陽光電/Guishan Booster Station Solars,23532
+2024,02,太陽能/Solar,龍潭淨水場太陽光電/Longtan Water Treatment Plant Solars,25124
+2024,02,太陽能/Solar,卓蘭會館太陽光電/Zhuolan Hostel Solars,3497
+2024,02,太陽能/Solar,東興淨水場太陽光電/Dongxing Water Treatment Plant Solars,59085
+2024,02,太陽能/Solar,后里E/S太陽光電/Houli E/S Solars,6316
+2024,02,太陽能/Solar,中部儲運中心太陽光電/Central Storage and Transportation Center Solars,7456
+2024,02,太陽能/Solar,東勢新伯公太陽光電/Dongshi Xinbogong Solars,71269
+2024,02,太陽能/Solar,嘉義民雄太陽光電/Jiayi Minxiong Solars,4110
+2024,02,太陽能/Solar,嘉義分所太陽光電/Chiayi Agricultural Experiment Branch Solars,27266
+2024,02,太陽能/Solar,義竹工作站太陽光電/Yizhu Workstation Solars,32950
+2024,02,太陽能/Solar,路北E/S太陽光電/Lubei E/S Solars,4995
+2024,02,太陽能/Solar,蘭嶼電廠太陽光電/Lanyu Power Plant Solars,2826
+2024,02,太陽能/Solar,蘭嶼貯存場太陽光電/Lanyu Storage Unit Solars,3370
+2024,02,地熱/Geothermal,仁澤地熱/Renze Geothermal,318866
+2024,03,陸域風力/Onshore Wind,石門風力/Shimen Wind Power,301625
+2024,03,陸域風力/Onshore Wind,林口風力/Linkou Wind Power,875438
+2024,03,陸域風力/Onshore Wind,蘆竹風力/Luzhu Wind Power,1434710
+2024,03,陸域風力/Onshore Wind,觀園風力/Guanyuan Wind Power,8312879
+2024,03,陸域風力/Onshore Wind,大潭風力/Datan Wind Power,2645095
+2024,03,陸域風力/Onshore Wind,新竹香山風力/Hsinchu Xiangshan Wind Power,1371097
+2024,03,陸域風力/Onshore Wind,台中港區風力/Taichung Harbor Wind Power,6984966
+2024,03,陸域風力/Onshore Wind,台中電廠風力/Taichung Power Plant Wind Power,307214
+2024,03,陸域風力/Onshore Wind,彰工風力Changgong Wind Power,15669786
+2024,03,陸域風力/Onshore Wind,彰化王功風力/Changhua Wanggong Wind Power,5226624
+2024,03,陸域風力/Onshore Wind,彰化永興風力/Changhua Yongxing Wind Power,2415232
+2024,03,陸域風力/Onshore Wind,雲林麥寮風力/Yunlin Mailiao Wind Power,4052871
+2024,03,陸域風力/Onshore Wind,雲林四湖風力/Yunlin Sihu Wind Power,3407236
+2024,03,陸域風力/Onshore Wind,恆春風力/Hengchun Wind Power,1441289
+2024,03,陸域風力/Onshore Wind,中屯風力/Zhongtun Wind Power,-
+2024,03,陸域風力/Onshore Wind,澎湖湖西風力/Penghu Huxi Wind Power,1229029
+2024,03,陸域風力/Onshore Wind,金沙風力/Jinsha Wind Power,832483
+2024,03,陸域風力/Onshore Wind,澎湖龍門風力/Penghu Longmen Wind Power,525712
+2024,03,離岸風力/Offshore Wind,離岸一期風力/Offshore Phase1 Wind Power,31574766
+2024,03,太陽能/Solar,大潭電廠太陽光電/Datang Power Plant Solars,113169
+2024,03,太陽能/Solar,北部儲運中心太陽光電/Northern Storage and Transportation Center Solars,81351
+2024,03,太陽能/Solar,龍潭E/S太陽光電/Longtan E/S Solars,13971
+2024,03,太陽能/Solar,竹工E/S太陽光電/Zhugong E/S Solars,21469
+2024,03,太陽能/Solar,台中電廠太陽光電/Taichung Power Plant Solars,329976
+2024,03,太陽能/Solar,台中龍井太陽光電/Taichung Longjing Solars,591382
+2024,03,太陽能/Solar,中科E/S太陽光電/Zhongke E/S Solars,20700
+2024,03,太陽能/Solar,彰化彰濱太陽光電/Changhua Changbin Solars,9983554
+2024,03,太陽能/Solar,彰林E/S太陽光電/Changlin E/S Solars,28650
+2024,03,太陽能/Solar,南投大彎太陽光電/Nantou Dawan Solars,88016
+2024,03,太陽能/Solar,台南鹽田太陽光電/Tainan salt field Solars,19641588
+2024,03,太陽能/Solar,台南七股太陽光電/Tainan Qigu Solars,650148
+2024,03,太陽能/Solar,興達電廠太陽光電/Xingda Power Plant Solars,181322
+2024,03,太陽能/Solar,永安鹽灘地太陽光電/Yongan Salt Flats Solars,388535
+2024,03,太陽能/Solar,燕巢倉庫太陽光電/Yanchao Warehouse Solars,55866
+2024,03,太陽能/Solar,高雄E/S太陽光電/Kaohsiung E/S Solars,82865
+2024,03,太陽能/Solar,高雄保寧太陽光電/Kaohsiung Baoning Solars,70632
+2024,03,太陽能/Solar,鳳山水庫太陽光電/Fengshan Reservoir Solars,230018
+2024,03,太陽能/Solar,核三廠太陽光電/3rd Nuclear Power Plants Solars,139876
+2024,03,太陽能/Solar,澎湖七美太陽光電/Penghu Qimei Solars,26469
+2024,03,太陽能/Solar,澎湖尖山太陽光電/Penghu jianshan Solars,92385
+2024,03,太陽能/Solar,金門金沙太陽光電/Kinmen Jinsha Solars,43253
+2024,03,太陽能/Solar,金門塔山太陽光電/Kinmen Tashan Solars,22247
+2024,03,太陽能/Solar,金門鵲山太陽光電/Kinmen Queshan Solars,4697
+2024,03,太陽能/Solar,馬祖珠山太陽光電/Mazu Zhushan Solars,6219
+2024,03,太陽能/Solar,"淡水3.5萬噸配水池太陽光電/Danshui Distribution Reservoir(35,000 tons) Solar",27327
+2024,03,太陽能/Solar,中大D/S太陽光電/Zhongda D/S Solars,2465
+2024,03,太陽能/Solar,平鎮淨水場太陽光電/Pingzhen Water Treatment Plant Solars,95919
+2024,03,太陽能/Solar,大湳淨水場太陽光電/Danan Water Treatment Plant Solars,71826
+2024,03,太陽能/Solar,龜山加壓站太陽光電/Guishan Booster Station Solars,26251
+2024,03,太陽能/Solar,龍潭淨水場太陽光電/Longtan Water Treatment Plant Solars,29677
+2024,03,太陽能/Solar,卓蘭會館太陽光電/Zhuolan Hostel Solars,3237
+2024,03,太陽能/Solar,東興淨水場太陽光電/Dongxing Water Treatment Plant Solars,67945
+2024,03,太陽能/Solar,后里E/S太陽光電/Houli E/S Solars,5086
+2024,03,太陽能/Solar,中部儲運中心太陽光電/Central Storage and Transportation Center Solars,7305
+2024,03,太陽能/Solar,東勢新伯公太陽光電/Dongshi Xinbogong Solars,70722
+2024,03,太陽能/Solar,嘉義民雄太陽光電/Jiayi Minxiong Solars,4154
+2024,03,太陽能/Solar,嘉義分所太陽光電/Chiayi Agricultural Experiment Branch Solars,29167
+2024,03,太陽能/Solar,義竹工作站太陽光電/Yizhu Workstation Solars,36614
+2024,03,太陽能/Solar,路北E/S太陽光電/Lubei E/S Solars,4941
+2024,03,太陽能/Solar,蘭嶼電廠太陽光電/Lanyu Power Plant Solars,3313
+2024,03,太陽能/Solar,蘭嶼貯存場太陽光電/Lanyu Storage Unit Solars,3637
+2024,03,地熱/Geothermal,仁澤地熱/Renze Geothermal,395181
+2024,04,陸域風力/Onshore Wind,石門風力/Shimen Wind Power,151913
+2024,04,陸域風力/Onshore Wind,林口風力/Linkou Wind Power,354107
+2024,04,陸域風力/Onshore Wind,蘆竹風力/Luzhu Wind Power,630457
+2024,04,陸域風力/Onshore Wind,觀園風力/Guanyuan Wind Power,4046975
+2024,04,陸域風力/Onshore Wind,大潭風力/Datan Wind Power,1481032
+2024,04,陸域風力/Onshore Wind,新竹香山風力/Hsinchu Xiangshan Wind Power,824757
+2024,04,陸域風力/Onshore Wind,台中港區風力/Taichung Harbor Wind Power,2857543
+2024,04,陸域風力/Onshore Wind,台中電廠風力/Taichung Power Plant Wind Power,119151
+2024,04,陸域風力/Onshore Wind,彰工風力Changgong Wind Power,7417481
+2024,04,陸域風力/Onshore Wind,彰化王功風力/Changhua Wanggong Wind Power,2271183
+2024,04,陸域風力/Onshore Wind,彰化永興風力/Changhua Yongxing Wind Power,1112206
+2024,04,陸域風力/Onshore Wind,雲林麥寮風力/Yunlin Mailiao Wind Power,2061480
+2024,04,陸域風力/Onshore Wind,雲林四湖風力/Yunlin Sihu Wind Power,1908595
+2024,04,陸域風力/Onshore Wind,恆春風力/Hengchun Wind Power,605020
+2024,04,陸域風力/Onshore Wind,中屯風力/Zhongtun Wind Power,-
+2024,04,陸域風力/Onshore Wind,澎湖湖西風力/Penghu Huxi Wind Power,362493
+2024,04,陸域風力/Onshore Wind,金沙風力/Jinsha Wind Power,403165
+2024,04,陸域風力/Onshore Wind,澎湖龍門風力/Penghu Longmen Wind Power,748169
+2024,04,離岸風力/Offshore Wind,離岸一期風力/Offshore Phase1 Wind Power,15798055
+2024,04,太陽能/Solar,大潭電廠太陽光電/Datang Power Plant Solars,104212
+2024,04,太陽能/Solar,北部儲運中心太陽光電/Northern Storage and Transportation Center Solars,76720
+2024,04,太陽能/Solar,龍潭E/S太陽光電/Longtan E/S Solars,13056
+2024,04,太陽能/Solar,竹工E/S太陽光電/Zhugong E/S Solars,19626
+2024,04,太陽能/Solar,台中電廠太陽光電/Taichung Power Plant Solars,307962
+2024,04,太陽能/Solar,台中龍井太陽光電/Taichung Longjing Solars,459566
+2024,04,太陽能/Solar,中科E/S太陽光電/Zhongke E/S Solars,19334
+2024,04,太陽能/Solar,彰化彰濱太陽光電/Changhua Changbin Solars,9841588
+2024,04,太陽能/Solar,彰林E/S太陽光電/Changlin E/S Solars,27277
+2024,04,太陽能/Solar,南投大彎太陽光電/Nantou Dawan Solars,95009
+2024,04,太陽能/Solar,台南鹽田太陽光電/Tainan salt field Solars,18934107
+2024,04,太陽能/Solar,台南七股太陽光電/Tainan Qigu Solars,572835
+2024,04,太陽能/Solar,興達電廠太陽光電/Xingda Power Plant Solars,188720
+2024,04,太陽能/Solar,永安鹽灘地太陽光電/Yongan Salt Flats Solars,375960
+2024,04,太陽能/Solar,燕巢倉庫太陽光電/Yanchao Warehouse Solars,50258
+2024,04,太陽能/Solar,高雄E/S太陽光電/Kaohsiung E/S Solars,85088
+2024,04,太陽能/Solar,高雄保寧太陽光電/Kaohsiung Baoning Solars,71676
+2024,04,太陽能/Solar,鳳山水庫太陽光電/Fengshan Reservoir Solars,213814
+2024,04,太陽能/Solar,核三廠太陽光電/3rd Nuclear Power Plants Solars,375402
+2024,04,太陽能/Solar,澎湖七美太陽光電/Penghu Qimei Solars,24544
+2024,04,太陽能/Solar,澎湖尖山太陽光電/Penghu jianshan Solars,85961
+2024,04,太陽能/Solar,金門金沙太陽光電/Kinmen Jinsha Solars,28953
+2024,04,太陽能/Solar,金門塔山太陽光電/Kinmen Tashan Solars,17751
+2024,04,太陽能/Solar,金門鵲山太陽光電/Kinmen Queshan Solars,3588
+2024,04,太陽能/Solar,馬祖珠山太陽光電/Mazu Zhushan Solars,5186
+2024,04,太陽能/Solar,"淡水3.5萬噸配水池太陽光電/Danshui Distribution Reservoir(35,000 tons) Solar",25972
+2024,04,太陽能/Solar,中大D/S太陽光電/Zhongda D/S Solars,2339
+2024,04,太陽能/Solar,平鎮淨水場太陽光電/Pingzhen Water Treatment Plant Solars,93049
+2024,04,太陽能/Solar,大湳淨水場太陽光電/Danan Water Treatment Plant Solars,68064
+2024,04,太陽能/Solar,龜山加壓站太陽光電/Guishan Booster Station Solars,24498
+2024,04,太陽能/Solar,龍潭淨水場太陽光電/Longtan Water Treatment Plant Solars,29137
+2024,04,太陽能/Solar,卓蘭會館太陽光電/Zhuolan Hostel Solars,2220
+2024,04,太陽能/Solar,東興淨水場太陽光電/Dongxing Water Treatment Plant Solars,64839
+2024,04,太陽能/Solar,后里E/S太陽光電/Houli E/S Solars,8186
+2024,04,太陽能/Solar,中部儲運中心太陽光電/Central Storage and Transportation Center Solars,7063
+2024,04,太陽能/Solar,東勢新伯公太陽光電/Dongshi Xinbogong Solars,73210
+2024,04,太陽能/Solar,嘉義民雄太陽光電/Jiayi Minxiong Solars,4117
+2024,04,太陽能/Solar,嘉義分所太陽光電/Chiayi Agricultural Experiment Branch Solars,30111
+2024,04,太陽能/Solar,義竹工作站太陽光電/Yizhu Workstation Solars,37055
+2024,04,太陽能/Solar,路北E/S太陽光電/Lubei E/S Solars,4709
+2024,04,太陽能/Solar,蘭嶼電廠太陽光電/Lanyu Power Plant Solars,3688
+2024,04,太陽能/Solar,蘭嶼貯存場太陽光電/Lanyu Storage Unit Solars,4312
+2024,04,地熱/Geothermal,仁澤地熱/Renze Geothermal,319028
+2024,05,陸域風力/Onshore Wind,石門風力/Shimen Wind Power,234153
+2024,05,陸域風力/Onshore Wind,林口風力/Linkou Wind Power,445720
+2024,05,陸域風力/Onshore Wind,蘆竹風力/Luzhu Wind Power,927931
+2024,05,陸域風力/Onshore Wind,觀園風力/Guanyuan Wind Power,6101815
+2024,05,陸域風力/Onshore Wind,大潭風力/Datan Wind Power,1593811
+2024,05,陸域風力/Onshore Wind,新竹香山風力/Hsinchu Xiangshan Wind Power,573903
+2024,05,陸域風力/Onshore Wind,台中港區風力/Taichung Harbor Wind Power,3812811
+2024,05,陸域風力/Onshore Wind,台中電廠風力/Taichung Power Plant Wind Power,169786
+2024,05,陸域風力/Onshore Wind,彰工風力Changgong Wind Power,10805496
+2024,05,陸域風力/Onshore Wind,彰化王功風力/Changhua Wanggong Wind Power,3489308
+2024,05,陸域風力/Onshore Wind,彰化永興風力/Changhua Yongxing Wind Power,1488152
+2024,05,陸域風力/Onshore Wind,雲林麥寮風力/Yunlin Mailiao Wind Power,2419301
+2024,05,陸域風力/Onshore Wind,雲林四湖風力/Yunlin Sihu Wind Power,2129907
+2024,05,陸域風力/Onshore Wind,恆春風力/Hengchun Wind Power,900859
+2024,05,陸域風力/Onshore Wind,中屯風力/Zhongtun Wind Power,-
+2024,05,陸域風力/Onshore Wind,澎湖湖西風力/Penghu Huxi Wind Power,763117
+2024,05,陸域風力/Onshore Wind,金沙風力/Jinsha Wind Power,763117
+2024,05,陸域風力/Onshore Wind,澎湖龍門風力/Penghu Longmen Wind Power,1139426
+2024,05,離岸風力/Offshore Wind,離岸一期風力/Offshore Phase1 Wind Power,22118130
+2024,05,太陽能/Solar,大潭電廠太陽光電/Datang Power Plant Solars,136105
+2024,05,太陽能/Solar,北部儲運中心太陽光電/Northern Storage and Transportation Center Solars,100095
+2024,05,太陽能/Solar,龍潭E/S太陽光電/Longtan E/S Solars,17368
+2024,05,太陽能/Solar,竹工E/S太陽光電/Zhugong E/S Solars,25957
+2024,05,太陽能/Solar,台中電廠太陽光電/Taichung Power Plant Solars,340643
+2024,05,太陽能/Solar,台中龍井太陽光電/Taichung Longjing Solars,505190
+2024,05,太陽能/Solar,中科E/S太陽光電/Zhongke E/S Solars,22197
+2024,05,太陽能/Solar,彰化彰濱太陽光電/Changhua Changbin Solars,11078767
+2024,05,太陽能/Solar,彰林E/S太陽光電/Changlin E/S Solars,29427
+2024,05,太陽能/Solar,南投大彎太陽光電/Nantou Dawan Solars,98943
+2024,05,太陽能/Solar,台南鹽田太陽光電/Tainan salt field Solars,18648224
+2024,05,太陽能/Solar,台南七股太陽光電/Tainan Qigu Solars,620969
+2024,05,太陽能/Solar,興達電廠太陽光電/Xingda Power Plant Solars,172974
+2024,05,太陽能/Solar,永安鹽灘地太陽光電/Yongan Salt Flats Solars,398242
+2024,05,太陽能/Solar,燕巢倉庫太陽光電/Yanchao Warehouse Solars,49047
+2024,05,太陽能/Solar,高雄E/S太陽光電/Kaohsiung E/S Solars,82415
+2024,05,太陽能/Solar,高雄保寧太陽光電/Kaohsiung Baoning Solars,82860
+2024,05,太陽能/Solar,鳳山水庫太陽光電/Fengshan Reservoir Solars,227360
+2024,05,太陽能/Solar,核三廠太陽光電/3rd Nuclear Power Plants Solars,402333
+2024,05,太陽能/Solar,澎湖七美太陽光電/Penghu Qimei Solars,22875
+2024,05,太陽能/Solar,澎湖尖山太陽光電/Penghu jianshan Solars,89190
+2024,05,太陽能/Solar,金門金沙太陽光電/Kinmen Jinsha Solars,35976
+2024,05,太陽能/Solar,金門塔山太陽光電/Kinmen Tashan Solars,24950
+2024,05,太陽能/Solar,金門鵲山太陽光電/Kinmen Queshan Solars,5254
+2024,05,太陽能/Solar,馬祖珠山太陽光電/Mazu Zhushan Solars,8081
+2024,05,太陽能/Solar,"淡水3.5萬噸配水池太陽光電/Danshui Distribution Reservoir(35,000 tons) Solar",32963
+2024,05,太陽能/Solar,中大D/S太陽光電/Zhongda D/S Solars,3017
+2024,05,太陽能/Solar,平鎮淨水場太陽光電/Pingzhen Water Treatment Plant Solars,118094
+2024,05,太陽能/Solar,大湳淨水場太陽光電/Danan Water Treatment Plant Solars,89692
+2024,05,太陽能/Solar,龜山加壓站太陽光電/Guishan Booster Station Solars,32008
+2024,05,太陽能/Solar,龍潭淨水場太陽光電/Longtan Water Treatment Plant Solars,37384
+2024,05,太陽能/Solar,卓蘭會館太陽光電/Zhuolan Hostel Solars,3341
+2024,05,太陽能/Solar,東興淨水場太陽光電/Dongxing Water Treatment Plant Solars,82356
+2024,05,太陽能/Solar,后里E/S太陽光電/Houli E/S Solars,8116
+2024,05,太陽能/Solar,中部儲運中心太陽光電/Central Storage and Transportation Center Solars,8648
+2024,05,太陽能/Solar,東勢新伯公太陽光電/Dongshi Xinbogong Solars,78455
+2024,05,太陽能/Solar,嘉義民雄太陽光電/Jiayi Minxiong Solars,3951
+2024,05,太陽能/Solar,嘉義分所太陽光電/Chiayi Agricultural Experiment Branch Solars,22882
+2024,05,太陽能/Solar,義竹工作站太陽光電/Yizhu Workstation Solars,37176
+2024,05,太陽能/Solar,路北E/S太陽光電/Lubei E/S Solars,4259
+2024,05,太陽能/Solar,蘭嶼電廠太陽光電/Lanyu Power Plant Solars,3291
+2024,05,太陽能/Solar,蘭嶼貯存場太陽光電/Lanyu Storage Unit Solars,3808
+2024,05,地熱/Geothermal,仁澤地熱/Renze Geothermal,238445
+2024,06,陸域風力/Onshore Wind,石門風力/Shimen Wind Power,142862
+2024,06,陸域風力/Onshore Wind,林口風力/Linkou Wind Power,348614
+2024,06,陸域風力/Onshore Wind,蘆竹風力/Luzhu Wind Power,730819
+2024,06,陸域風力/Onshore Wind,觀園風力/Guanyuan Wind Power,5489325
+2024,06,陸域風力/Onshore Wind,大潭風力/Datan Wind Power,2314263
+2024,06,陸域風力/Onshore Wind,新竹香山風力/Hsinchu Xiangshan Wind Power,1046015
+2024,06,陸域風力/Onshore Wind,台中港區風力/Taichung Harbor Wind Power,2536572
+2024,06,陸域風力/Onshore Wind,台中電廠風力/Taichung Power Plant Wind Power,87602
+2024,06,陸域風力/Onshore Wind,彰工風力Changgong Wind Power,8438879
+2024,06,陸域風力/Onshore Wind,彰化王功風力/Changhua Wanggong Wind Power,2365971
+2024,06,陸域風力/Onshore Wind,彰化永興風力/Changhua Yongxing Wind Power,1264643
+2024,06,陸域風力/Onshore Wind,雲林麥寮風力/Yunlin Mailiao Wind Power,2594431
+2024,06,陸域風力/Onshore Wind,雲林四湖風力/Yunlin Sihu Wind Power,244173
+2024,06,陸域風力/Onshore Wind,恆春風力/Hengchun Wind Power,585816
+2024,06,陸域風力/Onshore Wind,中屯風力/Zhongtun Wind Power,-
+2024,06,陸域風力/Onshore Wind,澎湖湖西風力/Penghu Huxi Wind Power,320690
+2024,06,陸域風力/Onshore Wind,金沙風力/Jinsha Wind Power,503009
+2024,06,陸域風力/Onshore Wind,澎湖龍門風力/Penghu Longmen Wind Power,513425
+2024,06,離岸風力/Offshore Wind,離岸一期風力/Offshore Phase1 Wind Power,18235102
+2024,06,太陽能/Solar,大潭電廠太陽光電/Datang Power Plant Solars,136509
+2024,06,太陽能/Solar,北部儲運中心太陽光電/Northern Storage and Transportation Center Solars,100866
+2024,06,太陽能/Solar,龍潭E/S太陽光電/Longtan E/S Solars,17011
+2024,06,太陽能/Solar,竹工E/S太陽光電/Zhugong E/S Solars,20435
+2024,06,太陽能/Solar,台中電廠太陽光電/Taichung Power Plant Solars,372907
+2024,06,太陽能/Solar,台中龍井太陽光電/Taichung Longjing Solars,556421
+2024,06,太陽能/Solar,中科E/S太陽光電/Zhongke E/S Solars,21234
+2024,06,太陽能/Solar,彰化彰濱太陽光電/Changhua Changbin Solars,12717688
+2024,06,太陽能/Solar,彰林E/S太陽光電/Changlin E/S Solars,30662
+2024,06,太陽能/Solar,南投大彎太陽光電/Nantou Dawan Solars,85050
+2024,06,太陽能/Solar,台南鹽田太陽光電/Tainan salt field Solars,19960761
+2024,06,太陽能/Solar,台南七股太陽光電/Tainan Qigu Solars,672992
+2024,06,太陽能/Solar,興達電廠太陽光電/Xingda Power Plant Solars,190977
+2024,06,太陽能/Solar,永安鹽灘地太陽光電/Yongan Salt Flats Solars,411621
+2024,06,太陽能/Solar,燕巢倉庫太陽光電/Yanchao Warehouse Solars,50274
+2024,06,太陽能/Solar,高雄E/S太陽光電/Kaohsiung E/S Solars,87693
+2024,06,太陽能/Solar,高雄保寧太陽光電/Kaohsiung Baoning Solars,91793
+2024,06,太陽能/Solar,鳳山水庫太陽光電/Fengshan Reservoir Solars,228296
+2024,06,太陽能/Solar,核三廠太陽光電/3rd Nuclear Power Plants Solars,406230
+2024,06,太陽能/Solar,澎湖七美太陽光電/Penghu Qimei Solars,31733
+2024,06,太陽能/Solar,澎湖尖山太陽光電/Penghu jianshan Solars,105298
+2024,06,太陽能/Solar,金門金沙太陽光電/Kinmen Jinsha Solars,31916
+2024,06,太陽能/Solar,金門塔山太陽光電/Kinmen Tashan Solars,25631
+2024,06,太陽能/Solar,金門鵲山太陽光電/Kinmen Queshan Solars,5222
+2024,06,太陽能/Solar,馬祖珠山太陽光電/Mazu Zhushan Solars,6915
+2024,06,太陽能/Solar,"淡水3.5萬噸配水池太陽光電/Danshui Distribution Reservoir(35,000 tons) Solar",32258
+2024,06,太陽能/Solar,中大D/S太陽光電/Zhongda D/S Solars,3004
+2024,06,太陽能/Solar,平鎮淨水場太陽光電/Pingzhen Water Treatment Plant Solars,108232
+2024,06,太陽能/Solar,大湳淨水場太陽光電/Danan Water Treatment Plant Solars,88100
+2024,06,太陽能/Solar,龜山加壓站太陽光電/Guishan Booster Station Solars,29484
+2024,06,太陽能/Solar,龍潭淨水場太陽光電/Longtan Water Treatment Plant Solars,35645
+2024,06,太陽能/Solar,卓蘭會館太陽光電/Zhuolan Hostel Solars,4124
+2024,06,太陽能/Solar,東興淨水場太陽光電/Dongxing Water Treatment Plant Solars,84353
+2024,06,太陽能/Solar,后里E/S太陽光電/Houli E/S Solars,5640
+2024,06,太陽能/Solar,中部儲運中心太陽光電/Central Storage and Transportation Center Solars,8947
+2024,06,太陽能/Solar,東勢新伯公太陽光電/Dongshi Xinbogong Solars,81717
+2024,06,太陽能/Solar,嘉義民雄太陽光電/Jiayi Minxiong Solars,4449
+2024,06,太陽能/Solar,嘉義分所太陽光電/Chiayi Agricultural Experiment Branch Solars,32377
+2024,06,太陽能/Solar,義竹工作站太陽光電/Yizhu Workstation Solars,42047
+2024,06,太陽能/Solar,路北E/S太陽光電/Lubei E/S Solars,4594
+2024,06,太陽能/Solar,高訓中心光電/Kaohsiung Training Institute Solars,46386
+2024,06,太陽能/Solar,蘭嶼電廠太陽光電/Lanyu Power Plant Solars,3813
+2024,06,太陽能/Solar,蘭嶼貯存場太陽光電/Lanyu Storage Unit Solars,4354
+2024,06,地熱/Geothermal,仁澤地熱/Renze Geothermal,289655
+2024,07,陸域風力/Onshore Wind,石門風力/Shimen Wind Power,86625
+2024,07,陸域風力/Onshore Wind,林口風力/Linkou Wind Power,218968
+2024,07,陸域風力/Onshore Wind,蘆竹風力/Luzhu Wind Power,450717
+2024,07,陸域風力/Onshore Wind,觀園風力/Guanyuan Wind Power,2193742
+2024,07,陸域風力/Onshore Wind,大潭風力/Datan Wind Power,1068156
+2024,07,陸域風力/Onshore Wind,新竹香山風力/Hsinchu Xiangshan Wind Power,502605
+2024,07,陸域風力/Onshore Wind,台中港區風力/Taichung Harbor Wind Power,1429066
+2024,07,陸域風力/Onshore Wind,台中電廠風力/Taichung Power Plant Wind Power,81767
+2024,07,陸域風力/Onshore Wind,彰工風力Changgong Wind Power,6104753
+2024,07,陸域風力/Onshore Wind,彰化王功風力/Changhua Wanggong Wind Power,2009862
+2024,07,陸域風力/Onshore Wind,彰化永興風力/Changhua Yongxing Wind Power,938687
+2024,07,陸域風力/Onshore Wind,雲林麥寮風力/Yunlin Mailiao Wind Power,1583891
+2024,07,陸域風力/Onshore Wind,雲林四湖風力/Yunlin Sihu Wind Power,1205132
+2024,07,陸域風力/Onshore Wind,恆春風力/Hengchun Wind Power,478039
+2024,07,陸域風力/Onshore Wind,中屯風力/Zhongtun Wind Power,-
+2024,07,陸域風力/Onshore Wind,澎湖湖西風力/Penghu Huxi Wind Power,"357,156.00 2"
+2024,07,陸域風力/Onshore Wind,金沙風力/Jinsha Wind Power,284235
+2024,07,陸域風力/Onshore Wind,澎湖龍門風力/Penghu Longmen Wind Power,460409
+2024,07,離岸風力/Offshore Wind,離岸一期風力/Offshore Phase1 Wind Power,10419384
+2024,07,太陽能/Solar,大潭電廠太陽光電/Datang Power Plant Solars,179220
+2024,07,太陽能/Solar,北部儲運中心太陽光電/Northern Storage and Transportation Center Solars,136151
+2024,07,太陽能/Solar,龍潭E/S太陽光電/Longtan E/S Solars,18588
+2024,07,太陽能/Solar,竹工E/S太陽光電/Zhugong E/S Solars,30823
+2024,07,太陽能/Solar,台中電廠太陽光電/Taichung Power Plant Solars,426307
+2024,07,太陽能/Solar,台中龍井太陽光電/Taichung Longjing Solars,711179
+2024,07,太陽能/Solar,中科E/S太陽光電/Zhongke E/S Solars,24685
+2024,07,太陽能/Solar,彰化彰濱太陽光電/Changhua Changbin Solars,15274018
+2024,07,太陽能/Solar,彰林E/S太陽光電/Changlin E/S Solars,34208
+2024,07,太陽能/Solar,南投大彎太陽光電/Nantou Dawan Solars,93724
+2024,07,太陽能/Solar,台南鹽田太陽光電/Tainan salt field Solars,22373811
+2024,07,太陽能/Solar,台南七股太陽光電/Tainan Qigu Solars,732736
+2024,07,太陽能/Solar,興達電廠太陽光電/Xingda Power Plant Solars,202383
+2024,07,太陽能/Solar,永安鹽灘地太陽光電/Yongan Salt Flats Solars,442513
+2024,07,太陽能/Solar,燕巢倉庫太陽光電/Yanchao Warehouse Solars,52911
+2024,07,太陽能/Solar,高雄E/S太陽光電/Kaohsiung E/S Solars,91353
+2024,07,太陽能/Solar,高雄保寧太陽光電/Kaohsiung Baoning Solars,92101
+2024,07,太陽能/Solar,鳳山水庫太陽光電/Fengshan Reservoir Solars,253802
+2024,07,太陽能/Solar,核三廠太陽光電/3rd Nuclear Power Plants Solars,400009
+2024,07,太陽能/Solar,澎湖七美太陽光電/Penghu Qimei Solars,39754
+2024,07,太陽能/Solar,澎湖尖山太陽光電/Penghu jianshan Solars,107516
+2024,07,太陽能/Solar,金門金沙太陽光電/Kinmen Jinsha Solars,44077
+2024,07,太陽能/Solar,金門塔山太陽光電/Kinmen Tashan Solars,35387
+2024,07,太陽能/Solar,金門鵲山太陽光電/Kinmen Queshan Solars,7688
+2024,07,太陽能/Solar,馬祖珠山太陽光電/Mazu Zhushan Solars,10947
+2024,07,太陽能/Solar,"淡水3.5萬噸配水池太陽光電/Danshui Distribution Reservoir(35,000 tons) Solar",42257
+2024,07,太陽能/Solar,中大D/S太陽光電/Zhongda D/S Solars,3616
+2024,07,太陽能/Solar,平鎮淨水場太陽光電/Pingzhen Water Treatment Plant Solars,138882
+2024,07,太陽能/Solar,大湳淨水場太陽光電/Danan Water Treatment Plant Solars,106070
+2024,07,太陽能/Solar,龜山加壓站太陽光電/Guishan Booster Station Solars,37746
+2024,07,太陽能/Solar,龍潭淨水場太陽光電/Longtan Water Treatment Plant Solars,40357
+2024,07,太陽能/Solar,卓蘭會館太陽光電/Zhuolan Hostel Solars,3237
+2024,07,太陽能/Solar,東興淨水場太陽光電/Dongxing Water Treatment Plant Solars,98968
+2024,07,太陽能/Solar,后里E/S太陽光電/Houli E/S Solars,8063
+2024,07,太陽能/Solar,中部儲運中心太陽光電/Central Storage and Transportation Center Solars,10171
+2024,07,太陽能/Solar,東勢新伯公太陽光電/Dongshi Xinbogong Solars,89967
+2024,07,太陽能/Solar,嘉義民雄太陽光電/Jiayi Minxiong Solars,4708
+2024,07,太陽能/Solar,嘉義分所太陽光電/Chiayi Agricultural Experiment Branch Solars,34617
+2024,07,太陽能/Solar,義竹工作站太陽光電/Yizhu Workstation Solars,42973
+2024,07,太陽能/Solar,路北E/S太陽光電/Lubei E/S Solars,4714
+2024,07,太陽能/Solar,高訓中心光電/Kaohsiung Training Institute Solars,48553
+2024,07,太陽能/Solar,蘭嶼電廠太陽光電/Lanyu Power Plant Solars,3399
+2024,07,太陽能/Solar,蘭嶼貯存場太陽光電/Lanyu Storage Unit Solars,4239
+2024,07,地熱/Geothermal,仁澤地熱/Renze Geothermal,189686
+2024,08,陸域風力/Onshore Wind,石門風力/Shimen Wind Power,52945
+2024,08,陸域風力/Onshore Wind,林口風力/Linkou Wind Power,119049
+2024,08,陸域風力/Onshore Wind,蘆竹風力/Luzhu Wind Power,194162
+2024,08,陸域風力/Onshore Wind,觀園風力/Guanyuan Wind Power,2116392
+2024,08,陸域風力/Onshore Wind,大潭風力/Datan Wind Power,765464
+2024,08,陸域風力/Onshore Wind,新竹香山風力/Hsinchu Xiangshan Wind Power,408085
+2024,08,陸域風力/Onshore Wind,台中港區風力/Taichung Harbor Wind Power,1286635
+2024,08,陸域風力/Onshore Wind,台中電廠風力/Taichung Power Plant Wind Power,29105
+2024,08,陸域風力/Onshore Wind,彰工風力Changgong Wind Power,3519218
+2024,08,陸域風力/Onshore Wind,彰化王功風力/Changhua Wanggong Wind Power,1021478
+2024,08,陸域風力/Onshore Wind,彰化永興風力/Changhua Yongxing Wind Power,477572
+2024,08,陸域風力/Onshore Wind,雲林麥寮風力/Yunlin Mailiao Wind Power,913592
+2024,08,陸域風力/Onshore Wind,雲林四湖風力/Yunlin Sihu Wind Power,888961
+2024,08,陸域風力/Onshore Wind,恆春風力/Hengchun Wind Power,466440
+2024,08,陸域風力/Onshore Wind,中屯風力/Zhongtun Wind Power,-
+2024,08,陸域風力/Onshore Wind,澎湖湖西風力/Penghu Huxi Wind Power,125513
+2024,08,陸域風力/Onshore Wind,金沙風力/Jinsha Wind Power,195211
+2024,08,陸域風力/Onshore Wind,澎湖龍門風力/Penghu Longmen Wind Power,220596
+2024,08,離岸風力/Offshore Wind,離岸一期風力/Offshore Phase1 Wind Power,7701750
+2024,08,太陽能/Solar,大潭電廠太陽光電/Datang Power Plant Solars,179308
+2024,08,太陽能/Solar,北部儲運中心太陽光電/Northern Storage and Transportation Center Solars,132915
+2024,08,太陽能/Solar,龍潭E/S太陽光電/Longtan E/S Solars,20008
+2024,08,太陽能/Solar,竹工E/S太陽光電/Zhugong E/S Solars,32224
+2024,08,太陽能/Solar,台中電廠太陽光電/Taichung Power Plant Solars,441026
+2024,08,太陽能/Solar,台中龍井太陽光電/Taichung Longjing Solars,734848
+2024,08,太陽能/Solar,中科E/S太陽光電/Zhongke E/S Solars,24693
+2024,08,太陽能/Solar,彰化彰濱太陽光電/Changhua Changbin Solars,14974998
+2024,08,太陽能/Solar,彰林E/S太陽光電/Changlin E/S Solars,33600
+2024,08,太陽能/Solar,南投大彎太陽光電/Nantou Dawan Solars,116466
+2024,08,太陽能/Solar,台南鹽田太陽光電/Tainan salt field Solars,21183664
+2024,08,太陽能/Solar,台南七股太陽光電/Tainan Qigu Solars,697750
+2024,08,太陽能/Solar,興達電廠太陽光電/Xingda Power Plant Solars,194129
+2024,08,太陽能/Solar,永安鹽灘地太陽光電/Yongan Salt Flats Solars,430308
+2024,08,太陽能/Solar,燕巢倉庫太陽光電/Yanchao Warehouse Solars,51071
+2024,08,太陽能/Solar,高雄E/S太陽光電/Kaohsiung E/S Solars,85336
+2024,08,太陽能/Solar,高雄保寧太陽光電/Kaohsiung Baoning Solars,90820
+2024,08,太陽能/Solar,鳳山水庫太陽光電/Fengshan Reservoir Solars,208014
+2024,08,太陽能/Solar,核三廠太陽光電/3rd Nuclear Power Plants Solars,390550
+2024,08,太陽能/Solar,澎湖七美太陽光電/Penghu Qimei Solars,37957
+2024,08,太陽能/Solar,澎湖尖山太陽光電/Penghu jianshan Solars,111152
+2024,08,太陽能/Solar,金門金沙太陽光電/Kinmen Jinsha Solars,44357
+2024,08,太陽能/Solar,金門塔山太陽光電/Kinmen Tashan Solars,31130
+2024,08,太陽能/Solar,金門鵲山太陽光電/Kinmen Queshan Solars,6619
+2024,08,太陽能/Solar,馬祖珠山太陽光電/Mazu Zhushan Solars,8598
+2024,08,太陽能/Solar,"淡水3.5萬噸配水池太陽光電/Danshui Distribution Reservoir(35,000 tons) Solar",42682
+2024,08,太陽能/Solar,中大D/S太陽光電/Zhongda D/S Solars,3871
+2024,08,太陽能/Solar,平鎮淨水場太陽光電/Pingzhen Water Treatment Plant Solars,150506
+2024,08,太陽能/Solar,大湳淨水場太陽光電/Danan Water Treatment Plant Solars,103484
+2024,08,太陽能/Solar,龜山加壓站太陽光電/Guishan Booster Station Solars,37907
+2024,08,太陽能/Solar,龍潭淨水場太陽光電/Longtan Water Treatment Plant Solars,43260
+2024,08,太陽能/Solar,卓蘭會館太陽光電/Zhuolan Hostel Solars,3431
+2024,08,太陽能/Solar,東興淨水場太陽光電/Dongxing Water Treatment Plant Solars,102464
+2024,08,太陽能/Solar,后里E/S太陽光電/Houli E/S Solars,10542
+2024,08,太陽能/Solar,中部儲運中心太陽光電/Central Storage and Transportation Center Solars,10356
+2024,08,太陽能/Solar,東勢新伯公太陽光電/Dongshi Xinbogong Solars,85734
+2024,08,太陽能/Solar,嘉義民雄太陽光電/Jiayi Minxiong Solars,4262
+2024,08,太陽能/Solar,嘉義分所太陽光電/Chiayi Agricultural Experiment Branch Solars,33262
+2024,08,太陽能/Solar,義竹工作站太陽光電/Yizhu Workstation Solars,41558
+2024,08,太陽能/Solar,路北E/S太陽光電/Lubei E/S Solars,4561
+2024,08,太陽能/Solar,高訓中心光電/Kaohsiung Training Institute Solars,45474
+2024,08,太陽能/Solar,蘭嶼電廠太陽光電/Lanyu Power Plant Solars,3848
+2024,08,太陽能/Solar,蘭嶼貯存場太陽光電/Lanyu Storage Unit Solars,4419
+2024,08,地熱/Geothermal,仁澤地熱/Renze Geothermal,210307
+2024,09,陸域風力/Onshore Wind,石門風力/Shimen Wind Power,298442
+2024,09,陸域風力/Onshore Wind,林口風力/Linkou Wind Power,529749
+2024,09,陸域風力/Onshore Wind,蘆竹風力/Luzhu Wind Power,812922
+2024,09,陸域風力/Onshore Wind,觀園風力/Guanyuan Wind Power,5108082
+2024,09,陸域風力/Onshore Wind,大潭風力/Datan Wind Power,1474838
+2024,09,陸域風力/Onshore Wind,新竹香山風力/Hsinchu Xiangshan Wind Power,443201
+2024,09,陸域風力/Onshore Wind,台中港區風力/Taichung Harbor Wind Power,1817024
+2024,09,陸域風力/Onshore Wind,台中電廠風力/Taichung Power Plant Wind Power,80392
+2024,09,陸域風力/Onshore Wind,彰工風力Changgong Wind Power,5662962
+2024,09,陸域風力/Onshore Wind,彰化王功風力/Changhua Wanggong Wind Power,1437808
+2024,09,陸域風力/Onshore Wind,彰化永興風力/Changhua Yongxing Wind Power,590882
+2024,09,陸域風力/Onshore Wind,雲林麥寮風力/Yunlin Mailiao Wind Power,1441577
+2024,09,陸域風力/Onshore Wind,雲林四湖風力/Yunlin Sihu Wind Power,1031556
+2024,09,陸域風力/Onshore Wind,恆春風力/Hengchun Wind Power,653523
+2024,09,陸域風力/Onshore Wind,中屯風力/Zhongtun Wind Power,-
+2024,09,陸域風力/Onshore Wind,澎湖湖西風力/Penghu Huxi Wind Power,78967
+2024,09,陸域風力/Onshore Wind,金沙風力/Jinsha Wind Power,671883
+2024,09,陸域風力/Onshore Wind,澎湖龍門風力/Penghu Longmen Wind Power,690501
+2024,09,離岸風力/Offshore Wind,離岸一期風力/Offshore Phase1 Wind Power,10438063
+2024,09,太陽能/Solar,大潭電廠太陽光電/Datang Power Plant Solars,147484
+2024,09,太陽能/Solar,北部儲運中心太陽光電/Northern Storage and Transportation Center Solars,108564
+2024,09,太陽能/Solar,龍潭E/S太陽光電/Longtan E/S Solars,18276
+2024,09,太陽能/Solar,竹工E/S太陽光電/Zhugong E/S Solars,26807
+2024,09,太陽能/Solar,台中電廠太陽光電/Taichung Power Plant Solars,372670
+2024,09,太陽能/Solar,台中龍井太陽光電/Taichung Longjing Solars,625133
+2024,09,太陽能/Solar,中科E/S太陽光電/Zhongke E/S Solars,21828
+2024,09,太陽能/Solar,彰化彰濱太陽光電/Changhua Changbin Solars,12975769
+2024,09,太陽能/Solar,彰林E/S太陽光電/Changlin E/S Solars,29618
+2024,09,太陽能/Solar,南投大彎太陽光電/Nantou Dawan Solars,104631
+2024,09,太陽能/Solar,台南鹽田太陽光電/Tainan salt field Solars,19754891
+2024,09,太陽能/Solar,台南七股太陽光電/Tainan Qigu Solars,651514
+2024,09,太陽能/Solar,興達電廠太陽光電/Xingda Power Plant Solars,186537
+2024,09,太陽能/Solar,永安鹽灘地太陽光電/Yongan Salt Flats Solars,368009
+2024,09,太陽能/Solar,燕巢倉庫太陽光電/Yanchao Warehouse Solars,48062
+2024,09,太陽能/Solar,高雄E/S太陽光電/Kaohsiung E/S Solars,77202
+2024,09,太陽能/Solar,高雄保寧太陽光電/Kaohsiung Baoning Solars,82847
+2024,09,太陽能/Solar,鳳山水庫太陽光電/Fengshan Reservoir Solars,209170
+2024,09,太陽能/Solar,核三廠太陽光電/3rd Nuclear Power Plants Solars,312530
+2024,09,太陽能/Solar,澎湖七美太陽光電/Penghu Qimei Solars,34004
+2024,09,太陽能/Solar,澎湖尖山太陽光電/Penghu jianshan Solars,102724
+2024,09,太陽能/Solar,金門金沙太陽光電/Kinmen Jinsha Solars,43941
+2024,09,太陽能/Solar,金門塔山太陽光電/Kinmen Tashan Solars,27965
+2024,09,太陽能/Solar,金門鵲山太陽光電/Kinmen Queshan Solars,5881
+2024,09,太陽能/Solar,馬祖珠山太陽光電/Mazu Zhushan Solars,7883
+2024,09,太陽能/Solar,"淡水3.5萬噸配水池太陽光電/Danshui Distribution Reservoir(35,000 tons) Solar",36708
+2024,09,太陽能/Solar,中大D/S太陽光電/Zhongda D/S Solars,3353
+2024,09,太陽能/Solar,平鎮淨水場太陽光電/Pingzhen Water Treatment Plant Solars,128484
+2024,09,太陽能/Solar,大湳淨水場太陽光電/Danan Water Treatment Plant Solars,98326
+2024,09,太陽能/Solar,龜山加壓站太陽光電/Guishan Booster Station Solars,34579
+2024,09,太陽能/Solar,龍潭淨水場太陽光電/Longtan Water Treatment Plant Solars,39870
+2024,09,太陽能/Solar,卓蘭會館太陽光電/Zhuolan Hostel Solars,3568
+2024,09,太陽能/Solar,東興淨水場太陽光電/Dongxing Water Treatment Plant Solars,80477
+2024,09,太陽能/Solar,后里E/S太陽光電/Houli E/S Solars,9149
+2024,09,太陽能/Solar,中部儲運中心太陽光電/Central Storage and Transportation Center Solars,8545
+2024,09,太陽能/Solar,東勢新伯公太陽光電/Dongshi Xinbogong Solars,76751
+2024,09,太陽能/Solar,嘉義民雄太陽光電/Jiayi Minxiong Solars,4001
+2024,09,太陽能/Solar,嘉義分所太陽光電/Chiayi Agricultural Experiment Branch Solars,28828
+2024,09,太陽能/Solar,義竹工作站太陽光電/Yizhu Workstation Solars,36668
+2024,09,太陽能/Solar,路北E/S太陽光電/Lubei E/S Solars,4377
+2024,09,太陽能/Solar,高訓中心光電/Kaohsiung Training Institute Solars,41914
+2024,09,太陽能/Solar,蘭嶼電廠太陽光電/Lanyu Power Plant Solars,2572
+2024,09,太陽能/Solar,蘭嶼貯存場太陽光電/Lanyu Storage Unit Solars,3149
+2024,09,地熱/Geothermal,仁澤地熱/Renze Geothermal,215947
+2024,10,陸域風力/Onshore Wind,石門風力/Shimen Wind Power,341135
+2024,10,陸域風力/Onshore Wind,林口風力/Linkou Wind Power,1703973
+2024,10,陸域風力/Onshore Wind,蘆竹風力/Luzhu Wind Power,2633666
+2024,10,陸域風力/Onshore Wind,觀園風力/Guanyuan Wind Power,11092265
+2024,10,陸域風力/Onshore Wind,大潭風力/Datan Wind Power,1805782
+2024,10,陸域風力/Onshore Wind,新竹香山風力/Hsinchu Xiangshan Wind Power,647072
+2024,10,陸域風力/Onshore Wind,台中港區風力/Taichung Harbor Wind Power,6778615
+2024,10,陸域風力/Onshore Wind,台中電廠風力/Taichung Power Plant Wind Power,308503
+2024,10,陸域風力/Onshore Wind,彰工風力Changgong Wind Power,21140065
+2024,10,陸域風力/Onshore Wind,彰化王功風力/Changhua Wanggong Wind Power,5555609
+2024,10,陸域風力/Onshore Wind,彰化永興風力/Changhua Yongxing Wind Power,2878456
+2024,10,陸域風力/Onshore Wind,雲林麥寮風力/Yunlin Mailiao Wind Power,4330011
+2024,10,陸域風力/Onshore Wind,雲林四湖風力/Yunlin Sihu Wind Power,2955354
+2024,10,陸域風力/Onshore Wind,恆春風力/Hengchun Wind Power,1095134
+2024,10,陸域風力/Onshore Wind,中屯風力/Zhongtun Wind Power,-
+2024,10,陸域風力/Onshore Wind,澎湖湖西風力/Penghu Huxi Wind Power,689840
+2024,10,陸域風力/Onshore Wind,金沙風力/Jinsha Wind Power,1104751
+2024,10,陸域風力/Onshore Wind,澎湖龍門風力/Penghu Longmen Wind Power,2531936
+2024,10,離岸風力/Offshore Wind,離岸一期風力/Offshore Phase1 Wind Power,31237397
+2024,10,太陽能/Solar,大潭電廠太陽光電/Datang Power Plant Solars,105645
+2024,10,太陽能/Solar,北部儲運中心太陽光電/Northern Storage and Transportation Center Solars,74486
+2024,10,太陽能/Solar,龍潭E/S太陽光電/Longtan E/S Solars,16335
+2024,10,太陽能/Solar,竹工E/S太陽光電/Zhugong E/S Solars,19694
+2024,10,太陽能/Solar,台中電廠太陽光電/Taichung Power Plant Solars,321376
+2024,10,太陽能/Solar,台中龍井太陽光電/Taichung Longjing Solars,582530
+2024,10,太陽能/Solar,中科E/S太陽光電/Zhongke E/S Solars,20699
+2024,10,太陽能/Solar,彰化彰濱太陽光電/Changhua Changbin Solars,8794318
+2024,10,太陽能/Solar,彰林E/S太陽光電/Changlin E/S Solars,27360
+2024,10,太陽能/Solar,南投大彎太陽光電/Nantou Dawan Solars,87561
+2024,10,太陽能/Solar,台南鹽田太陽光電/Tainan salt field Solars,17873549
+2024,10,太陽能/Solar,台南七股太陽光電/Tainan Qigu Solars,596472
+2024,10,太陽能/Solar,興達電廠太陽光電/Xingda Power Plant Solars,172236
+2024,10,太陽能/Solar,永安鹽灘地太陽光電/Yongan Salt Flats Solars,352298
+2024,10,太陽能/Solar,燕巢倉庫太陽光電/Yanchao Warehouse Solars,45897
+2024,10,太陽能/Solar,高雄E/S太陽光電/Kaohsiung E/S Solars,67586
+2024,10,太陽能/Solar,高雄保寧太陽光電/Kaohsiung Baoning Solars,70135
+2024,10,太陽能/Solar,鳳山水庫太陽光電/Fengshan Reservoir Solars,107808
+2024,10,太陽能/Solar,核三廠太陽光電/3rd Nuclear Power Plants Solars,279788
+2024,10,太陽能/Solar,澎湖七美太陽光電/Penghu Qimei Solars,22698
+2024,10,太陽能/Solar,澎湖尖山太陽光電/Penghu jianshan Solars,67591
+2024,10,太陽能/Solar,金門金沙太陽光電/Kinmen Jinsha Solars,39836
+2024,10,太陽能/Solar,金門塔山太陽光電/Kinmen Tashan Solars,22827
+2024,10,太陽能/Solar,金門鵲山太陽光電/Kinmen Queshan Solars,4948
+2024,10,太陽能/Solar,馬祖珠山太陽光電/Mazu Zhushan Solars,4960
+2024,10,太陽能/Solar,"淡水3.5萬噸配水池太陽光電/Danshui Distribution Reservoir(35,000 tons) Solar",25236
+2024,10,太陽能/Solar,中大D/S太陽光電/Zhongda D/S Solars,2373
+2024,10,太陽能/Solar,平鎮淨水場太陽光電/Pingzhen Water Treatment Plant Solars,102132
+2024,10,太陽能/Solar,大湳淨水場太陽光電/Danan Water Treatment Plant Solars,74693
+2024,10,太陽能/Solar,龜山加壓站太陽光電/Guishan Booster Station Solars,26167
+2024,10,太陽能/Solar,龍潭淨水場太陽光電/Longtan Water Treatment Plant Solars,33233
+2024,10,太陽能/Solar,卓蘭會館太陽光電/Zhuolan Hostel Solars,3670
+2024,10,太陽能/Solar,東興淨水場太陽光電/Dongxing Water Treatment Plant Solars,64083
+2024,10,太陽能/Solar,后里E/S太陽光電/Houli E/S Solars,9648
+2024,10,太陽能/Solar,中部儲運中心太陽光電/Central Storage and Transportation Center Solars,8230
+2024,10,太陽能/Solar,東勢新伯公太陽光電/Dongshi Xinbogong Solars,71694
+2024,10,太陽能/Solar,嘉義民雄太陽光電/Jiayi Minxiong Solars,3363
+2024,10,太陽能/Solar,嘉義分所太陽光電/Chiayi Agricultural Experiment Branch Solars,24531
+2024,10,太陽能/Solar,義竹工作站太陽光電/Yizhu Workstation Solars,30748
+2024,10,太陽能/Solar,路北E/S太陽光電/Lubei E/S Solars,3937
+2024,10,太陽能/Solar,高訓中心光電/Kaohsiung Training Institute Solars,31341
+2024,10,太陽能/Solar,蘭嶼電廠太陽光電/Lanyu Power Plant Solars,1971
+2024,10,太陽能/Solar,蘭嶼貯存場太陽光電/Lanyu Storage Unit Solars,2148
+2024,10,地熱/Geothermal,仁澤地熱/Renze Geothermal,146270
+2024,11,陸域風力/Onshore Wind,石門風力/Shimen Wind Power,697855
+2024,11,陸域風力/Onshore Wind,林口風力/Linkou Wind Power,2229500
+2024,11,陸域風力/Onshore Wind,蘆竹風力/Luzhu Wind Power,2980039
+2024,11,陸域風力/Onshore Wind,觀園風力/Guanyuan Wind Power,13804904
+2024,11,陸域風力/Onshore Wind,大潭風力/Datan Wind Power,2972588
+2024,11,陸域風力/Onshore Wind,新竹香山風力/Hsinchu Xiangshan Wind Power,2039226
+2024,11,陸域風力/Onshore Wind,台中港區風力/Taichung Harbor Wind Power,12026585
+2024,11,陸域風力/Onshore Wind,台中電廠風力/Taichung Power Plant Wind Power,451142
+2024,11,陸域風力/Onshore Wind,彰工風力Changgong Wind Power,26093841
+2024,11,陸域風力/Onshore Wind,彰化王功風力/Changhua Wanggong Wind Power,7854123
+2024,11,陸域風力/Onshore Wind,彰化永興風力/Changhua Yongxing Wind Power,4023048
+2024,11,陸域風力/Onshore Wind,雲林麥寮風力/Yunlin Mailiao Wind Power,8129699
+2024,11,陸域風力/Onshore Wind,雲林四湖風力/Yunlin Sihu Wind Power,4517264
+2024,11,陸域風力/Onshore Wind,恆春風力/Hengchun Wind Power,1464008
+2024,11,陸域風力/Onshore Wind,中屯風力/Zhongtun Wind Power,-
+2024,11,陸域風力/Onshore Wind,澎湖湖西風力/Penghu Huxi Wind Power,1246796
+2024,11,陸域風力/Onshore Wind,金沙風力/Jinsha Wind Power,1413453
+2024,11,陸域風力/Onshore Wind,澎湖龍門風力/Penghu Longmen Wind Power,3302626
+2024,11,離岸風力/Offshore Wind,離岸一期風力/Offshore Phase1 Wind Power,47392106
+2024,11,太陽能/Solar,大潭電廠太陽光電/Datang Power Plant Solars,82143
+2024,11,太陽能/Solar,北部儲運中心太陽光電/Northern Storage and Transportation Center Solars,60091
+2024,11,太陽能/Solar,龍潭E/S太陽光電/Longtan E/S Solars,15145
+2024,11,太陽能/Solar,竹工E/S太陽光電/Zhugong E/S Solars,18001
+2024,11,太陽能/Solar,台中電廠太陽光電/Taichung Power Plant Solars,270558
+2024,11,太陽能/Solar,台中龍井太陽光電/Taichung Longjing Solars,517263
+2024,11,太陽能/Solar,中科E/S太陽光電/Zhongke E/S Solars,17871
+2024,11,太陽能/Solar,彰化彰濱太陽光電/Changhua Changbin Solars,9073032
+2024,11,太陽能/Solar,彰林E/S太陽光電/Changlin E/S Solars,23557
+2024,11,太陽能/Solar,南投大彎太陽光電/Nantou Dawan Solars,71468
+2024,11,太陽能/Solar,台南鹽田太陽光電/Tainan salt field Solars,16255997
+2024,11,太陽能/Solar,台南七股太陽光電/Tainan Qigu Solars,544640
+2024,11,太陽能/Solar,興達電廠太陽光電/Xingda Power Plant Solars,156092
+2024,11,太陽能/Solar,永安鹽灘地太陽光電/Yongan Salt Flats Solars,354112
+2024,11,太陽能/Solar,燕巢倉庫太陽光電/Yanchao Warehouse Solars,43571
+2024,11,太陽能/Solar,高雄E/S太陽光電/Kaohsiung E/S Solars,57969
+2024,11,太陽能/Solar,高雄保寧太陽光電/Kaohsiung Baoning Solars,58339
+2024,11,太陽能/Solar,鳳山水庫太陽光電/Fengshan Reservoir Solars,168154
+2024,11,太陽能/Solar,核三廠太陽光電/3rd Nuclear Power Plants Solars,309158
+2024,11,太陽能/Solar,澎湖七美太陽光電/Penghu Qimei Solars,20930
+2024,11,太陽能/Solar,澎湖尖山太陽光電/Penghu jianshan Solars,58742
+2024,11,太陽能/Solar,金門金沙太陽光電/Kinmen Jinsha Solars,32405
+2024,11,太陽能/Solar,金門塔山太陽光電/Kinmen Tashan Solars,20962
+2024,11,太陽能/Solar,金門鵲山太陽光電/Kinmen Queshan Solars,4168
+2024,11,太陽能/Solar,馬祖珠山太陽光電/Mazu Zhushan Solars,4854
+2024,11,太陽能/Solar,"淡水3.5萬噸配水池太陽光電/Danshui Distribution Reservoir(35,000 tons) Solar",18705
+2024,11,太陽能/Solar,中大D/S太陽光電/Zhongda D/S Solars,2109
+2024,11,太陽能/Solar,平鎮淨水場太陽光電/Pingzhen Water Treatment Plant Solars,91797
+2024,11,太陽能/Solar,大湳淨水場太陽光電/Danan Water Treatment Plant Solars,58928
+2024,11,太陽能/Solar,龜山加壓站太陽光電/Guishan Booster Station Solars,18749
+2024,11,太陽能/Solar,龍潭淨水場太陽光電/Longtan Water Treatment Plant Solars,30970
+2024,11,太陽能/Solar,卓蘭會館太陽光電/Zhuolan Hostel Solars,3041
+2024,11,太陽能/Solar,東興淨水場太陽光電/Dongxing Water Treatment Plant Solars,42844
+2024,11,太陽能/Solar,后里E/S太陽光電/Houli E/S Solars,8021
+2024,11,太陽能/Solar,中部儲運中心太陽光電/Central Storage and Transportation Center Solars,6389
+2024,11,太陽能/Solar,東勢新伯公太陽光電/Dongshi Xinbogong Solars,61508
+2024,11,太陽能/Solar,嘉義民雄太陽光電/Jiayi Minxiong Solars,2811
+2024,11,太陽能/Solar,嘉義分所太陽光電/Chiayi Agricultural Experiment Branch Solars,20999
+2024,11,太陽能/Solar,義竹工作站太陽光電/Yizhu Workstation Solars,26883
+2024,11,太陽能/Solar,路北E/S太陽光電/Lubei E/S Solars,3731
+2024,11,太陽能/Solar,高訓中心光電/Kaohsiung Training Institute Solars,30850
+2024,11,太陽能/Solar,蘭嶼電廠太陽光電/Lanyu Power Plant Solars,1689
+2024,11,太陽能/Solar,蘭嶼貯存場太陽光電/Lanyu Storage Unit Solars,0
+2024,11,地熱/Geothermal,仁澤地熱/Renze Geothermal,33926
+2024,12,陸域風力/Onshore Wind,石門風力/Shimen Wind Power,861591
+2024,12,陸域風力/Onshore Wind,林口風力/Linkou Wind Power,2307343
+2024,12,陸域風力/Onshore Wind,蘆竹風力/Luzhu Wind Power,2988267
+2024,12,陸域風力/Onshore Wind,觀園風力/Guanyuan Wind Power,16320018
+2024,12,陸域風力/Onshore Wind,大潭風力/Datan Wind Power,3706664
+2024,12,陸域風力/Onshore Wind,新竹香山風力/Hsinchu Xiangshan Wind Power,2447443
+2024,12,陸域風力/Onshore Wind,台中港區風力/Taichung Harbor Wind Power,12878678
+2024,12,陸域風力/Onshore Wind,台中電廠風力/Taichung Power Plant Wind Power,563770
+2024,12,陸域風力/Onshore Wind,彰工風力Changgong Wind Power,33597328
+2024,12,陸域風力/Onshore Wind,彰化王功風力/Changhua Wanggong Wind Power,9412188
+2024,12,陸域風力/Onshore Wind,彰化永興風力/Changhua Yongxing Wind Power,4023838
+2024,12,陸域風力/Onshore Wind,雲林麥寮風力/Yunlin Mailiao Wind Power,11827031
+2024,12,陸域風力/Onshore Wind,雲林四湖風力/Yunlin Sihu Wind Power,5958313
+2024,12,陸域風力/Onshore Wind,恆春風力/Hengchun Wind Power,1667246
+2024,12,陸域風力/Onshore Wind,中屯風力/Zhongtun Wind Power,-
+2024,12,陸域風力/Onshore Wind,澎湖湖西風力/Penghu Huxi Wind Power,1747147
+2024,12,陸域風力/Onshore Wind,金沙風力/Jinsha Wind Power,1312371
+2024,12,陸域風力/Onshore Wind,澎湖龍門風力/Penghu Longmen Wind Power,3766438
+2024,12,離岸風力/Offshore Wind,離岸一期風力/Offshore Phase1 Wind Power,45586917
+2024,12,太陽能/Solar,大潭電廠太陽光電/Datang Power Plant Solars,72254
+2024,12,太陽能/Solar,北部儲運中心太陽光電/Northern Storage and Transportation Center Solars,52481
+2024,12,太陽能/Solar,龍潭E/S太陽光電/Longtan E/S Solars,12545
+2024,12,太陽能/Solar,竹工E/S太陽光電/Zhugong E/S Solars,15766
+2024,12,太陽能/Solar,台中電廠太陽光電/Taichung Power Plant Solars,285941
+2024,12,太陽能/Solar,台中龍井太陽光電/Taichung Longjing Solars,548924
+2024,12,太陽能/Solar,中科E/S太陽光電/Zhongke E/S Solars,17676
+2024,12,太陽能/Solar,彰化彰濱太陽光電/Changhua Changbin Solars,7859212
+2024,12,太陽能/Solar,彰林E/S太陽光電/Changlin E/S Solars,23539
+2024,12,太陽能/Solar,南投大彎太陽光電/Nantou Dawan Solars,60111
+2024,12,太陽能/Solar,台南鹽田太陽光電/Tainan salt field Solars,14778352
+2024,12,太陽能/Solar,台南七股太陽光電/Tainan Qigu Solars,496915
+2024,12,太陽能/Solar,興達電廠太陽光電/Xingda Power Plant Solars,141116
+2024,12,太陽能/Solar,永安鹽灘地太陽光電/Yongan Salt Flats Solars,338295
+2024,12,太陽能/Solar,燕巢倉庫太陽光電/Yanchao Warehouse Solars,44974
+2024,12,太陽能/Solar,高雄E/S太陽光電/Kaohsiung E/S Solars,61173
+2024,12,太陽能/Solar,高雄保寧太陽光電/Kaohsiung Baoning Solars,53840
+2024,12,太陽能/Solar,鳳山水庫太陽光電/Fengshan Reservoir Solars,169313
+2024,12,太陽能/Solar,核三廠太陽光電/3rd Nuclear Power Plants Solars,271809
+2024,12,太陽能/Solar,澎湖七美太陽光電/Penghu Qimei Solars,19218
+2024,12,太陽能/Solar,澎湖尖山太陽光電/Penghu jianshan Solars,62846
+2024,12,太陽能/Solar,金門金沙太陽光電/Kinmen Jinsha Solars,37029
+2024,12,太陽能/Solar,金門塔山太陽光電/Kinmen Tashan Solars,20853
+2024,12,太陽能/Solar,金門鵲山太陽光電/Kinmen Queshan Solars,4174
+2024,12,太陽能/Solar,馬祖珠山太陽光電/Mazu Zhushan Solars,4653
+2024,12,太陽能/Solar,"淡水3.5萬噸配水池太陽光電/Danshui Distribution Reservoir(35,000 tons) Solar",17293
+2024,12,太陽能/Solar,中大D/S太陽光電/Zhongda D/S Solars,1405
+2024,12,太陽能/Solar,平鎮淨水場太陽光電/Pingzhen Water Treatment Plant Solars,69139
+2024,12,太陽能/Solar,大湳淨水場太陽光電/Danan Water Treatment Plant Solars,49238
+2024,12,太陽能/Solar,龜山加壓站太陽光電/Guishan Booster Station Solars,16676
+2024,12,太陽能/Solar,龍潭淨水場太陽光電/Longtan Water Treatment Plant Solars,24605
+2024,12,太陽能/Solar,卓蘭會館太陽光電/Zhuolan Hostel Solars,3186
+2024,12,太陽能/Solar,東興淨水場太陽光電/Dongxing Water Treatment Plant Solars,40555
+2024,12,太陽能/Solar,后里E/S太陽光電/Houli E/S Solars,8425
+2024,12,太陽能/Solar,中部儲運中心太陽光電/Central Storage and Transportation Center Solars,6370
+2024,12,太陽能/Solar,東勢新伯公太陽光電/Dongshi Xinbogong Solars,60564
+2024,12,太陽能/Solar,嘉義民雄太陽光電/Jiayi Minxiong Solars,2770
+2024,12,太陽能/Solar,嘉義分所太陽光電/Chiayi Agricultural Experiment Branch Solars,21257
+2024,12,太陽能/Solar,義竹工作站太陽光電/Yizhu Workstation Solars,25778
+2024,12,太陽能/Solar,路北E/S太陽光電/Lubei E/S Solars,3739
+2024,12,太陽能/Solar,高訓中心光電/Kaohsiung Training Institute Solars,33608
+2024,12,太陽能/Solar,蘭嶼電廠太陽光電/Lanyu Power Plant Solars,1537
+2024,12,太陽能/Solar,蘭嶼貯存場太陽光電/Lanyu Storage Unit Solars,0
+2024,12,地熱/Geothermal,仁澤地熱/Renze Geothermal,346307
+2025,01,陸域風力/Onshore Wind,石門風力/Shimen Wind Power,628923
+2025,01,陸域風力/Onshore Wind,林口風力/Linkou Wind Power,2019125
+2025,01,陸域風力/Onshore Wind,蘆竹風力/Luzhu Wind Power,2197342
+2025,01,陸域風力/Onshore Wind,觀園風力/Guanyuan Wind Power,12817760
+2025,01,陸域風力/Onshore Wind,大潭風力/Datan Wind Power,2230470
+2025,01,陸域風力/Onshore Wind,新竹香山風力/Hsinchu Xiangshan Wind Power,2353778
+2025,01,陸域風力/Onshore Wind,台中港區風力/Taichung Harbor Wind Power,11222845
+2025,01,陸域風力/Onshore Wind,台中電廠風力/Taichung Power Plant Wind Power,554960
+2025,01,陸域風力/Onshore Wind,彰工風力Changgong Wind Power,31416637
+2025,01,陸域風力/Onshore Wind,彰化王功風力/Changhua Wanggong Wind Power,9567925
+2025,01,陸域風力/Onshore Wind,彰化永興風力/Changhua Yongxing Wind Power,3907573
+2025,01,陸域風力/Onshore Wind,雲林麥寮風力/Yunlin Mailiao Wind Power,8732345
+2025,01,陸域風力/Onshore Wind,雲林台西風力發電站/Yunlin Taixi Wind Power,2287849
+2025,01,陸域風力/Onshore Wind,雲林四湖風力/Yunlin Sihu Wind Power,6460138
+2025,01,陸域風力/Onshore Wind,恆春風力/Hengchun Wind Power,1917272
+2025,01,陸域風力/Onshore Wind,中屯風力/Zhongtun Wind Power,-
+2025,01,陸域風力/Onshore Wind,澎湖湖西風力/Penghu Huxi Wind Power,1744464
+2025,01,陸域風力/Onshore Wind,金沙風力/Jinsha Wind Power,1297846
+2025,01,陸域風力/Onshore Wind,澎湖龍門風力/Penghu Longmen Wind Power,4976213
+2025,01,離岸風力/Offshore Wind,離岸一期風力/Offshore Phase1 Wind Power,46848526
+2025,01,太陽能/Solar,大潭電廠太陽光電/Datang Power Plant Solars,95958
+2025,01,太陽能/Solar,北部儲運中心太陽光電/Northern Storage and Transportation Center Solars,67995
+2025,01,太陽能/Solar,龍潭E/S太陽光電/Longtan E/S Solars,15077
+2025,01,太陽能/Solar,竹工E/S太陽光電/Zhugong E/S Solars,19392
+2025,01,太陽能/Solar,台中電廠太陽光電/Taichung Power Plant Solars,299350
+2025,01,太陽能/Solar,台中龍井太陽光電/Taichung Longjing Solars,545522
+2025,01,太陽能/Solar,中科E/S太陽光電/Zhongke E/S Solars,17619
+2025,01,太陽能/Solar,彰化彰濱太陽光電/Changhua Changbin Solars,9212677
+2025,01,太陽能/Solar,彰林E/S太陽光電/Changlin E/S Solars,25385
+2025,01,太陽能/Solar,南投大彎太陽光電/Nantou Dawan Solars,60345
+2025,01,太陽能/Solar,台南鹽田太陽光電/Tainan salt field Solars,16681561
+2025,01,太陽能/Solar,台南七股太陽光電/Tainan Qigu Solars,557502
+2025,01,太陽能/Solar,興達電廠太陽光電/Xingda Power Plant Solars,163005
+2025,01,太陽能/Solar,永安鹽灘地太陽光電/Yongan Salt Flats Solars,398987
+2025,01,太陽能/Solar,燕巢倉庫太陽光電/Yanchao Warehouse Solars,46082
+2025,01,太陽能/Solar,高雄E/S太陽光電/Kaohsiung E/S Solars,62822
+2025,01,太陽能/Solar,高雄保寧太陽光電/Kaohsiung Baoning Solars,58541
+2025,01,太陽能/Solar,鳳山水庫太陽光電/Fengshan Reservoir Solars,170459
+2025,01,太陽能/Solar,核三廠太陽光電/3rd Nuclear Power Plants Solars,286101
+2025,01,太陽能/Solar,澎湖七美太陽光電/Penghu Qimei Solars,22658
+2025,01,太陽能/Solar,澎湖尖山太陽光電/Penghu jianshan Solars,71372
+2025,01,太陽能/Solar,金門金沙太陽光電/Kinmen Jinsha Solars,53845
+2025,01,太陽能/Solar,金門塔山太陽光電/Kinmen Tashan Solars,22682
+2025,01,太陽能/Solar,金門鵲山太陽光電/Kinmen Queshan Solars,4697
+2025,01,太陽能/Solar,馬祖珠山太陽光電/Mazu Zhushan Solars,6422
+2025,01,太陽能/Solar,"淡水3.5萬噸配水池太陽光電/Danshui Distribution Reservoir(35,000 tons) Solar",21834
+2025,01,太陽能/Solar,中大D/S太陽光電/Zhongda D/S Solars,2489
+2025,01,太陽能/Solar,平鎮淨水場太陽光電/Pingzhen Water Treatment Plant Solars,89438
+2025,01,太陽能/Solar,大湳淨水場太陽光電/Danan Water Treatment Plant Solars,63318
+2025,01,太陽能/Solar,龜山加壓站太陽光電/Guishan Booster Station Solars,22432
+2025,01,太陽能/Solar,龍潭淨水場太陽光電/Longtan Water Treatment Plant Solars,29768
+2025,01,太陽能/Solar,卓蘭會館太陽光電/Zhuolan Hostel Solars,3182
+2025,01,太陽能/Solar,東興淨水場太陽光電/Dongxing Water Treatment Plant Solars,62727
+2025,01,太陽能/Solar,后里E/S太陽光電/Houli E/S Solars,8456
+2025,01,太陽能/Solar,中部儲運中心太陽光電/Central Storage and Transportation Center Solars,5831
+2025,01,太陽能/Solar,東勢新伯公太陽光電/Dongshi Xinbogong Solars,62060
+2025,01,太陽能/Solar,嘉義民雄太陽光電/Jiayi Minxiong Solars,3059
+2025,01,太陽能/Solar,嘉義分所太陽光電/Chiayi Agricultural Experiment Branch Solars,23204
+2025,01,太陽能/Solar,義竹工作站太陽光電/Yizhu Workstation Solars,28500
+2025,01,太陽能/Solar,路北E/S太陽光電/Lubei E/S Solars,3986
+2025,01,太陽能/Solar,高訓中心光電/Kaohsiung Training Institute Solars,34258
+2025,01,太陽能/Solar,蘭嶼電廠太陽光電/Lanyu Power Plant Solars,1545
+2025,01,太陽能/Solar,蘭嶼貯存場太陽光電/Lanyu Storage Unit Solars,0
+2025,01,太陽能/Solar,金門酒廠太陽光電/Kinmen Kaoliang Liquor Inc. Solars,95269
+2025,01,地熱/Geothermal,仁澤地熱/Renze Geothermal,347756
+2025,02,陸域風力/Onshore Wind,石門風力/Shimen Wind Power,527760
+2025,02,陸域風力/Onshore Wind,林口風力/Linkou Wind Power,1810888
+2025,02,陸域風力/Onshore Wind,蘆竹風力/Luzhu Wind Power,2042749
+2025,02,陸域風力/Onshore Wind,觀園風力/Guanyuan Wind Power,10808627
+2025,02,陸域風力/Onshore Wind,大潭風力/Datan Wind Power,2370496
+2025,02,陸域風力/Onshore Wind,新竹香山風力/Hsinchu Xiangshan Wind Power,1922528
+2025,02,陸域風力/Onshore Wind,台中港區風力/Taichung Harbor Wind Power,9586223
+2025,02,陸域風力/Onshore Wind,台中電廠風力/Taichung Power Plant Wind Power,453742
+2025,02,陸域風力/Onshore Wind,彰工風力Changgong Wind Power,24544039
+2025,02,陸域風力/Onshore Wind,彰化王功風力/Changhua Wanggong Wind Power,8528179
+2025,02,陸域風力/Onshore Wind,彰化永興風力/Changhua Yongxing Wind Power,3606205
+2025,02,陸域風力/Onshore Wind,雲林麥寮風力/Yunlin Mailiao Wind Power,6135820
+2025,02,陸域風力/Onshore Wind,雲林台西風力發電站/Yunlin Taixi Wind Power,1570610
+2025,02,陸域風力/Onshore Wind,雲林四湖風力/Yunlin Sihu Wind Power,5405883
+2025,02,陸域風力/Onshore Wind,恆春風力/Hengchun Wind Power,1595161
+2025,02,陸域風力/Onshore Wind,中屯風力/Zhongtun Wind Power,-
+2025,02,陸域風力/Onshore Wind,澎湖湖西風力/Penghu Huxi Wind Power,2122228
+2025,02,陸域風力/Onshore Wind,金沙風力/Jinsha Wind Power,1141910
+2025,02,陸域風力/Onshore Wind,澎湖龍門風力/Penghu Longmen Wind Power,4202998
+2025,02,離岸風力/Offshore Wind,離岸一期風力/Offshore Phase1 Wind Power,45673572
+2025,02,太陽能/Solar,大潭電廠太陽光電/Datang Power Plant Solars,95958
+2025,02,太陽能/Solar,北部儲運中心太陽光電/Northern Storage and Transportation Center Solars,67995
+2025,02,太陽能/Solar,龍潭E/S太陽光電/Longtan E/S Solars,15077
+2025,02,太陽能/Solar,竹工E/S太陽光電/Zhugong E/S Solars,19392
+2025,02,太陽能/Solar,台中電廠太陽光電/Taichung Power Plant Solars,299350
+2025,02,太陽能/Solar,台中龍井太陽光電/Taichung Longjing Solars,545522
+2025,02,太陽能/Solar,中科E/S太陽光電/Zhongke E/S Solars,17619
+2025,02,太陽能/Solar,彰化彰濱太陽光電/Changhua Changbin Solars,9212677
+2025,02,太陽能/Solar,彰林E/S太陽光電/Changlin E/S Solars,25385
+2025,02,太陽能/Solar,南投大彎太陽光電/Nantou Dawan Solars,60345
+2025,02,太陽能/Solar,台南鹽田太陽光電/Tainan salt field Solars,16681561
+2025,02,太陽能/Solar,台南七股太陽光電/Tainan Qigu Solars,557502
+2025,02,太陽能/Solar,興達電廠太陽光電/Xingda Power Plant Solars,163005
+2025,02,太陽能/Solar,永安鹽灘地太陽光電/Yongan Salt Flats Solars,398987
+2025,02,太陽能/Solar,燕巢倉庫太陽光電/Yanchao Warehouse Solars,46082
+2025,02,太陽能/Solar,高雄E/S太陽光電/Kaohsiung E/S Solars,62822
+2025,02,太陽能/Solar,高雄保寧太陽光電/Kaohsiung Baoning Solars,58541
+2025,02,太陽能/Solar,鳳山水庫太陽光電/Fengshan Reservoir Solars,170459
+2025,02,太陽能/Solar,核三廠太陽光電/3rd Nuclear Power Plants Solars,286101
+2025,02,太陽能/Solar,澎湖七美太陽光電/Penghu Qimei Solars,22658
+2025,02,太陽能/Solar,澎湖尖山太陽光電/Penghu jianshan Solars,71372
+2025,02,太陽能/Solar,金門金沙太陽光電/Kinmen Jinsha Solars,53845
+2025,02,太陽能/Solar,金門塔山太陽光電/Kinmen Tashan Solars,22682
+2025,02,太陽能/Solar,金門鵲山太陽光電/Kinmen Queshan Solars,4697
+2025,02,太陽能/Solar,馬祖珠山太陽光電/Mazu Zhushan Solars,6422
+2025,02,太陽能/Solar,"淡水3.5萬噸配水池太陽光電/Danshui Distribution Reservoir(35,000 tons) Solar",21834
+2025,02,太陽能/Solar,中大D/S太陽光電/Zhongda D/S Solars,2489
+2025,02,太陽能/Solar,平鎮淨水場太陽光電/Pingzhen Water Treatment Plant Solars,89438
+2025,02,太陽能/Solar,大湳淨水場太陽光電/Danan Water Treatment Plant Solars,63318
+2025,02,太陽能/Solar,龜山加壓站太陽光電/Guishan Booster Station Solars,22432
+2025,02,太陽能/Solar,龍潭淨水場太陽光電/Longtan Water Treatment Plant Solars,29768
+2025,02,太陽能/Solar,卓蘭會館太陽光電/Zhuolan Hostel Solars,3182
+2025,02,太陽能/Solar,東興淨水場太陽光電/Dongxing Water Treatment Plant Solars,62727
+2025,02,太陽能/Solar,后里E/S太陽光電/Houli E/S Solars,8456
+2025,02,太陽能/Solar,中部儲運中心太陽光電/Central Storage and Transportation Center Solars,5831
+2025,02,太陽能/Solar,東勢新伯公太陽光電/Dongshi Xinbogong Solars,62060
+2025,02,太陽能/Solar,嘉義民雄太陽光電/Jiayi Minxiong Solars,3059
+2025,02,太陽能/Solar,嘉義分所太陽光電/Chiayi Agricultural Experiment Branch Solars,23204
+2025,02,太陽能/Solar,義竹工作站太陽光電/Yizhu Workstation Solars,28500
+2025,02,太陽能/Solar,路北E/S太陽光電/Lubei E/S Solars,3986
+2025,02,太陽能/Solar,高訓中心光電/Kaohsiung Training Institute Solars,34258
+2025,02,太陽能/Solar,蘭嶼電廠太陽光電/Lanyu Power Plant Solars,1545
+2025,02,太陽能/Solar,蘭嶼貯存場太陽光電/Lanyu Storage Unit Solars,0
+2025,02,太陽能/Solar,金門酒廠太陽光電/Kinmen Kaoliang Liquor Inc. Solars,95269
+2025,02,地熱/Geothermal,仁澤地熱/Renze Geothermal,293356
+2025,03,陸域風力/Onshore Wind,石門風力/Shimen Wind Power,334239
+2025,03,陸域風力/Onshore Wind,林口風力/Linkou Wind Power,1153848
+2025,03,陸域風力/Onshore Wind,蘆竹風力/Luzhu Wind Power,1736388
+2025,03,陸域風力/Onshore Wind,觀園風力/Guanyuan Wind Power,10171184
+2025,03,陸域風力/Onshore Wind,大潭風力/Datan Wind Power,2680092
+2025,03,陸域風力/Onshore Wind,新竹香山風力/Hsinchu Xiangshan Wind Power,1298732
+2025,03,陸域風力/Onshore Wind,台中港區風力/Taichung Harbor Wind Power,7680953
+2025,03,陸域風力/Onshore Wind,台中電廠風力/Taichung Power Plant Wind Power,392303
+2025,03,陸域風力/Onshore Wind,彰工風力Changgong Wind Power,19048741
+2025,03,陸域風力/Onshore Wind,彰化王功風力/Changhua Wanggong Wind Power,5994722
+2025,03,陸域風力/Onshore Wind,彰化永興風力/Changhua Yongxing Wind Power,2608210
+2025,03,陸域風力/Onshore Wind,雲林麥寮風力/Yunlin Mailiao Wind Power,4823913
+2025,03,陸域風力/Onshore Wind,雲林台西風力發電站/Yunlin Taixi Wind Power,2251548
+2025,03,陸域風力/Onshore Wind,雲林四湖風力/Yunlin Sihu Wind Power,4206501
+2025,03,陸域風力/Onshore Wind,恆春風力/Hengchun Wind Power,1186647
+2025,03,陸域風力/Onshore Wind,中屯風力/Zhongtun Wind Power,-
+2025,03,陸域風力/Onshore Wind,澎湖湖西風力/Penghu Huxi Wind Power,1026292
+2025,03,陸域風力/Onshore Wind,金沙風力/Jinsha Wind Power,953088
+2025,03,陸域風力/Onshore Wind,澎湖龍門風力/Penghu Longmen Wind Power,2555720
+2025,03,離岸風力/Offshore Wind,離岸一期風力/Offshore Phase1 Wind Power,35390422
+2025,03,太陽能/Solar,大潭電廠太陽光電/Datang Power Plant Solars,103334
+2025,03,太陽能/Solar,北部儲運中心太陽光電/Northern Storage and Transportation Center Solars,74389
+2025,03,太陽能/Solar,龍潭E/S太陽光電/Longtan E/S Solars,14929
+2025,03,太陽能/Solar,竹工E/S太陽光電/Zhugong E/S Solars,20864
+2025,03,太陽能/Solar,台中電廠太陽光電/Taichung Power Plant Solars,354074
+2025,03,太陽能/Solar,台中龍井太陽光電/Taichung Longjing Solars,628008
+2025,03,太陽能/Solar,中科E/S太陽光電/Zhongke E/S Solars,17841
+2025,03,太陽能/Solar,彰化彰濱太陽光電/Changhua Changbin Solars,10960358
+2025,03,太陽能/Solar,彰林E/S太陽光電/Changlin E/S Solars,28085
+2025,03,太陽能/Solar,南投大彎太陽光電/Nantou Dawan Solars,65215
+2025,03,太陽能/Solar,台南鹽田太陽光電/Tainan salt field Solars,19841404
+2025,03,太陽能/Solar,台南七股太陽光電/Tainan Qigu Solars,692274
+2025,03,太陽能/Solar,興達電廠太陽光電/Xingda Power Plant Solars,197570
+2025,03,太陽能/Solar,永安鹽灘地太陽光電/Yongan Salt Flats Solars,464223
+2025,03,太陽能/Solar,燕巢倉庫太陽光電/Yanchao Warehouse Solars,56577
+2025,03,太陽能/Solar,高雄E/S太陽光電/Kaohsiung E/S Solars,86519
+2025,03,太陽能/Solar,高雄保寧太陽光電/Kaohsiung Baoning Solars,83936
+2025,03,太陽能/Solar,鳳山水庫太陽光電/Fengshan Reservoir Solars,216788
+2025,03,太陽能/Solar,核三廠太陽光電/3rd Nuclear Power Plants Solars,388561
+2025,03,太陽能/Solar,澎湖七美太陽光電/Penghu Qimei Solars,21322
+2025,03,太陽能/Solar,澎湖尖山太陽光電/Penghu jianshan Solars,75784
+2025,03,太陽能/Solar,金門金沙太陽光電/Kinmen Jinsha Solars,50566
+2025,03,太陽能/Solar,金門塔山太陽光電/Kinmen Tashan Solars,24624
+2025,03,太陽能/Solar,金門鵲山太陽光電/Kinmen Queshan Solars,5047
+2025,03,太陽能/Solar,馬祖珠山太陽光電/Mazu Zhushan Solars,6878
+2025,03,太陽能/Solar,"淡水3.5萬噸配水池太陽光電/Danshui Distribution Reservoir(35,000 tons) Solar",27156
+2025,03,太陽能/Solar,中大D/S太陽光電/Zhongda D/S Solars,2616
+2025,03,太陽能/Solar,平鎮淨水場太陽光電/Pingzhen Water Treatment Plant Solars,97814
+2025,03,太陽能/Solar,大湳淨水場太陽光電/Danan Water Treatment Plant Solars,74051
+2025,03,太陽能/Solar,龜山加壓站太陽光電/Guishan Booster Station Solars,27162
+2025,03,太陽能/Solar,龍潭淨水場太陽光電/Longtan Water Treatment Plant Solars,32487
+2025,03,太陽能/Solar,卓蘭會館太陽光電/Zhuolan Hostel Solars,3369
+2025,03,太陽能/Solar,東興淨水場太陽光電/Dongxing Water Treatment Plant Solars,63404
+2025,03,太陽能/Solar,后里E/S太陽光電/Houli E/S Solars,8930
+2025,03,太陽能/Solar,中部儲運中心太陽光電/Central Storage and Transportation Center Solars,7471
+2025,03,太陽能/Solar,東勢新伯公太陽光電/Dongshi Xinbogong Solars,73256
+2025,03,太陽能/Solar,嘉義民雄太陽光電/Jiayi Minxiong Solars,3635
+2025,03,太陽能/Solar,嘉義分所太陽光電/Chiayi Agricultural Experiment Branch Solars,29341
+2025,03,太陽能/Solar,義竹工作站太陽光電/Yizhu Workstation Solars,36932
+2025,03,太陽能/Solar,路北E/S太陽光電/Lubei E/S Solars,4850
+2025,03,太陽能/Solar,高訓中心光電/Kaohsiung Training Institute Solars,46384
+2025,03,太陽能/Solar,蘭嶼電廠太陽光電/Lanyu Power Plant Solars,2504
+2025,03,太陽能/Solar,蘭嶼貯存場太陽光電/Lanyu Storage Unit Solars,0
+2025,03,太陽能/Solar,金門酒廠太陽光電/Kinmen Kaoliang Liquor Inc. Solars,102755
+2025,03,地熱/Geothermal,仁澤地熱/Renze Geothermal,297198
+2025,04,陸域風力/Onshore Wind,石門風力/Shimen Wind Power,151418
+2025,04,陸域風力/Onshore Wind,林口風力/Linkou Wind Power,307573
+2025,04,陸域風力/Onshore Wind,蘆竹風力/Luzhu Wind Power,727978
+2025,04,陸域風力/Onshore Wind,觀園風力/Guanyuan Wind Power,4877800
+2025,04,陸域風力/Onshore Wind,大潭風力/Datan Wind Power,1597960
+2025,04,陸域風力/Onshore Wind,新竹香山風力/Hsinchu Xiangshan Wind Power,261240
+2025,04,陸域風力/Onshore Wind,台中港區風力/Taichung Harbor Wind Power,3497595
+2025,04,陸域風力/Onshore Wind,台中電廠風力/Taichung Power Plant Wind Power,149357
+2025,04,陸域風力/Onshore Wind,彰工風力Changgong Wind Power,6480860
+2025,04,陸域風力/Onshore Wind,彰化王功風力/Changhua Wanggong Wind Power,2607420
+2025,04,陸域風力/Onshore Wind,彰化永興風力/Changhua Yongxing Wind Power,1242593
+2025,04,陸域風力/Onshore Wind,雲林麥寮風力/Yunlin Mailiao Wind Power,2536738
+2025,04,陸域風力/Onshore Wind,雲林台西風力發電站/Yunlin Taixi Wind Power,1131119
+2025,04,陸域風力/Onshore Wind,雲林四湖風力/Yunlin Sihu Wind Power,2048497
+2025,04,陸域風力/Onshore Wind,恆春風力/Hengchun Wind Power,852770
+2025,04,陸域風力/Onshore Wind,中屯風力/Zhongtun Wind Power,0
+2025,04,陸域風力/Onshore Wind,澎湖湖西風力/Penghu Huxi Wind Power,653686
+2025,04,陸域風力/Onshore Wind,金沙風力/Jinsha Wind Power,488630
+2025,04,陸域風力/Onshore Wind,澎湖龍門風力/Penghu Longmen Wind Power,1263047
+2025,04,離岸風力/Offshore Wind,離岸一期風力/Offshore Phase1 Wind Power,16203100
+2025,04,太陽能/Solar,大潭電廠太陽光電/Datang Power Plant Solars,127407
+2025,04,太陽能/Solar,北部儲運中心太陽光電/Northern Storage and Transportation Center Solars,92365
+2025,04,太陽能/Solar,龍潭E/S太陽光電/Longtan E/S Solars,14292
+2025,04,太陽能/Solar,竹工E/S太陽光電/Zhugong E/S Solars,22598
+2025,04,太陽能/Solar,台中電廠太陽光電/Taichung Power Plant Solars,366856
+2025,04,太陽能/Solar,台中龍井太陽光電/Taichung Longjing Solars,623669
+2025,04,太陽能/Solar,中科E/S太陽光電/Zhongke E/S Solars,17660
+2025,04,太陽能/Solar,彰化彰濱太陽光電/Changhua Changbin Solars,12046800
+2025,04,太陽能/Solar,彰林E/S太陽光電/Changlin E/S Solars,29049
+2025,04,太陽能/Solar,南投大彎太陽光電/Nantou Dawan Solars,67685
+2025,04,太陽能/Solar,台南鹽田太陽光電/Tainan salt field Solars,19682585
+2025,04,太陽能/Solar,台南七股太陽光電/Tainan Qigu Solars,664729
+2025,04,太陽能/Solar,興達電廠太陽光電/Xingda Power Plant Solars,185729
+2025,04,太陽能/Solar,永安鹽灘地太陽光電/Yongan Salt Flats Solars,450741
+2025,04,太陽能/Solar,燕巢倉庫太陽光電/Yanchao Warehouse Solars,55901
+2025,04,太陽能/Solar,高雄E/S太陽光電/Kaohsiung E/S Solars,87446
+2025,04,太陽能/Solar,高雄保寧太陽光電/Kaohsiung Baoning Solars,86061
+2025,04,太陽能/Solar,鳳山水庫太陽光電/Fengshan Reservoir Solars,206962
+2025,04,太陽能/Solar,核三廠太陽光電/3rd Nuclear Power Plants Solars,390254
+2025,04,太陽能/Solar,澎湖七美太陽光電/Penghu Qimei Solars,23443
+2025,04,太陽能/Solar,澎湖尖山太陽光電/Penghu jianshan Solars,97347
+2025,04,太陽能/Solar,金門金沙太陽光電/Kinmen Jinsha Solars,50744
+2025,04,太陽能/Solar,金門塔山太陽光電/Kinmen Tashan Solars,26603
+2025,04,太陽能/Solar,金門鵲山太陽光電/Kinmen Queshan Solars,5722
+2025,04,太陽能/Solar,馬祖珠山太陽光電/Mazu Zhushan Solars,7990
+2025,04,太陽能/Solar,"淡水3.5萬噸配水池太陽光電/Danshui Distribution Reservoir(35,000 tons) Solar",31245
+2025,04,太陽能/Solar,中大D/S太陽光電/Zhongda D/S Solars,2945
+2025,04,太陽能/Solar,平鎮淨水場太陽光電/Pingzhen Water Treatment Plant Solars,100984
+2025,04,太陽能/Solar,大湳淨水場太陽光電/Danan Water Treatment Plant Solars,80811
+2025,04,太陽能/Solar,龜山加壓站太陽光電/Guishan Booster Station Solars,29576
+2025,04,太陽能/Solar,龍潭淨水場太陽光電/Longtan Water Treatment Plant Solars,31179
+2025,04,太陽能/Solar,卓蘭會館太陽光電/Zhuolan Hostel Solars,3146
+2025,04,太陽能/Solar,東興淨水場太陽光電/Dongxing Water Treatment Plant Solars,70822
+2025,04,太陽能/Solar,后里E/S太陽光電/Houli E/S Solars,8666
+2025,04,太陽能/Solar,中部儲運中心太陽光電/Central Storage and Transportation Center Solars,7483
+2025,04,太陽能/Solar,東勢新伯公太陽光電/Dongshi Xinbogong Solars,70160
+2025,04,太陽能/Solar,嘉義民雄太陽光電/Jiayi Minxiong Solars,3800
+2025,04,太陽能/Solar,嘉義分所太陽光電/Chiayi Agricultural Experiment Branch Solars,30592
+2025,04,太陽能/Solar,義竹工作站太陽光電/Yizhu Workstation Solars,36769
+2025,04,太陽能/Solar,路北E/S太陽光電/Lubei E/S Solars,4705
+2025,04,太陽能/Solar,高訓中心光電/Kaohsiung Training Institute Solars,41349
+2025,04,太陽能/Solar,蘭嶼電廠太陽光電/Lanyu Power Plant Solars,3196
+2025,04,太陽能/Solar,蘭嶼貯存場太陽光電/Lanyu Storage Unit Solars,0
+2025,04,太陽能/Solar,金門酒廠太陽光電/Kinmen Kaoliang Liquor Inc. Solars,111717
+2025,04,地熱/Geothermal,仁澤地熱/Renze Geothermal,249815
+2025,05,陸域風力/Onshore Wind,石門風力/Shimen Wind Power,219961
+2025,05,陸域風力/Onshore Wind,林口風力/Linkou Wind Power,304271
+2025,05,陸域風力/Onshore Wind,蘆竹風力/Luzhu Wind Power,478278
+2025,05,陸域風力/Onshore Wind,觀園風力/Guanyuan Wind Power,3616279
+2025,05,陸域風力/Onshore Wind,大潭風力/Datan Wind Power,1075614
+2025,05,陸域風力/Onshore Wind,新竹香山風力/Hsinchu Xiangshan Wind Power,476454
+2025,05,陸域風力/Onshore Wind,台中港區風力/Taichung Harbor Wind Power,2389563
+2025,05,陸域風力/Onshore Wind,台中電廠風力/Taichung Power Plant Wind Power,102992
+2025,05,陸域風力/Onshore Wind,彰工風力Changgong Wind Power,5556436
+2025,05,陸域風力/Onshore Wind,彰化王功風力/Changhua Wanggong Wind Power,1999057
+2025,05,陸域風力/Onshore Wind,彰化永興風力/Changhua Yongxing Wind Power,828675
+2025,05,陸域風力/Onshore Wind,雲林麥寮風力/Yunlin Mailiao Wind Power,2084791
+2025,05,陸域風力/Onshore Wind,雲林台西風力發電站/Yunlin Taixi Wind Power,753086
+2025,05,陸域風力/Onshore Wind,雲林四湖風力/Yunlin Sihu Wind Power,1702233
+2025,05,陸域風力/Onshore Wind,恆春風力/Hengchun Wind Power,1020770
+2025,05,陸域風力/Onshore Wind,中屯風力/Zhongtun Wind Power,0
+2025,05,陸域風力/Onshore Wind,澎湖湖西風力/Penghu Huxi Wind Power,186842
+2025,05,陸域風力/Onshore Wind,金沙風力/Jinsha Wind Power,340884
+2025,05,陸域風力/Onshore Wind,澎湖龍門風力/Penghu Longmen Wind Power,477180
+2025,05,離岸風力/Offshore Wind,離岸一期風力/Offshore Phase1 Wind Power,12606762
+2025,05,太陽能/Solar,大潭電廠太陽光電/Datang Power Plant Solars,136304
+2025,05,太陽能/Solar,北部儲運中心太陽光電/Northern Storage and Transportation Center Solars,104022
+2025,05,太陽能/Solar,龍潭E/S太陽光電/Longtan E/S Solars,16765
+2025,05,太陽能/Solar,竹工E/S太陽光電/Zhugong E/S Solars,25553
+2025,05,太陽能/Solar,台中電廠太陽光電/Taichung Power Plant Solars,388951
+2025,05,太陽能/Solar,台中龍井太陽光電/Taichung Longjing Solars,657815
+2025,05,太陽能/Solar,中科E/S太陽光電/Zhongke E/S Solars,19618
+2025,05,太陽能/Solar,彰化彰濱太陽光電/Changhua Changbin Solars,12822203
+2025,05,太陽能/Solar,彰林E/S太陽光電/Changlin E/S Solars,31310
+2025,05,太陽能/Solar,南投大彎太陽光電/Nantou Dawan Solars,67320
+2025,05,太陽能/Solar,台南鹽田太陽光電/Tainan salt field Solars,21462814
+2025,05,太陽能/Solar,台南七股太陽光電/Tainan Qigu Solars,744411
+2025,05,太陽能/Solar,興達電廠太陽光電/Xingda Power Plant Solars,211588
+2025,05,太陽能/Solar,永安鹽灘地太陽光電/Yongan Salt Flats Solars,462237
+2025,05,太陽能/Solar,燕巢倉庫太陽光電/Yanchao Warehouse Solars,62013
+2025,05,太陽能/Solar,高雄E/S太陽光電/Kaohsiung E/S Solars,97351
+2025,05,太陽能/Solar,高雄保寧太陽光電/Kaohsiung Baoning Solars,99703
+2025,05,太陽能/Solar,鳳山水庫太陽光電/Fengshan Reservoir Solars,263876
+2025,05,太陽能/Solar,核三廠太陽光電/3rd Nuclear Power Plants Solars,446937
+2025,05,太陽能/Solar,澎湖七美太陽光電/Penghu Qimei Solars,26907
+2025,05,太陽能/Solar,澎湖尖山太陽光電/Penghu jianshan Solars,87588
+2025,05,太陽能/Solar,金門金沙太陽光電/Kinmen Jinsha Solars,45785
+2025,05,太陽能/Solar,金門塔山太陽光電/Kinmen Tashan Solars,28482
+2025,05,太陽能/Solar,金門鵲山太陽光電/Kinmen Queshan Solars,5961
+2025,05,太陽能/Solar,馬祖珠山太陽光電/Mazu Zhushan Solars,7592
+2025,05,太陽能/Solar,"淡水3.5萬噸配水池太陽光電/Danshui Distribution Reservoir(35,000 tons) Solar",33796
+2025,05,太陽能/Solar,中大D/S太陽光電/Zhongda D/S Solars,3274
+2025,05,太陽能/Solar,平鎮淨水場太陽光電/Pingzhen Water Treatment Plant Solars,121426
+2025,05,太陽能/Solar,大湳淨水場太陽光電/Danan Water Treatment Plant Solars,93864
+2025,05,太陽能/Solar,龜山加壓站太陽光電/Guishan Booster Station Solars,32057
+2025,05,太陽能/Solar,龍潭淨水場太陽光電/Longtan Water Treatment Plant Solars,37174
+2025,05,太陽能/Solar,卓蘭會館太陽光電/Zhuolan Hostel Solars,3564
+2025,05,太陽能/Solar,東興淨水場太陽光電/Dongxing Water Treatment Plant Solars,81601
+2025,05,太陽能/Solar,后里E/S太陽光電/Houli E/S Solars,9341
+2025,05,太陽能/Solar,中部儲運中心太陽光電/Central Storage and Transportation Center Solars,8951
+2025,05,太陽能/Solar,東勢新伯公太陽光電/Dongshi Xinbogong Solars,80845
+2025,05,太陽能/Solar,嘉義民雄太陽光電/Jiayi Minxiong Solars,4426
+2025,05,太陽能/Solar,嘉義分所太陽光電/Chiayi Agricultural Experiment Branch Solars,36160
+2025,05,太陽能/Solar,義竹工作站太陽光電/Yizhu Workstation Solars,43927
+2025,05,太陽能/Solar,路北E/S太陽光電/Lubei E/S Solars,5126
+2025,05,太陽能/Solar,高訓中心光電/Kaohsiung Training Institute Solars,53221
+2025,05,太陽能/Solar,蘭嶼電廠太陽光電/Lanyu Power Plant Solars,3680
+2025,05,太陽能/Solar,蘭嶼貯存場太陽光電/Lanyu Storage Unit Solars,0
+2025,05,太陽能/Solar,金門酒廠太陽光電/Kinmen Kaoliang Liquor Inc. Solars,114049
+2025,05,地熱/Geothermal,仁澤地熱/Renze Geothermal,250109
+2025,06,陸域風力/Onshore Wind,石門風力/Shimen Wind Power,101551
+2025,06,陸域風力/Onshore Wind,林口風力/Linkou Wind Power,253046
+2025,06,陸域風力/Onshore Wind,蘆竹風力/Luzhu Wind Power,424520
+2025,06,陸域風力/Onshore Wind,觀園風力/Guanyuan Wind Power,2882712
+2025,06,陸域風力/Onshore Wind,大潭風力/Datan Wind Power,1062877
+2025,06,陸域風力/Onshore Wind,新竹香山風力/Hsinchu Xiangshan Wind Power,464452
+2025,06,陸域風力/Onshore Wind,台中港區風力/Taichung Harbor Wind Power,801308
+2025,06,陸域風力/Onshore Wind,台中電廠風力/Taichung Power Plant Wind Power,21070
+2025,06,陸域風力/Onshore Wind,彰工風力Changgong Wind Power,4339924
+2025,06,陸域風力/Onshore Wind,彰化王功風力/Changhua Wanggong Wind Power,1043285
+2025,06,陸域風力/Onshore Wind,彰化永興風力/Changhua Yongxing Wind Power,326819
+2025,06,陸域風力/Onshore Wind,雲林麥寮風力/Yunlin Mailiao Wind Power,2078793
+2025,06,陸域風力/Onshore Wind,雲林台西風力發電站/Yunlin Taixi Wind Power,598027
+2025,06,陸域風力/Onshore Wind,雲林四湖風力/Yunlin Sihu Wind Power,1417838
+2025,06,陸域風力/Onshore Wind,恆春風力/Hengchun Wind Power,631857
+2025,06,陸域風力/Onshore Wind,中屯風力/Zhongtun Wind Power,0
+2025,06,陸域風力/Onshore Wind,澎湖湖西風力/Penghu Huxi Wind Power,151104
+2025,06,陸域風力/Onshore Wind,金沙風力/Jinsha Wind Power,343439
+2025,06,陸域風力/Onshore Wind,澎湖龍門風力/Penghu Longmen Wind Power,490509
+2025,06,離岸風力/Offshore Wind,離岸一期風力/Offshore Phase1 Wind Power,9654153
+2025,06,太陽能/Solar,大潭電廠太陽光電/Datang Power Plant Solars,166287
+2025,06,太陽能/Solar,北部儲運中心太陽光電/Northern Storage and Transportation Center Solars,120564
+2025,06,太陽能/Solar,龍潭E/S太陽光電/Longtan E/S Solars,17829
+2025,06,太陽能/Solar,竹工E/S太陽光電/Zhugong E/S Solars,28559
+2025,06,太陽能/Solar,台中電廠太陽光電/Taichung Power Plant Solars,420634
+2025,06,太陽能/Solar,台中龍井太陽光電/Taichung Longjing Solars,728756
+2025,06,太陽能/Solar,中科E/S太陽光電/Zhongke E/S Solars,23600
+2025,06,太陽能/Solar,彰化彰濱太陽光電/Changhua Changbin Solars,14068048
+2025,06,太陽能/Solar,彰林E/S太陽光電/Changlin E/S Solars,32944
+2025,06,太陽能/Solar,南投大彎太陽光電/Nantou Dawan Solars,100732
+2025,06,太陽能/Solar,台南鹽田太陽光電/Tainan salt field Solars,20089984
+2025,06,太陽能/Solar,台南七股太陽光電/Tainan Qigu Solars,678667
+2025,06,太陽能/Solar,興達電廠太陽光電/Xingda Power Plant Solars,186667
+2025,06,太陽能/Solar,永安鹽灘地太陽光電/Yongan Salt Flats Solars,406177
+2025,06,太陽能/Solar,燕巢倉庫太陽光電/Yanchao Warehouse Solars,52875
+2025,06,太陽能/Solar,高雄E/S太陽光電/Kaohsiung E/S Solars,90907
+2025,06,太陽能/Solar,高雄保寧太陽光電/Kaohsiung Baoning Solars,86994
+2025,06,太陽能/Solar,鳳山水庫太陽光電/Fengshan Reservoir Solars,226706
+2025,06,太陽能/Solar,核三廠太陽光電/3rd Nuclear Power Plants Solars,405372
+2025,06,太陽能/Solar,澎湖七美太陽光電/Penghu Qimei Solars,28946
+2025,06,太陽能/Solar,澎湖尖山太陽光電/Penghu jianshan Solars,106471
+2025,06,太陽能/Solar,金門金沙太陽光電/Kinmen Jinsha Solars,49498
+2025,06,太陽能/Solar,金門塔山太陽光電/Kinmen Tashan Solars,32183
+2025,06,太陽能/Solar,金門鵲山太陽光電/Kinmen Queshan Solars,7042
+2025,06,太陽能/Solar,馬祖珠山太陽光電/Mazu Zhushan Solars,9990
+2025,06,太陽能/Solar,"淡水3.5萬噸配水池太陽光電/Danshui Distribution Reservoir(35,000 tons) Solar",38153
+2025,06,太陽能/Solar,中大D/S太陽光電/Zhongda D/S Solars,3677
+2025,06,太陽能/Solar,平鎮淨水場太陽光電/Pingzhen Water Treatment Plant Solars,135051
+2025,06,太陽能/Solar,大湳淨水場太陽光電/Danan Water Treatment Plant Solars,99966
+2025,06,太陽能/Solar,龜山加壓站太陽光電/Guishan Booster Station Solars,34232
+2025,06,太陽能/Solar,龍潭淨水場太陽光電/Longtan Water Treatment Plant Solars,37412
+2025,06,太陽能/Solar,卓蘭會館太陽光電/Zhuolan Hostel Solars,3543
+2025,06,太陽能/Solar,東興淨水場太陽光電/Dongxing Water Treatment Plant Solars,91327
+2025,06,太陽能/Solar,后里E/S太陽光電/Houli E/S Solars,9340
+2025,06,太陽能/Solar,中部儲運中心太陽光電/Central Storage and Transportation Center Solars,9292
+2025,06,太陽能/Solar,東勢新伯公太陽光電/Dongshi Xinbogong Solars,84974
+2025,06,太陽能/Solar,嘉義民雄太陽光電/Jiayi Minxiong Solars,3973
+2025,06,太陽能/Solar,嘉義分所太陽光電/Chiayi Agricultural Experiment Branch Solars,32992
+2025,06,太陽能/Solar,義竹工作站太陽光電/Yizhu Workstation Solars,41268
+2025,06,太陽能/Solar,路北E/S太陽光電/Lubei E/S Solars,4449
+2025,06,太陽能/Solar,高訓中心光電/Kaohsiung Training Institute Solars,45956
+2025,06,太陽能/Solar,蘭嶼電廠太陽光電/Lanyu Power Plant Solars,3548
+2025,06,太陽能/Solar,蘭嶼貯存場太陽光電/Lanyu Storage Unit Solars,0
+2025,06,太陽能/Solar,金門酒廠太陽光電/Kinmen Kaoliang Liquor Inc. Solars,135230
+2025,06,地熱/Geothermal,仁澤地熱/Renze Geothermal,198663
+2025,07,陸域風力/Onshore Wind,石門風力/Shimen Wind Power,293126
+2025,07,陸域風力/Onshore Wind,林口風力/Linkou Wind Power,553651
+2025,07,陸域風力/Onshore Wind,蘆竹風力/Luzhu Wind Power,897507
+2025,07,陸域風力/Onshore Wind,觀園風力/Guanyuan Wind Power,5863972
+2025,07,陸域風力/Onshore Wind,大潭風力/Datan Wind Power,2023025
+2025,07,陸域風力/Onshore Wind,新竹香山風力/Hsinchu Xiangshan Wind Power,598077
+2025,07,陸域風力/Onshore Wind,台中港區風力/Taichung Harbor Wind Power,2155411
+2025,07,陸域風力/Onshore Wind,台中電廠風力/Taichung Power Plant Wind Power,77858
+2025,07,陸域風力/Onshore Wind,彰工風力Changgong Wind Power,5420677
+2025,07,陸域風力/Onshore Wind,彰化王功風力/Changhua Wanggong Wind Power,1294477
+2025,07,陸域風力/Onshore Wind,彰化永興風力/Changhua Yongxing Wind Power,681709
+2025,07,陸域風力/Onshore Wind,雲林麥寮風力/Yunlin Mailiao Wind Power,2142977
+2025,07,陸域風力/Onshore Wind,雲林台西風力發電站/Yunlin Taixi Wind Power,894806
+2025,07,陸域風力/Onshore Wind,雲林四湖風力/Yunlin Sihu Wind Power,2629344
+2025,07,陸域風力/Onshore Wind,恆春風力/Hengchun Wind Power,1347447
+2025,07,陸域風力/Onshore Wind,中屯風力/Zhongtun Wind Power,0
+2025,07,陸域風力/Onshore Wind,澎湖湖西風力/Penghu Huxi Wind Power,373224
+2025,07,陸域風力/Onshore Wind,金沙風力/Jinsha Wind Power,621039
+2025,07,陸域風力/Onshore Wind,澎湖龍門風力/Penghu Longmen Wind Power,994663
+2025,07,離岸風力/Offshore Wind,離岸一期風力/Offshore Phase1 Wind Power,15545063
+2025,07,太陽能/Solar,大潭電廠太陽光電/Datang Power Plant Solars,143205
+2025,07,太陽能/Solar,北部儲運中心太陽光電/Northern Storage and Transportation Center Solars,106988
+2025,07,太陽能/Solar,龍潭E/S太陽光電/Longtan E/S Solars,15991
+2025,07,太陽能/Solar,竹工E/S太陽光電/Zhugong E/S Solars,25433
+2025,07,太陽能/Solar,台中電廠太陽光電/Taichung Power Plant Solars,331856
+2025,07,太陽能/Solar,台中龍井太陽光電/Taichung Longjing Solars,580553
+2025,07,太陽能/Solar,中科E/S太陽光電/Zhongke E/S Solars,19403
+2025,07,太陽能/Solar,彰化彰濱太陽光電/Changhua Changbin Solars,10844553
+2025,07,太陽能/Solar,彰林E/S太陽光電/Changlin E/S Solars,25508
+2025,07,太陽能/Solar,南投大彎太陽光電/Nantou Dawan Solars,85536
+2025,07,太陽能/Solar,台南鹽田太陽光電/Tainan salt field Solars,15427978
+2025,07,太陽能/Solar,台南七股太陽光電/Tainan Qigu Solars,483311
+2025,07,太陽能/Solar,興達電廠太陽光電/Xingda Power Plant Solars,142388
+2025,07,太陽能/Solar,永安鹽灘地太陽光電/Yongan Salt Flats Solars,269503
+2025,07,太陽能/Solar,燕巢倉庫太陽光電/Yanchao Warehouse Solars,42347
+2025,07,太陽能/Solar,高雄E/S太陽光電/Kaohsiung E/S Solars,66727
+2025,07,太陽能/Solar,高雄保寧太陽光電/Kaohsiung Baoning Solars,63158
+2025,07,太陽能/Solar,鳳山水庫太陽光電/Fengshan Reservoir Solars,149158
+2025,07,太陽能/Solar,核三廠太陽光電/3rd Nuclear Power Plants Solars,299032
+2025,07,太陽能/Solar,澎湖七美太陽光電/Penghu Qimei Solars,24132
+2025,07,太陽能/Solar,澎湖尖山太陽光電/Penghu jianshan Solars,66589
+2025,07,太陽能/Solar,金門金沙太陽光電/Kinmen Jinsha Solars,34510
+2025,07,太陽能/Solar,金門塔山太陽光電/Kinmen Tashan Solars,28807
+2025,07,太陽能/Solar,金門鵲山太陽光電/Kinmen Queshan Solars,6336
+2025,07,太陽能/Solar,馬祖珠山太陽光電/Mazu Zhushan Solars,8603
+2025,07,太陽能/Solar,"淡水3.5萬噸配水池太陽光電/Danshui Distribution Reservoir(35,000 tons) Solar",33550
+2025,07,太陽能/Solar,中大D/S太陽光電/Zhongda D/S Solars,3270
+2025,07,太陽能/Solar,平鎮淨水場太陽光電/Pingzhen Water Treatment Plant Solars,121843
+2025,07,太陽能/Solar,大湳淨水場太陽光電/Danan Water Treatment Plant Solars,92502
+2025,07,太陽能/Solar,龜山加壓站太陽光電/Guishan Booster Station Solars,32459
+2025,07,太陽能/Solar,龍潭淨水場太陽光電/Longtan Water Treatment Plant Solars,35589
+2025,07,太陽能/Solar,卓蘭會館太陽光電/Zhuolan Hostel Solars,2968
+2025,07,太陽能/Solar,東興淨水場太陽光電/Dongxing Water Treatment Plant Solars,76520
+2025,07,太陽能/Solar,后里E/S太陽光電/Houli E/S Solars,8115
+2025,07,太陽能/Solar,中部儲運中心太陽光電/Central Storage and Transportation Center Solars,7881
+2025,07,太陽能/Solar,東勢新伯公太陽光電/Dongshi Xinbogong Solars,68303
+2025,07,太陽能/Solar,嘉義民雄太陽光電/Jiayi Minxiong Solars,2751
+2025,07,太陽能/Solar,嘉義分所太陽光電/Chiayi Agricultural Experiment Branch Solars,23530
+2025,07,太陽能/Solar,義竹工作站太陽光電/Yizhu Workstation Solars,32047
+2025,07,太陽能/Solar,路北E/S太陽光電/Lubei E/S Solars,3326
+2025,07,太陽能/Solar,高訓中心光電/Kaohsiung Training Institute Solars,34067
+2025,07,太陽能/Solar,蘭嶼電廠太陽光電/Lanyu Power Plant Solars,2879
+2025,07,太陽能/Solar,蘭嶼貯存場太陽光電/Lanyu Storage Unit Solars,1361
+2025,07,太陽能/Solar,金門酒廠太陽光電/Kinmen Kaoliang Liquor Inc. Solars,119313
+2025,07,地熱/Geothermal,仁澤地熱/Renze Geothermal,15201
+2025,08,陸域風力/Onshore Wind,石門風力/Shimen Wind Power,109047
+2025,08,陸域風力/Onshore Wind,林口風力/Linkou Wind Power,466446
+2025,08,陸域風力/Onshore Wind,蘆竹風力/Luzhu Wind Power,565963
+2025,08,陸域風力/Onshore Wind,觀園風力/Guanyuan Wind Power,3063194
+2025,08,陸域風力/Onshore Wind,大潭風力/Datan Wind Power,995626
+2025,08,陸域風力/Onshore Wind,新竹香山風力/Hsinchu Xiangshan Wind Power,236969
+2025,08,陸域風力/Onshore Wind,台中港區風力/Taichung Harbor Wind Power,1277672
+2025,08,陸域風力/Onshore Wind,台中電廠風力/Taichung Power Plant Wind Power,32387
+2025,08,陸域風力/Onshore Wind,彰工風力Changgong Wind Power,3839550
+2025,08,陸域風力/Onshore Wind,彰化王功風力/Changhua Wanggong Wind Power,519599
+2025,08,陸域風力/Onshore Wind,彰化永興風力/Changhua Yongxing Wind Power,193849
+2025,08,陸域風力/Onshore Wind,雲林麥寮風力/Yunlin Mailiao Wind Power,1399797
+2025,08,陸域風力/Onshore Wind,雲林台西風力發電站/Yunlin Taixi Wind Power,551614
+2025,08,陸域風力/Onshore Wind,雲林四湖風力/Yunlin Sihu Wind Power,1461372
+2025,08,陸域風力/Onshore Wind,恆春風力/Hengchun Wind Power,677079
+2025,08,陸域風力/Onshore Wind,中屯風力/Zhongtun Wind Power,0
+2025,08,陸域風力/Onshore Wind,澎湖湖西風力/Penghu Huxi Wind Power,132218
+2025,08,陸域風力/Onshore Wind,金沙風力/Jinsha Wind Power,360788
+2025,08,陸域風力/Onshore Wind,澎湖龍門風力/Penghu Longmen Wind Power,317847
+2025,08,離岸風力/Offshore Wind,離岸一期風力/Offshore Phase1 Wind Power,8428755
+2025,08,太陽能/Solar,大潭電廠太陽光電/Datang Power Plant Solars,191463
+2025,08,太陽能/Solar,北部儲運中心太陽光電/Northern Storage and Transportation Center Solars,139941
+2025,08,太陽能/Solar,龍潭E/S太陽光電/Longtan E/S Solars,20967
+2025,08,太陽能/Solar,竹工E/S太陽光電/Zhugong E/S Solars,33336
+2025,08,太陽能/Solar,台中電廠太陽光電/Taichung Power Plant Solars,422122
+2025,08,太陽能/Solar,台中龍井太陽光電/Taichung Longjing Solars,742952
+2025,08,太陽能/Solar,中科E/S太陽光電/Zhongke E/S Solars,23765
+2025,08,太陽能/Solar,彰化彰濱太陽光電/Changhua Changbin Solars,13553288
+2025,08,太陽能/Solar,彰林E/S太陽光電/Changlin E/S Solars,31036
+2025,08,太陽能/Solar,南投大彎太陽光電/Nantou Dawan Solars,107177
+2025,08,太陽能/Solar,台南鹽田太陽光電/Tainan salt field Solars,19624360
+2025,08,太陽能/Solar,台南七股太陽光電/Tainan Qigu Solars,637264
+2025,08,太陽能/Solar,興達電廠太陽光電/Xingda Power Plant Solars,193505
+2025,08,太陽能/Solar,永安鹽灘地太陽光電/Yongan Salt Flats Solars,361011
+2025,08,太陽能/Solar,燕巢倉庫太陽光電/Yanchao Warehouse Solars,51020
+2025,08,太陽能/Solar,高雄E/S太陽光電/Kaohsiung E/S Solars,87819
+2025,08,太陽能/Solar,高雄保寧太陽光電/Kaohsiung Baoning Solars,81085
+2025,08,太陽能/Solar,鳳山水庫太陽光電/Fengshan Reservoir Solars,179945
+2025,08,太陽能/Solar,核三廠太陽光電/3rd Nuclear Power Plants Solars,345311
+2025,08,太陽能/Solar,澎湖七美太陽光電/Penghu Qimei Solars,27916
+2025,08,太陽能/Solar,澎湖尖山太陽光電/Penghu jianshan Solars,99663
+2025,08,太陽能/Solar,金門金沙太陽光電/Kinmen Jinsha Solars,46794
+2025,08,太陽能/Solar,金門塔山太陽光電/Kinmen Tashan Solars,32446
+2025,08,太陽能/Solar,金門鵲山太陽光電/Kinmen Queshan Solars,6917
+2025,08,太陽能/Solar,馬祖珠山太陽光電/Mazu Zhushan Solars,11145
+2025,08,太陽能/Solar,"淡水3.5萬噸配水池太陽光電/Danshui Distribution Reservoir(35,000 tons) Solar",46025
+2025,08,太陽能/Solar,中大D/S太陽光電/Zhongda D/S Solars,4233
+2025,08,太陽能/Solar,平鎮淨水場太陽光電/Pingzhen Water Treatment Plant Solars,156726
+2025,08,太陽能/Solar,大湳淨水場太陽光電/Danan Water Treatment Plant Solars,114987
+2025,08,太陽能/Solar,龜山加壓站太陽光電/Guishan Booster Station Solars,41327
+2025,08,太陽能/Solar,龍潭淨水場太陽光電/Longtan Water Treatment Plant Solars,45381
+2025,08,太陽能/Solar,卓蘭會館太陽光電/Zhuolan Hostel Solars,3839
+2025,08,太陽能/Solar,東興淨水場太陽光電/Dongxing Water Treatment Plant Solars,97802
+2025,08,太陽能/Solar,后里E/S太陽光電/Houli E/S Solars,9745
+2025,08,太陽能/Solar,中部儲運中心太陽光電/Central Storage and Transportation Center Solars,9598
+2025,08,太陽能/Solar,東勢新伯公太陽光電/Dongshi Xinbogong Solars,82105
+2025,08,太陽能/Solar,嘉義民雄太陽光電/Jiayi Minxiong Solars,3602
+2025,08,太陽能/Solar,嘉義分所太陽光電/Chiayi Agricultural Experiment Branch Solars,31203
+2025,08,太陽能/Solar,義竹工作站太陽光電/Yizhu Workstation Solars,36667
+2025,08,太陽能/Solar,路北E/S太陽光電/Lubei E/S Solars,4441
+2025,08,太陽能/Solar,高訓中心光電/Kaohsiung Training Institute Solars,42168
+2025,08,太陽能/Solar,蘭嶼電廠太陽光電/Lanyu Power Plant Solars,2997
+2025,08,太陽能/Solar,蘭嶼貯存場太陽光電/Lanyu Storage Unit Solars,2155
+2025,08,太陽能/Solar,金門酒廠太陽光電/Kinmen Kaoliang Liquor Inc. Solars,129582
+2025,08,地熱/Geothermal,仁澤地熱/Renze Geothermal,268742
+2025,09,陸域風力/Onshore Wind,石門風力/Shimen Wind Power,204494
+2025,09,陸域風力/Onshore Wind,林口風力/Linkou Wind Power,462106
+2025,09,陸域風力/Onshore Wind,蘆竹風力/Luzhu Wind Power,466669
+2025,09,陸域風力/Onshore Wind,觀園風力/Guanyuan Wind Power,2151958
+2025,09,陸域風力/Onshore Wind,大潭風力/Datan Wind Power,476550
+2025,09,陸域風力/Onshore Wind,新竹香山風力/Hsinchu Xiangshan Wind Power,47107
+2025,09,陸域風力/Onshore Wind,台中港區風力/Taichung Harbor Wind Power,527637
+2025,09,陸域風力/Onshore Wind,台中電廠風力/Taichung Power Plant Wind Power,23495
+2025,09,陸域風力/Onshore Wind,彰工風力Changgong Wind Power,1362553
+2025,09,陸域風力/Onshore Wind,彰化王功風力/Changhua Wanggong Wind Power,410991
+2025,09,陸域風力/Onshore Wind,彰化永興風力/Changhua Yongxing Wind Power,151212
+2025,09,陸域風力/Onshore Wind,雲林麥寮風力/Yunlin Mailiao Wind Power,654526
+2025,09,陸域風力/Onshore Wind,雲林台西風力發電站/Yunlin Taixi Wind Power,232464
+2025,09,陸域風力/Onshore Wind,雲林四湖風力/Yunlin Sihu Wind Power,739923
+2025,09,陸域風力/Onshore Wind,恆春風力/Hengchun Wind Power,590836
+2025,09,陸域風力/Onshore Wind,中屯風力/Zhongtun Wind Power,0
+2025,09,陸域風力/Onshore Wind,澎湖湖西風力/Penghu Huxi Wind Power,93595
+2025,09,陸域風力/Onshore Wind,金沙風力/Jinsha Wind Power,328928
+2025,09,陸域風力/Onshore Wind,澎湖龍門風力/Penghu Longmen Wind Power,330303
+2025,09,離岸風力/Offshore Wind,離岸一期風力/Offshore Phase1 Wind Power,3604223
+2025,09,太陽能/Solar,大潭電廠太陽光電/Datang Power Plant Solars,156519
+2025,09,太陽能/Solar,北部儲運中心太陽光電/Northern Storage and Transportation Center Solars,111417
+2025,09,太陽能/Solar,龍潭E/S太陽光電/Longtan E/S Solars,16451
+2025,09,太陽能/Solar,竹工E/S太陽光電/Zhugong E/S Solars,27092
+2025,09,太陽能/Solar,台中電廠太陽光電/Taichung Power Plant Solars,401955
+2025,09,太陽能/Solar,台中龍井太陽光電/Taichung Longjing Solars,702883
+2025,09,太陽能/Solar,中科E/S太陽光電/Zhongke E/S Solars,21788
+2025,09,太陽能/Solar,彰化彰濱太陽光電/Changhua Changbin Solars,13249085
+2025,09,太陽能/Solar,彰林E/S太陽光電/Changlin E/S Solars,30567
+2025,09,太陽能/Solar,南投大彎太陽光電/Nantou Dawan Solars,99833
+2025,09,太陽能/Solar,台南鹽田太陽光電/Tainan salt field Solars,19507720
+2025,09,太陽能/Solar,台南七股太陽光電/Tainan Qigu Solars,669802
+2025,09,太陽能/Solar,興達電廠太陽光電/Xingda Power Plant Solars,179708
+2025,09,太陽能/Solar,永安鹽灘地太陽光電/Yongan Salt Flats Solars,328047
+2025,09,太陽能/Solar,燕巢倉庫太陽光電/Yanchao Warehouse Solars,50970
+2025,09,太陽能/Solar,高雄E/S太陽光電/Kaohsiung E/S Solars,82293
+2025,09,太陽能/Solar,高雄保寧太陽光電/Kaohsiung Baoning Solars,71852
+2025,09,太陽能/Solar,鳳山水庫太陽光電/Fengshan Reservoir Solars,195837
+2025,09,太陽能/Solar,核三廠太陽光電/3rd Nuclear Power Plants Solars,321808
+2025,09,太陽能/Solar,澎湖七美太陽光電/Penghu Qimei Solars,31282
+2025,09,太陽能/Solar,澎湖尖山太陽光電/Penghu jianshan Solars,101046
+2025,09,太陽能/Solar,金門金沙太陽光電/Kinmen Jinsha Solars,44889
+2025,09,太陽能/Solar,金門塔山太陽光電/Kinmen Tashan Solars,27401
+2025,09,太陽能/Solar,金門鵲山太陽光電/Kinmen Queshan Solars,5680
+2025,09,太陽能/Solar,馬祖珠山太陽光電/Mazu Zhushan Solars,8897
+2025,09,太陽能/Solar,"淡水3.5萬噸配水池太陽光電/Danshui Distribution Reservoir(35,000 tons) Solar",39860
+2025,09,太陽能/Solar,中大D/S太陽光電/Zhongda D/S Solars,3465
+2025,09,太陽能/Solar,平鎮淨水場太陽光電/Pingzhen Water Treatment Plant Solars,125717
+2025,09,太陽能/Solar,大湳淨水場太陽光電/Danan Water Treatment Plant Solars,90642
+2025,09,太陽能/Solar,龜山加壓站太陽光電/Guishan Booster Station Solars,34471
+2025,09,太陽能/Solar,龍潭淨水場太陽光電/Longtan Water Treatment Plant Solars,36999
+2025,09,太陽能/Solar,卓蘭會館太陽光電/Zhuolan Hostel Solars,3483
+2025,09,太陽能/Solar,東興淨水場太陽光電/Dongxing Water Treatment Plant Solars,84558
+2025,09,太陽能/Solar,后里E/S太陽光電/Houli E/S Solars,9091
+2025,09,太陽能/Solar,中部儲運中心太陽光電/Central Storage and Transportation Center Solars,8235
+2025,09,太陽能/Solar,東勢新伯公太陽光電/Dongshi Xinbogong Solars,74252
+2025,09,太陽能/Solar,嘉義民雄太陽光電/Jiayi Minxiong Solars,3397
+2025,09,太陽能/Solar,嘉義分所太陽光電/Chiayi Agricultural Experiment Branch Solars,27981
+2025,09,太陽能/Solar,義竹工作站太陽光電/Yizhu Workstation Solars,29191
+2025,09,太陽能/Solar,路北E/S太陽光電/Lubei E/S Solars,4392
+2025,09,太陽能/Solar,高訓中心光電/Kaohsiung Training Institute Solars,39057
+2025,09,太陽能/Solar,蘭嶼電廠太陽光電/Lanyu Power Plant Solars,3170
+2025,09,太陽能/Solar,蘭嶼貯存場太陽光電/Lanyu Storage Unit Solars,4116
+2025,09,太陽能/Solar,金門酒廠太陽光電/Kinmen Kaoliang Liquor Inc. Solars,112277
+2025,09,地熱/Geothermal,仁澤地熱/Renze Geothermal,240125
+2025,10,陸域風力/Onshore Wind,石門風力/Shimen Wind Power,188953
+2025,10,陸域風力/Onshore Wind,林口風力/Linkou Wind Power,1510287
+2025,10,陸域風力/Onshore Wind,蘆竹風力/Luzhu Wind Power,1753671
+2025,10,陸域風力/Onshore Wind,觀園風力/Guanyuan Wind Power,8024774
+2025,10,陸域風力/Onshore Wind,大潭風力/Datan Wind Power,1703757
+2025,10,陸域風力/Onshore Wind,新竹香山風力/Hsinchu Xiangshan Wind Power,264526
+2025,10,陸域風力/Onshore Wind,台中港區風力/Taichung Harbor Wind Power,5513588
+2025,10,陸域風力/Onshore Wind,台中電廠風力/Taichung Power Plant Wind Power,230437
+2025,10,陸域風力/Onshore Wind,彰工風力Changgong Wind Power,10210814
+2025,10,陸域風力/Onshore Wind,彰化王功風力/Changhua Wanggong Wind Power,4341132
+2025,10,陸域風力/Onshore Wind,彰化永興風力/Changhua Yongxing Wind Power,1344601
+2025,10,陸域風力/Onshore Wind,雲林麥寮風力/Yunlin Mailiao Wind Power,5426910
+2025,10,陸域風力/Onshore Wind,雲林台西風力發電站/Yunlin Taixi Wind Power,1922603
+2025,10,陸域風力/Onshore Wind,雲林四湖風力/Yunlin Sihu Wind Power,4185375
+2025,10,陸域風力/Onshore Wind,恆春風力/Hengchun Wind Power,770161
+2025,10,陸域風力/Onshore Wind,澎湖湖西風力/Penghu Huxi Wind Power,489735
+2025,10,陸域風力/Onshore Wind,金沙風力/Jinsha Wind Power,1063360
+2025,10,陸域風力/Onshore Wind,澎湖龍門風力/Penghu Longmen Wind Power,1770036
+2025,10,離岸風力/Offshore Wind,離岸一期風力/Offshore Phase1 Wind Power,21863402
+2025,10,太陽能/Solar,大潭電廠太陽光電/Datang Power Plant Solars,130644
+2025,10,太陽能/Solar,北部儲運中心太陽光電/Northern Storage and Transportation Center Solars,84586
+2025,10,太陽能/Solar,龍潭E/S太陽光電/Longtan E/S Solars,16446
+2025,10,太陽能/Solar,竹工E/S太陽光電/Zhugong E/S Solars,24547
+2025,10,太陽能/Solar,台中電廠太陽光電/Taichung Power Plant Solars,362785
+2025,10,太陽能/Solar,台中龍井太陽光電/Taichung Longjing Solars,617678
+2025,10,太陽能/Solar,中科E/S太陽光電/Zhongke E/S Solars,20777
+2025,10,太陽能/Solar,彰化彰濱太陽光電/Changhua Changbin Solars,11464003
+2025,10,太陽能/Solar,彰林E/S太陽光電/Changlin E/S Solars,29706
+2025,10,太陽能/Solar,南投大彎太陽光電/Nantou Dawan Solars,168845
+2025,10,太陽能/Solar,台南鹽田太陽光電/Tainan salt field Solars,18584975
+2025,10,太陽能/Solar,台南七股太陽光電/Tainan Qigu Solars,662648
+2025,10,太陽能/Solar,興達電廠太陽光電/Xingda Power Plant Solars,186081
+2025,10,太陽能/Solar,永安鹽灘地太陽光電/Yongan Salt Flats Solars,344350
+2025,10,太陽能/Solar,燕巢倉庫太陽光電/Yanchao Warehouse Solars,53310
+2025,10,太陽能/Solar,高雄E/S太陽光電/Kaohsiung E/S Solars,79190
+2025,10,太陽能/Solar,高雄保寧太陽光電/Kaohsiung Baoning Solars,74967
+2025,10,太陽能/Solar,鳳山水庫太陽光電/Fengshan Reservoir Solars,209369
+2025,10,太陽能/Solar,核三廠太陽光電/3rd Nuclear Power Plants Solars,360849
+2025,10,太陽能/Solar,澎湖七美太陽光電/Penghu Qimei Solars,27530
+2025,10,太陽能/Solar,澎湖尖山太陽光電/Penghu jianshan Solars,77474
+2025,10,太陽能/Solar,金門金沙太陽光電/Kinmen Jinsha Solars,36077
+2025,10,太陽能/Solar,金門塔山太陽光電/Kinmen Tashan Solars,25345
+2025,10,太陽能/Solar,金門鵲山太陽光電/Kinmen Queshan Solars,5290
+2025,10,太陽能/Solar,馬祖珠山太陽光電/Mazu Zhushan Solars,6794
+2025,10,太陽能/Solar,"淡水3.5萬噸配水池太陽光電/Danshui Distribution Reservoir(35,000 tons) Solar",30147
+2025,10,太陽能/Solar,中大D/S太陽光電/Zhongda D/S Solars,3063
+2025,10,太陽能/Solar,平鎮淨水場太陽光電/Pingzhen Water Treatment Plant Solars,115952
+2025,10,太陽能/Solar,大湳淨水場太陽光電/Danan Water Treatment Plant Solars,86376
+2025,10,太陽能/Solar,龜山加壓站太陽光電/Guishan Booster Station Solars,29160
+2025,10,太陽能/Solar,龍潭淨水場太陽光電/Longtan Water Treatment Plant Solars,35529
+2025,10,太陽能/Solar,卓蘭會館太陽光電/Zhuolan Hostel Solars,3743
+2025,10,太陽能/Solar,東興淨水場太陽光電/Dongxing Water Treatment Plant Solars,81175
+2025,10,太陽能/Solar,后里E/S太陽光電/Houli E/S Solars,9558
+2025,10,太陽能/Solar,中部儲運中心太陽光電/Central Storage and Transportation Center Solars,8310
+2025,10,太陽能/Solar,東勢新伯公太陽光電/Dongshi Xinbogong Solars,73049
+2025,10,太陽能/Solar,嘉義民雄太陽光電/Jiayi Minxiong Solars,3215
+2025,10,太陽能/Solar,嘉義分所太陽光電/Chiayi Agricultural Experiment Branch Solars,27039
+2025,10,太陽能/Solar,義竹工作站太陽光電/Yizhu Workstation Solars,29729
+2025,10,太陽能/Solar,路北E/S太陽光電/Lubei E/S Solars,4653
+2025,10,太陽能/Solar,高訓中心光電/Kaohsiung Training Institute Solars,39495
+2025,10,太陽能/Solar,蘭嶼電廠太陽光電/Lanyu Power Plant Solars,3016
+2025,10,太陽能/Solar,蘭嶼貯存場太陽光電/Lanyu Storage Unit Solars,3838
+2025,10,太陽能/Solar,金門酒廠太陽光電/Kinmen Kaoliang Liquor Inc. Solars,101144
+2025,10,地熱/Geothermal,仁澤地熱/Renze Geothermal,152503
+2025,11,陸域風力/Onshore Wind,石門風力/Shimen Wind Power,157973
+2025,11,陸域風力/Onshore Wind,林口風力/Linkou Wind Power,2223980
+2025,11,陸域風力/Onshore Wind,蘆竹風力/Luzhu Wind Power,2692856
+2025,11,陸域風力/Onshore Wind,觀園風力/Guanyuan Wind Power,15777150
+2025,11,陸域風力/Onshore Wind,大潭風力/Datan Wind Power,2732288
+2025,11,陸域風力/Onshore Wind,新竹香山風力/Hsinchu Xiangshan Wind Power,781279
+2025,11,陸域風力/Onshore Wind,台中港區風力/Taichung Harbor Wind Power,11257190
+2025,11,陸域風力/Onshore Wind,台中電廠風力/Taichung Power Plant Wind Power,422566
+2025,11,陸域風力/Onshore Wind,彰工風力Changgong Wind Power,25556313
+2025,11,陸域風力/Onshore Wind,彰化王功風力/Changhua Wanggong Wind Power,9396618
+2025,11,陸域風力/Onshore Wind,彰化永興風力/Changhua Yongxing Wind Power,2783803
+2025,11,陸域風力/Onshore Wind,雲林麥寮風力/Yunlin Mailiao Wind Power,12218200
+2025,11,陸域風力/Onshore Wind,雲林台西風力發電站/Yunlin Taixi Wind Power,3339259
+2025,11,陸域風力/Onshore Wind,雲林四湖風力/Yunlin Sihu Wind Power,8220876
+2025,11,陸域風力/Onshore Wind,恆春風力/Hengchun Wind Power,1264153
+2025,11,陸域風力/Onshore Wind,澎湖湖西風力/Penghu Huxi Wind Power,1620323
+2025,11,陸域風力/Onshore Wind,金沙風力/Jinsha Wind Power,1397871
+2025,11,陸域風力/Onshore Wind,澎湖龍門風力/Penghu Longmen Wind Power,3682566
+2025,11,離岸風力/Offshore Wind,離岸一期風力/Offshore Phase1 Wind Power,39834030
+2025,11,太陽能/Solar,大潭電廠太陽光電/Datang Power Plant Solars,104105
+2025,11,太陽能/Solar,北部儲運中心太陽光電/Northern Storage and Transportation Center Solars,69620
+2025,11,太陽能/Solar,龍潭E/S太陽光電/Longtan E/S Solars,15515
+2025,11,太陽能/Solar,竹工E/S太陽光電/Zhugong E/S Solars,20273
+2025,11,太陽能/Solar,台中電廠太陽光電/Taichung Power Plant Solars,300394
+2025,11,太陽能/Solar,台中龍井太陽光電/Taichung Longjing Solars,558445
+2025,11,太陽能/Solar,中科E/S太陽光電/Zhongke E/S Solars,17993
+2025,11,太陽能/Solar,彰化彰濱太陽光電/Changhua Changbin Solars,8753039
+2025,11,太陽能/Solar,彰林E/S太陽光電/Changlin E/S Solars,24541
+2025,11,太陽能/Solar,南投大彎太陽光電/Nantou Dawan Solars,120411
+2025,11,太陽能/Solar,台南鹽田太陽光電/Tainan salt field Solars,15086594
+2025,11,太陽能/Solar,台南七股太陽光電/Tainan Qigu Solars,517921
+2025,11,太陽能/Solar,興達電廠太陽光電/Xingda Power Plant Solars,148342
+2025,11,太陽能/Solar,永安鹽灘地太陽光電/Yongan Salt Flats Solars,290278
+2025,11,太陽能/Solar,燕巢倉庫太陽光電/Yanchao Warehouse Solars,42839
+2025,11,太陽能/Solar,高雄E/S太陽光電/Kaohsiung E/S Solars,50727
+2025,11,太陽能/Solar,高雄保寧太陽光電/Kaohsiung Baoning Solars,54920
+2025,11,太陽能/Solar,鳳山水庫太陽光電/Fengshan Reservoir Solars,159450
+2025,11,太陽能/Solar,核三廠太陽光電/3rd Nuclear Power Plants Solars,282670
+2025,11,太陽能/Solar,澎湖七美太陽光電/Penghu Qimei Solars,15838
+2025,11,太陽能/Solar,澎湖尖山太陽光電/Penghu jianshan Solars,57157
+2025,11,太陽能/Solar,金門金沙太陽光電/Kinmen Jinsha Solars,29180
+2025,11,太陽能/Solar,金門塔山太陽光電/Kinmen Tashan Solars,21145
+2025,11,太陽能/Solar,金門鵲山太陽光電/Kinmen Queshan Solars,4301
+2025,11,太陽能/Solar,馬祖珠山太陽光電/Mazu Zhushan Solars,5342
+2025,11,太陽能/Solar,"淡水3.5萬噸配水池太陽光電/Danshui Distribution Reservoir(35,000 tons) Solar",20889
+2025,11,太陽能/Solar,中大D/S太陽光電/Zhongda D/S Solars,2589
+2025,11,太陽能/Solar,平鎮淨水場太陽光電/Pingzhen Water Treatment Plant Solars,96879
+2025,11,太陽能/Solar,大湳淨水場太陽光電/Danan Water Treatment Plant Solars,67389
+2025,11,太陽能/Solar,龜山加壓站太陽光電/Guishan Booster Station Solars,22267
+2025,11,太陽能/Solar,龍潭淨水場太陽光電/Longtan Water Treatment Plant Solars,32042
+2025,11,太陽能/Solar,卓蘭會館太陽光電/Zhuolan Hostel Solars,3044
+2025,11,太陽能/Solar,東興淨水場太陽光電/Dongxing Water Treatment Plant Solars,53421
+2025,11,太陽能/Solar,后里E/S太陽光電/Houli E/S Solars,8116
+2025,11,太陽能/Solar,中部儲運中心太陽光電/Central Storage and Transportation Center Solars,6675
+2025,11,太陽能/Solar,東勢新伯公太陽光電/Dongshi Xinbogong Solars,61439
+2025,11,太陽能/Solar,嘉義民雄太陽光電/Jiayi Minxiong Solars,2483
+2025,11,太陽能/Solar,嘉義分所太陽光電/Chiayi Agricultural Experiment Branch Solars,21356
+2025,11,太陽能/Solar,義竹工作站太陽光電/Yizhu Workstation Solars,24958
+2025,11,太陽能/Solar,路北E/S太陽光電/Lubei E/S Solars,3678
+2025,11,太陽能/Solar,高訓中心光電/Kaohsiung Training Institute Solars,30424
+2025,11,太陽能/Solar,蘭嶼電廠太陽光電/Lanyu Power Plant Solars,2006
+2025,11,太陽能/Solar,蘭嶼貯存場太陽光電/Lanyu Storage Unit Solars,2490
+2025,11,太陽能/Solar,金門酒廠太陽光電/Kinmen Kaoliang Liquor Inc. Solars,85292
+2025,11,地熱/Geothermal,仁澤地熱/Renze Geothermal,0
+2025,12,陸域風力/Onshore Wind,石門風力/Shimen Wind Power,254443
+2025,12,陸域風力/Onshore Wind,林口風力/Linkou Wind Power,2161705
+2025,12,陸域風力/Onshore Wind,蘆竹風力/Luzhu Wind Power,2345570
+2025,12,陸域風力/Onshore Wind,觀園風力/Guanyuan Wind Power,12919856
+2025,12,陸域風力/Onshore Wind,大潭風力/Datan Wind Power,1146482
+2025,12,陸域風力/Onshore Wind,新竹香山風力/Hsinchu Xiangshan Wind Power,770236
+2025,12,陸域風力/Onshore Wind,台中港區風力/Taichung Harbor Wind Power,10887724
+2025,12,陸域風力/Onshore Wind,台中電廠風力/Taichung Power Plant Wind Power,463783
+2025,12,陸域風力/Onshore Wind,彰工風力Changgong Wind Power,30321070
+2025,12,陸域風力/Onshore Wind,彰化王功風力/Changhua Wanggong Wind Power,9030757
+2025,12,陸域風力/Onshore Wind,彰化永興風力/Changhua Yongxing Wind Power,3294905
+2025,12,陸域風力/Onshore Wind,雲林麥寮風力/Yunlin Mailiao Wind Power,12804233
+2025,12,陸域風力/Onshore Wind,雲林台西風力發電站/Yunlin Taixi Wind Power,3394726
+2025,12,陸域風力/Onshore Wind,雲林四湖風力/Yunlin Sihu Wind Power,8202602
+2025,12,陸域風力/Onshore Wind,恆春風力/Hengchun Wind Power,950824
+2025,12,陸域風力/Onshore Wind,澎湖湖西風力/Penghu Huxi Wind Power,1675855
+2025,12,陸域風力/Onshore Wind,金沙風力/Jinsha Wind Power,1054910
+2025,12,陸域風力/Onshore Wind,澎湖龍門風力/Penghu Longmen Wind Power,3482497
+2025,12,離岸風力/Offshore Wind,離岸一期風力/Offshore Phase1 Wind Power,49948679
+2025,12,太陽能/Solar,大潭電廠太陽光電/Datang Power Plant Solars,92440
+2025,12,太陽能/Solar,北部儲運中心太陽光電/Northern Storage and Transportation Center Solars,60057
+2025,12,太陽能/Solar,龍潭E/S太陽光電/Longtan E/S Solars,13800
+2025,12,太陽能/Solar,竹工E/S太陽光電/Zhugong E/S Solars,17344
+2025,12,太陽能/Solar,台中電廠太陽光電/Taichung Power Plant Solars,288293
+2025,12,太陽能/Solar,台中龍井太陽光電/Taichung Longjing Solars,515899
+2025,12,太陽能/Solar,中科E/S太陽光電/Zhongke E/S Solars,17622
+2025,12,太陽能/Solar,彰化彰濱太陽光電/Changhua Changbin Solars,8406929
+2025,12,太陽能/Solar,彰林E/S太陽光電/Changlin E/S Solars,25681
+2025,12,太陽能/Solar,南投大彎太陽光電/Nantou Dawan Solars,100163
+2025,12,太陽能/Solar,台南鹽田太陽光電/Tainan salt field Solars,15678956
+2025,12,太陽能/Solar,台南七股太陽光電/Tainan Qigu Solars,541462
+2025,12,太陽能/Solar,興達電廠太陽光電/Xingda Power Plant Solars,151563
+2025,12,太陽能/Solar,永安鹽灘地太陽光電/Yongan Salt Flats Solars,289321
+2025,12,太陽能/Solar,燕巢倉庫太陽光電/Yanchao Warehouse Solars,46174
+2025,12,太陽能/Solar,高雄E/S太陽光電/Kaohsiung E/S Solars,58117
+2025,12,太陽能/Solar,高雄保寧太陽光電/Kaohsiung Baoning Solars,50711
+2025,12,太陽能/Solar,鳳山水庫太陽光電/Fengshan Reservoir Solars,173935
+2025,12,太陽能/Solar,核三廠太陽光電/3rd Nuclear Power Plants Solars,277127
+2025,12,太陽能/Solar,澎湖七美太陽光電/Penghu Qimei Solars,14858
+2025,12,太陽能/Solar,澎湖尖山太陽光電/Penghu jianshan Solars,60920
+2025,12,太陽能/Solar,金門金沙太陽光電/Kinmen Jinsha Solars,41852
+2025,12,太陽能/Solar,金門塔山太陽光電/Kinmen Tashan Solars,21721
+2025,12,太陽能/Solar,金門鵲山太陽光電/Kinmen Queshan Solars,4215
+2025,12,太陽能/Solar,馬祖珠山太陽光電/Mazu Zhushan Solars,4677
+2025,12,太陽能/Solar,"淡水3.5萬噸配水池太陽光電/Danshui Distribution Reservoir(35,000 tons) Solar",20449
+2025,12,太陽能/Solar,中大D/S太陽光電/Zhongda D/S Solars,2253
+2025,12,太陽能/Solar,平鎮淨水場太陽光電/Pingzhen Water Treatment Plant Solars,82346
+2025,12,太陽能/Solar,大湳淨水場太陽光電/Danan Water Treatment Plant Solars,58524
+2025,12,太陽能/Solar,龜山加壓站太陽光電/Guishan Booster Station Solars,19808
+2025,12,太陽能/Solar,龍潭淨水場太陽光電/Longtan Water Treatment Plant Solars,27109
+2025,12,太陽能/Solar,卓蘭會館太陽光電/Zhuolan Hostel Solars,3173
+2025,12,太陽能/Solar,東興淨水場太陽光電/Dongxing Water Treatment Plant Solars,50114
+2025,12,太陽能/Solar,后里E/S太陽光電/Houli E/S Solars,8222
+2025,12,太陽能/Solar,中部儲運中心太陽光電/Central Storage and Transportation Center Solars,6401
+2025,12,太陽能/Solar,東勢新伯公太陽光電/Dongshi Xinbogong Solars,62371
+2025,12,太陽能/Solar,嘉義民雄太陽光電/Jiayi Minxiong Solars,2843
+2025,12,太陽能/Solar,嘉義分所太陽光電/Chiayi Agricultural Experiment Branch Solars,22424
+2025,12,太陽能/Solar,義竹工作站太陽光電/Yizhu Workstation Solars,23219
+2025,12,太陽能/Solar,路北E/S太陽光電/Lubei E/S Solars,3893
+2025,12,太陽能/Solar,高訓中心光電/Kaohsiung Training Institute Solars,34808
+2025,12,太陽能/Solar,蘭嶼電廠太陽光電/Lanyu Power Plant Solars,1963
+2025,12,太陽能/Solar,蘭嶼貯存場太陽光電/Lanyu Storage Unit Solars,2222
+2025,12,太陽能/Solar,金門酒廠太陽光電/Kinmen Kaoliang Liquor Inc. Solars,81433
+2025,12,地熱/Geothermal,仁澤地熱/Renze Geothermal,9634
+2026,01,陸域風力/Onshore Wind,石門風力/Shimen Wind Power,237999
+2026,01,陸域風力/Onshore Wind,林口風力/Linkou Wind Power,2123477
+2026,01,陸域風力/Onshore Wind,蘆竹風力/Luzhu Wind Power,2189151
+2026,01,陸域風力/Onshore Wind,觀園風力/Guanyuan Wind Power,12022179
+2026,01,陸域風力/Onshore Wind,大潭風力/Datan Wind Power,360633
+2026,01,陸域風力/Onshore Wind,新竹香山風力/Hsinchu Xiangshan Wind Power,1695371
+2026,01,陸域風力/Onshore Wind,台中港區風力/Taichung Harbor Wind Power,11855015
+2026,01,陸域風力/Onshore Wind,台中電廠風力/Taichung Power Plant Wind Power,413374
+2026,01,陸域風力/Onshore Wind,彰工風力Changgong Wind Power,27577529
+2026,01,陸域風力/Onshore Wind,彰化王功風力/Changhua Wanggong Wind Power,10038562
+2026,01,陸域風力/Onshore Wind,彰化永興風力/Changhua Yongxing Wind Power,3771880
+2026,01,陸域風力/Onshore Wind,雲林麥寮風力/Yunlin Mailiao Wind Power,11598934
+2026,01,陸域風力/Onshore Wind,雲林台西風力發電站/Yunlin Taixi Wind Power,3685369
+2026,01,陸域風力/Onshore Wind,雲林四湖風力/Yunlin Sihu Wind Power,8899928
+2026,01,陸域風力/Onshore Wind,恆春風力/Hengchun Wind Power,1088895
+2026,01,陸域風力/Onshore Wind,澎湖湖西風力/Penghu Huxi Wind Power,1737322
+2026,01,陸域風力/Onshore Wind,金沙風力/Jinsha Wind Power,1078527
+2026,01,陸域風力/Onshore Wind,澎湖龍門風力/Penghu Longmen Wind Power,3992589
+2026,01,離岸風力/Offshore Wind,離岸一期風力/Offshore Phase1 Wind Power,51457644
+2026,01,太陽能/Solar,大潭電廠太陽光電/Datang Power Plant Solars,90943
+2026,01,太陽能/Solar,北部儲運中心太陽光電/Northern Storage and Transportation Center Solars,59618
+2026,01,太陽能/Solar,龍潭E/S太陽光電/Longtan E/S Solars,13580
+2026,01,太陽能/Solar,竹工E/S太陽光電/Zhugong E/S Solars,17112
+2026,01,太陽能/Solar,台中電廠太陽光電/Taichung Power Plant Solars,281884
+2026,01,太陽能/Solar,台中龍井太陽光電/Taichung Longjing Solars,577049
+2026,01,太陽能/Solar,中科E/S太陽光電/Zhongke E/S Solars,18464
+2026,01,太陽能/Solar,彰化彰濱太陽光電/Changhua Changbin Solars,7747587
+2026,01,太陽能/Solar,彰林E/S太陽光電/Changlin E/S Solars,25789
+2026,01,太陽能/Solar,南投大彎太陽光電/Nantou Dawan Solars,127012
+2026,01,太陽能/Solar,台南鹽田太陽光電/Tainan salt field Solars,16206902
+2026,01,太陽能/Solar,台南七股太陽光電/Tainan Qigu Solars,559352
+2026,01,太陽能/Solar,興達電廠太陽光電/Xingda Power Plant Solars,172602
+2026,01,太陽能/Solar,永安鹽灘地太陽光電/Yongan Salt Flats Solars,317963
+2026,01,太陽能/Solar,燕巢倉庫太陽光電/Yanchao Warehouse Solars,50065
+2026,01,太陽能/Solar,高雄E/S太陽光電/Kaohsiung E/S Solars,70496
+2026,01,太陽能/Solar,高雄保寧太陽光電/Kaohsiung Baoning Solars,55652
+2026,01,太陽能/Solar,鳳山水庫太陽光電/Fengshan Reservoir Solars,189276
+2026,01,太陽能/Solar,核三廠太陽光電/3rd Nuclear Power Plants Solars,2432414
+2026,01,太陽能/Solar,澎湖七美太陽光電/Penghu Qimei Solars,15555
+2026,01,太陽能/Solar,澎湖尖山太陽光電/Penghu jianshan Solars,60369
+2026,01,太陽能/Solar,金門金沙太陽光電/Kinmen Jinsha Solars,41897
+2026,01,太陽能/Solar,金門塔山太陽光電/Kinmen Tashan Solars,19677
+2026,01,太陽能/Solar,金門鵲山太陽光電/Kinmen Queshan Solars,4156
+2026,01,太陽能/Solar,馬祖珠山太陽光電/Mazu Zhushan Solars,3504
+2026,01,太陽能/Solar,"淡水3.5萬噸配水池太陽光電/Danshui Distribution Reservoir(35,000 tons) Solar",20383
+2026,01,太陽能/Solar,中大D/S太陽光電/Zhongda D/S Solars,2303
+2026,01,太陽能/Solar,平鎮淨水場太陽光電/Pingzhen Water Treatment Plant Solars,79971
+2026,01,太陽能/Solar,大湳淨水場太陽光電/Danan Water Treatment Plant Solars,57730
+2026,01,太陽能/Solar,龜山加壓站太陽光電/Guishan Booster Station Solars,20101
+2026,01,太陽能/Solar,龍潭淨水場太陽光電/Longtan Water Treatment Plant Solars,26991
+2026,01,太陽能/Solar,卓蘭會館太陽光電/Zhuolan Hostel Solars,3204
+2026,01,太陽能/Solar,東興淨水場太陽光電/Dongxing Water Treatment Plant Solars,57091
+2026,01,太陽能/Solar,后里E/S太陽光電/Houli E/S Solars,8663
+2026,01,太陽能/Solar,中部儲運中心太陽光電/Central Storage and Transportation Center Solars,6619
+2026,01,太陽能/Solar,東勢新伯公太陽光電/Dongshi Xinbogong Solars,65026
+2026,01,太陽能/Solar,嘉義民雄太陽光電/Jiayi Minxiong Solars,3026
+2026,01,太陽能/Solar,嘉義分所太陽光電/Chiayi Agricultural Experiment Branch Solars,23599
+2026,01,太陽能/Solar,義竹工作站太陽光電/Yizhu Workstation Solars,28183
+2026,01,太陽能/Solar,路北E/S太陽光電/Lubei E/S Solars,4276
+2026,01,太陽能/Solar,高訓中心光電/Kaohsiung Training Institute Solars,37262
+2026,01,太陽能/Solar,蘭嶼電廠太陽光電/Lanyu Power Plant Solars,2015
+2026,01,太陽能/Solar,蘭嶼貯存場太陽光電/Lanyu Storage Unit Solars,2472
+2026,01,太陽能/Solar,金門酒廠太陽光電/Kinmen Kaoliang Liquor Inc. Solars,79625
+2026,01,地熱/Geothermal,仁澤地熱/Renze Geothermal,85087
+2026,02,陸域風力/Onshore Wind,石門風力/Shimen Wind Power,151422
+2026,02,陸域風力/Onshore Wind,林口風力/Linkou Wind Power,1443973
+2026,02,陸域風力/Onshore Wind,蘆竹風力/Luzhu Wind Power,1631105
+2026,02,陸域風力/Onshore Wind,觀園風力/Guanyuan Wind Power,7653102
+2026,02,陸域風力/Onshore Wind,大潭風力/Datan Wind Power,0
+2026,02,陸域風力/Onshore Wind,新竹香山風力/Hsinchu Xiangshan Wind Power,1358638
+2026,02,陸域風力/Onshore Wind,台中港區風力/Taichung Harbor Wind Power,6738760
+2026,02,陸域風力/Onshore Wind,台中電廠風力/Taichung Power Plant Wind Power,258570
+2026,02,陸域風力/Onshore Wind,彰工風力Changgong Wind Power,16528496
+2026,02,陸域風力/Onshore Wind,彰化王功風力/Changhua Wanggong Wind Power,5882692
+2026,02,陸域風力/Onshore Wind,彰化永興風力/Changhua Yongxing Wind Power,2386919
+2026,02,陸域風力/Onshore Wind,雲林麥寮風力/Yunlin Mailiao Wind Power,7236168
+2026,02,陸域風力/Onshore Wind,雲林台西風力發電站/Yunlin Taixi Wind Power,2076911
+2026,02,陸域風力/Onshore Wind,雲林四湖風力/Yunlin Sihu Wind Power,5589796
+2026,02,陸域風力/Onshore Wind,恆春風力/Hengchun Wind Power,704436
+2026,02,陸域風力/Onshore Wind,澎湖湖西風力/Penghu Huxi Wind Power,985843
+2026,02,陸域風力/Onshore Wind,金沙風力/Jinsha Wind Power,304461
+2026,02,陸域風力/Onshore Wind,澎湖龍門風力/Penghu Longmen Wind Power,2476155
+2026,02,離岸風力/Offshore Wind,離岸一期風力/Offshore Phase1 Wind Power,30199175
+2026,02,太陽能/Solar,大潭電廠太陽光電/Datang Power Plant Solars,91783
+2026,02,太陽能/Solar,北部儲運中心太陽光電/Northern Storage and Transportation Center Solars,63954
+2026,02,太陽能/Solar,龍潭E/S太陽光電/Longtan E/S Solars,12302
+2026,02,太陽能/Solar,竹工E/S太陽光電/Zhugong E/S Solars,17803
+2026,02,太陽能/Solar,台中電廠太陽光電/Taichung Power Plant Solars,310232
+2026,02,太陽能/Solar,台中龍井太陽光電/Taichung Longjing Solars,560907
+2026,02,太陽能/Solar,中科E/S太陽光電/Zhongke E/S Solars,18935
+2026,02,太陽能/Solar,彰化彰濱太陽光電/Changhua Changbin Solars,8729095
+2026,02,太陽能/Solar,彰林E/S太陽光電/Changlin E/S Solars,26701
+2026,02,太陽能/Solar,南投大彎太陽光電/Nantou Dawan Solars,134994
+2026,02,太陽能/Solar,台南鹽田太陽光電/Tainan salt field Solars,16708382
+2026,02,太陽能/Solar,台南七股太陽光電/Tainan Qigu Solars,597789
+2026,02,太陽能/Solar,興達電廠太陽光電/Xingda Power Plant Solars,170591
+2026,02,太陽能/Solar,永安鹽灘地太陽光電/Yongan Salt Flats Solars,320721
+2026,02,太陽能/Solar,燕巢倉庫太陽光電/Yanchao Warehouse Solars,49324
+2026,02,太陽能/Solar,高雄E/S太陽光電/Kaohsiung E/S Solars,70847
+2026,02,太陽能/Solar,高雄保寧太陽光電/Kaohsiung Baoning Solars,61825
+2026,02,太陽能/Solar,鳳山水庫太陽光電/Fengshan Reservoir Solars,162792
+2026,02,太陽能/Solar,核三廠太陽光電/3rd Nuclear Power Plants Solars,2632860
+2026,02,太陽能/Solar,澎湖七美太陽光電/Penghu Qimei Solars,16374
+2026,02,太陽能/Solar,澎湖尖山太陽光電/Penghu jianshan Solars,73130
+2026,02,太陽能/Solar,金門金沙太陽光電/Kinmen Jinsha Solars,24490
+2026,02,太陽能/Solar,金門塔山太陽光電/Kinmen Tashan Solars,20755
+2026,02,太陽能/Solar,金門鵲山太陽光電/Kinmen Queshan Solars,4532
+2026,02,太陽能/Solar,馬祖珠山太陽光電/Mazu Zhushan Solars,3656
+2026,02,太陽能/Solar,"淡水3.5萬噸配水池太陽光電/Danshui Distribution Reservoir(35,000 tons) Solar",22896
+2026,02,太陽能/Solar,中大D/S太陽光電/Zhongda D/S Solars,2357
+2026,02,太陽能/Solar,平鎮淨水場太陽光電/Pingzhen Water Treatment Plant Solars,83317
+2026,02,太陽能/Solar,大湳淨水場太陽光電/Danan Water Treatment Plant Solars,61264
+2026,02,太陽能/Solar,龜山加壓站太陽光電/Guishan Booster Station Solars,21587
+2026,02,太陽能/Solar,龍潭淨水場太陽光電/Longtan Water Treatment Plant Solars,26182
+2026,02,太陽能/Solar,卓蘭會館太陽光電/Zhuolan Hostel Solars,3106
+2026,02,太陽能/Solar,東興淨水場太陽光電/Dongxing Water Treatment Plant Solars,60589
+2026,02,太陽能/Solar,后里E/S太陽光電/Houli E/S Solars,8561
+2026,02,太陽能/Solar,中部儲運中心太陽光電/Central Storage and Transportation Center Solars,6818
+2026,02,太陽能/Solar,東勢新伯公太陽光電/Dongshi Xinbogong Solars,64618
+2026,02,太陽能/Solar,嘉義民雄太陽光電/Jiayi Minxiong Solars,3060
+2026,02,太陽能/Solar,嘉義分所太陽光電/Chiayi Agricultural Experiment Branch Solars,24409
+2026,02,太陽能/Solar,義竹工作站太陽光電/Yizhu Workstation Solars,30790
+2026,02,太陽能/Solar,路北E/S太陽光電/Lubei E/S Solars,4183
+2026,02,太陽能/Solar,高訓中心光電/Kaohsiung Training Institute Solars,38532
+2026,02,太陽能/Solar,蘭嶼電廠太陽光電/Lanyu Power Plant Solars,2059
+2026,02,太陽能/Solar,蘭嶼貯存場太陽光電/Lanyu Storage Unit Solars,2632
+2026,02,太陽能/Solar,金門酒廠太陽光電/Kinmen Kaoliang Liquor Inc. Solars,50636
+2026,02,地熱/Geothermal,仁澤地熱/Renze Geothermal,196359
+2026,03,陸域風力/Onshore Wind,石門風力/Shimen Wind Power,37978
+2026,03,陸域風力/Onshore Wind,林口風力/Linkou Wind Power,1637314
+2026,03,陸域風力/Onshore Wind,蘆竹風力/Luzhu Wind Power,1912832
+2026,03,陸域風力/Onshore Wind,觀園風力/Guanyuan Wind Power,9817908
+2026,03,陸域風力/Onshore Wind,大潭風力/Datan Wind Power,0
+2026,03,陸域風力/Onshore Wind,新竹香山風力/Hsinchu Xiangshan Wind Power,1873429
+2026,03,陸域風力/Onshore Wind,台中港區風力/Taichung Harbor Wind Power,7608956
+2026,03,陸域風力/Onshore Wind,台中電廠風力/Taichung Power Plant Wind Power,290007
+2026,03,陸域風力/Onshore Wind,彰工風力Changgong Wind Power,18763080
+2026,03,陸域風力/Onshore Wind,彰化王功風力/Changhua Wanggong Wind Power,6308201
+2026,03,陸域風力/Onshore Wind,彰化永興風力/Changhua Yongxing Wind Power,2501994
+2026,03,陸域風力/Onshore Wind,雲林麥寮風力/Yunlin Mailiao Wind Power,6735514
+2026,03,陸域風力/Onshore Wind,雲林台西風力發電站/Yunlin Taixi Wind Power,2320459
+2026,03,陸域風力/Onshore Wind,雲林四湖風力/Yunlin Sihu Wind Power,5236341
+2026,03,陸域風力/Onshore Wind,恆春風力/Hengchun Wind Power,523922
+2026,03,陸域風力/Onshore Wind,澎湖湖西風力/Penghu Huxi Wind Power,1004051
+2026,03,陸域風力/Onshore Wind,金沙風力/Jinsha Wind Power,336887
+2026,03,陸域風力/Onshore Wind,澎湖龍門風力/Penghu Longmen Wind Power,2810146
+2026,03,離岸風力/Offshore Wind,離岸一期風力/Offshore Phase1 Wind Power,32877129
+2026,03,太陽能/Solar,大潭電廠太陽光電/Datang Power Plant Solars,107820
+2026,03,太陽能/Solar,北部儲運中心太陽光電/Northern Storage and Transportation Center Solars,81250
+2026,03,太陽能/Solar,龍潭E/S太陽光電/Longtan E/S Solars,15906
+2026,03,太陽能/Solar,竹工E/S太陽光電/Zhugong E/S Solars,21846
+2026,03,太陽能/Solar,台中電廠太陽光電/Taichung Power Plant Solars,400287
+2026,03,太陽能/Solar,台中龍井太陽光電/Taichung Longjing Solars,704501
+2026,03,太陽能/Solar,中科E/S太陽光電/Zhongke E/S Solars,23749
+2026,03,太陽能/Solar,彰化彰濱太陽光電/Changhua Changbin Solars,10784993
+2026,03,太陽能/Solar,彰林E/S太陽光電/Changlin E/S Solars,32483
+2026,03,太陽能/Solar,南投大彎太陽光電/Nantou Dawan Solars,183143
+2026,03,太陽能/Solar,台南鹽田太陽光電/Tainan salt field Solars,19217547
+2026,03,太陽能/Solar,台南七股太陽光電/Tainan Qigu Solars,756925
+2026,03,太陽能/Solar,興達電廠太陽光電/Xingda Power Plant Solars,222562
+2026,03,太陽能/Solar,永安鹽灘地太陽光電/Yongan Salt Flats Solars,399818
+2026,03,太陽能/Solar,燕巢倉庫太陽光電/Yanchao Warehouse Solars,61928
+2026,03,太陽能/Solar,高雄E/S太陽光電/Kaohsiung E/S Solars,95693
+2026,03,太陽能/Solar,高雄保寧太陽光電/Kaohsiung Baoning Solars,88461
+2026,03,太陽能/Solar,鳳山水庫太陽光電/Fengshan Reservoir Solars,257403
+2026,03,太陽能/Solar,核三廠太陽光電/3rd Nuclear Power Plants Solars,3303932
+2026,03,太陽能/Solar,澎湖七美太陽光電/Penghu Qimei Solars,21561
+2026,03,太陽能/Solar,澎湖尖山太陽光電/Penghu jianshan Solars,91473
+2026,03,太陽能/Solar,金門金沙太陽光電/Kinmen Jinsha Solars,48842
+2026,03,太陽能/Solar,金門塔山太陽光電/Kinmen Tashan Solars,26610
+2026,03,太陽能/Solar,金門鵲山太陽光電/Kinmen Queshan Solars,5593
+2026,03,太陽能/Solar,馬祖珠山太陽光電/Mazu Zhushan Solars,5121
+2026,03,太陽能/Solar,"淡水3.5萬噸配水池太陽光電/Danshui Distribution Reservoir(35,000 tons) Solar",27592
+2026,03,太陽能/Solar,中大D/S太陽光電/Zhongda D/S Solars,2692
+2026,03,太陽能/Solar,平鎮淨水場太陽光電/Pingzhen Water Treatment Plant Solars,105819
+2026,03,太陽能/Solar,大湳淨水場太陽光電/Danan Water Treatment Plant Solars,79946
+2026,03,太陽能/Solar,龜山加壓站太陽光電/Guishan Booster Station Solars,27013
+2026,03,太陽能/Solar,龍潭淨水場太陽光電/Longtan Water Treatment Plant Solars,34018
+2026,03,太陽能/Solar,卓蘭會館太陽光電/Zhuolan Hostel Solars,3695
+2026,03,太陽能/Solar,東興淨水場太陽光電/Dongxing Water Treatment Plant Solars,72096
+2026,03,太陽能/Solar,后里E/S太陽光電/Houli E/S Solars,9976
+2026,03,太陽能/Solar,中部儲運中心太陽光電/Central Storage and Transportation Center Solars,8409
+2026,03,太陽能/Solar,東勢新伯公太陽光電/Dongshi Xinbogong Solars,80857
+2026,03,太陽能/Solar,嘉義民雄太陽光電/Jiayi Minxiong Solars,3666
+2026,03,太陽能/Solar,嘉義分所太陽光電/Chiayi Agricultural Experiment Branch Solars,31530
+2026,03,太陽能/Solar,義竹工作站太陽光電/Yizhu Workstation Solars,39846
+2026,03,太陽能/Solar,路北E/S太陽光電/Lubei E/S Solars,5314
+2026,03,太陽能/Solar,高訓中心光電/Kaohsiung Training Institute Solars,49169
+2026,03,太陽能/Solar,蘭嶼電廠太陽光電/Lanyu Power Plant Solars,3159
+2026,03,太陽能/Solar,蘭嶼貯存場太陽光電/Lanyu Storage Unit Solars,3885
+2026,03,太陽能/Solar,金門酒廠太陽光電/Kinmen Kaoliang Liquor Inc. Solars,107292
+2026,03,地熱/Geothermal,仁澤地熱/Renze Geothermal,338496
+2026,04,陸域風力/Onshore Wind,石門風力/Shimen Wind Power,0
+2026,04,陸域風力/Onshore Wind,林口風力/Linkou Wind Power,688700
+2026,04,陸域風力/Onshore Wind,蘆竹風力/Luzhu Wind Power,718872
+2026,04,陸域風力/Onshore Wind,觀園風力/Guanyuan Wind Power,3974387
+2026,04,陸域風力/Onshore Wind,大潭風力/Datan Wind Power,0
+2026,04,陸域風力/Onshore Wind,新竹香山風力/Hsinchu Xiangshan Wind Power,884339
+2026,04,陸域風力/Onshore Wind,台中港區風力/Taichung Harbor Wind Power,2495860
+2026,04,陸域風力/Onshore Wind,台中電廠風力/Taichung Power Plant Wind Power,102116
+2026,04,陸域風力/Onshore Wind,彰工風力Changgong Wind Power,7851833
+2026,04,陸域風力/Onshore Wind,彰化王功風力/Changhua Wanggong Wind Power,2497144
+2026,04,陸域風力/Onshore Wind,彰化永興風力/Changhua Yongxing Wind Power,1129662
+2026,04,陸域風力/Onshore Wind,雲林麥寮風力/Yunlin Mailiao Wind Power,2834586
+2026,04,陸域風力/Onshore Wind,雲林台西風力發電站/Yunlin Taixi Wind Power,931999
+2026,04,陸域風力/Onshore Wind,雲林四湖風力/Yunlin Sihu Wind Power,2322172
+2026,04,陸域風力/Onshore Wind,恆春風力/Hengchun Wind Power,563904
+2026,04,陸域風力/Onshore Wind,澎湖湖西風力/Penghu Huxi Wind Power,390773
+2026,04,陸域風力/Onshore Wind,金沙風力/Jinsha Wind Power,280771
+2026,04,陸域風力/Onshore Wind,澎湖龍門風力/Penghu Longmen Wind Power,1189712
+2026,04,離岸風力/Offshore Wind,離岸一期風力/Offshore Phase1 Wind Power,18261855
+2026,04,太陽能/Solar,大潭電廠太陽光電/Datang Power Plant Solars,109366
+2026,04,太陽能/Solar,北部儲運中心太陽光電/Northern Storage and Transportation Center Solars,89898
+2026,04,太陽能/Solar,龍潭E/S太陽光電/Longtan E/S Solars,14631
+2026,04,太陽能/Solar,竹工E/S太陽光電/Zhugong E/S Solars,22334
+2026,04,太陽能/Solar,台中電廠太陽光電/Taichung Power Plant Solars,329543
+2026,04,太陽能/Solar,台中龍井太陽光電/Taichung Longjing Solars,543708
+2026,04,太陽能/Solar,中科E/S太陽光電/Zhongke E/S Solars,18754
+2026,04,太陽能/Solar,彰化彰濱太陽光電/Changhua Changbin Solars,8290097
+2026,04,太陽能/Solar,彰林E/S太陽光電/Changlin E/S Solars,26008
+2026,04,太陽能/Solar,南投大彎太陽光電/Nantou Dawan Solars,154085
+2026,04,太陽能/Solar,台南鹽田太陽光電/Tainan salt field Solars,16595420
+2026,04,太陽能/Solar,台南七股太陽光電/Tainan Qigu Solars,608488
+2026,04,太陽能/Solar,興達電廠太陽光電/Xingda Power Plant Solars,150736
+2026,04,太陽能/Solar,永安鹽灘地太陽光電/Yongan Salt Flats Solars,358682
+2026,04,太陽能/Solar,燕巢倉庫太陽光電/Yanchao Warehouse Solars,52749
+2026,04,太陽能/Solar,高雄E/S太陽光電/Kaohsiung E/S Solars,85548
+2026,04,太陽能/Solar,高雄保寧太陽光電/Kaohsiung Baoning Solars,81181
+2026,04,太陽能/Solar,鳳山水庫太陽光電/Fengshan Reservoir Solars,233943
+2026,04,太陽能/Solar,核三廠太陽光電/3rd Nuclear Power Plants Solars,3370432
+2026,04,太陽能/Solar,澎湖七美太陽光電/Penghu Qimei Solars,21961
+2026,04,太陽能/Solar,澎湖尖山太陽光電/Penghu jianshan Solars,85417
+2026,04,太陽能/Solar,金門金沙太陽光電/Kinmen Jinsha Solars,28485
+2026,04,太陽能/Solar,金門塔山太陽光電/Kinmen Tashan Solars,22543
+2026,04,太陽能/Solar,金門鵲山太陽光電/Kinmen Queshan Solars,4498
+2026,04,太陽能/Solar,馬祖珠山太陽光電/Mazu Zhushan Solars,5837
+2026,04,太陽能/Solar,"淡水3.5萬噸配水池太陽光電/Danshui Distribution Reservoir(35,000 tons) Solar",30151
+2026,04,太陽能/Solar,中大D/S太陽光電/Zhongda D/S Solars,2985
+2026,04,太陽能/Solar,平鎮淨水場太陽光電/Pingzhen Water Treatment Plant Solars,109216
+2026,04,太陽能/Solar,大湳淨水場太陽光電/Danan Water Treatment Plant Solars,82172
+2026,04,太陽能/Solar,龜山加壓站太陽光電/Guishan Booster Station Solars,28239
+2026,04,太陽能/Solar,龍潭淨水場太陽光電/Longtan Water Treatment Plant Solars,32071
+2026,04,太陽能/Solar,卓蘭會館太陽光電/Zhuolan Hostel Solars,2941
+2026,04,太陽能/Solar,東興淨水場太陽光電/Dongxing Water Treatment Plant Solars,72063
+2026,04,太陽能/Solar,后里E/S太陽光電/Houli E/S Solars,7847
+2026,04,太陽能/Solar,中部儲運中心太陽光電/Central Storage and Transportation Center Solars,7087
+2026,04,太陽能/Solar,東勢新伯公太陽光電/Dongshi Xinbogong Solars,68705
+2026,04,太陽能/Solar,嘉義民雄太陽光電/Jiayi Minxiong Solars,3082
+2026,04,太陽能/Solar,嘉義分所太陽光電/Chiayi Agricultural Experiment Branch Solars,27483
+2026,04,太陽能/Solar,義竹工作站太陽光電/Yizhu Workstation Solars,33732
+2026,04,太陽能/Solar,路北E/S太陽光電/Lubei E/S Solars,4497
+2026,04,太陽能/Solar,高訓中心光電/Kaohsiung Training Institute Solars,41703
+2026,04,太陽能/Solar,蘭嶼電廠太陽光電/Lanyu Power Plant Solars,3653
+2026,04,太陽能/Solar,蘭嶼貯存場太陽光電/Lanyu Storage Unit Solars,4021
+2026,04,太陽能/Solar,金門酒廠太陽光電/Kinmen Kaoliang Liquor Inc. Solars,72606
+2026,04,地熱/Geothermal,仁澤地熱/Renze Geothermal,417032
+2026,05,陸域風力/Onshore Wind,石門風力/Shimen Wind Power,0
+2026,05,陸域風力/Onshore Wind,林口風力/Linkou Wind Power,1040089
+2026,05,陸域風力/Onshore Wind,蘆竹風力/Luzhu Wind Power,1023127
+2026,05,陸域風力/Onshore Wind,觀園風力/Guanyuan Wind Power,6163238
+2026,05,陸域風力/Onshore Wind,大潭風力/Datan Wind Power,68645
+2026,05,陸域風力/Onshore Wind,新竹香山風力/Hsinchu Xiangshan Wind Power,925060
+2026,05,陸域風力/Onshore Wind,台中港區風力/Taichung Harbor Wind Power,3970682
+2026,05,陸域風力/Onshore Wind,台中電廠風力/Taichung Power Plant Wind Power,114356
+2026,05,陸域風力/Onshore Wind,彰工風力Changgong Wind Power,8817070
+2026,05,陸域風力/Onshore Wind,彰化王功風力/Changhua Wanggong Wind Power,2912300
+2026,05,陸域風力/Onshore Wind,彰化永興風力/Changhua Yongxing Wind Power,1253123
+2026,05,陸域風力/Onshore Wind,雲林麥寮風力/Yunlin Mailiao Wind Power,3703424
+2026,05,陸域風力/Onshore Wind,雲林台西風力發電站/Yunlin Taixi Wind Power,1041042
+2026,05,陸域風力/Onshore Wind,雲林四湖風力/Yunlin Sihu Wind Power,2475765
+2026,05,陸域風力/Onshore Wind,恆春風力/Hengchun Wind Power,319183
+2026,05,陸域風力/Onshore Wind,澎湖湖西風力/Penghu Huxi Wind Power,463052
+2026,05,陸域風力/Onshore Wind,金沙風力/Jinsha Wind Power,264281
+2026,05,陸域風力/Onshore Wind,澎湖龍門風力/Penghu Longmen Wind Power,1005038
+2026,05,離岸風力/Offshore Wind,離岸一期風力/Offshore Phase1 Wind Power,18119701
+2026,05,太陽能/Solar,大潭電廠太陽光電/Datang Power Plant Solars,154648
+2026,05,太陽能/Solar,北部儲運中心太陽光電/Northern Storage and Transportation Center Solars,113370
+2026,05,太陽能/Solar,龍潭E/S太陽光電/Longtan E/S Solars,18855
+2026,05,太陽能/Solar,竹工E/S太陽光電/Zhugong E/S Solars,27506
+2026,05,太陽能/Solar,台中電廠太陽光電/Taichung Power Plant Solars,415583
+2026,05,太陽能/Solar,台中龍井太陽光電/Taichung Longjing Solars,642315
+2026,05,太陽能/Solar,中科E/S太陽光電/Zhongke E/S Solars,24296
+2026,05,太陽能/Solar,彰化彰濱太陽光電/Changhua Changbin Solars,11918784
+2026,05,太陽能/Solar,彰林E/S太陽光電/Changlin E/S Solars,34522
+2026,05,太陽能/Solar,南投大彎太陽光電/Nantou Dawan Solars,190169
+2026,05,太陽能/Solar,台南鹽田太陽光電/Tainan salt field Solars,21772000
+2026,05,太陽能/Solar,台南七股太陽光電/Tainan Qigu Solars,774982
+2026,05,太陽能/Solar,興達電廠太陽光電/Xingda Power Plant Solars,224368
+2026,05,太陽能/Solar,永安鹽灘地太陽光電/Yongan Salt Flats Solars,435025
+2026,05,太陽能/Solar,燕巢倉庫太陽光電/Yanchao Warehouse Solars,60651
+2026,05,太陽能/Solar,高雄E/S太陽光電/Kaohsiung E/S Solars,105296
+2026,05,太陽能/Solar,高雄保寧太陽光電/Kaohsiung Baoning Solars,98332
+2026,05,太陽能/Solar,鳳山水庫太陽光電/Fengshan Reservoir Solars,262584
+2026,05,太陽能/Solar,核三廠太陽光電/3rd Nuclear Power Plants Solars,3758314
+2026,05,太陽能/Solar,澎湖七美太陽光電/Penghu Qimei Solars,27375
+2026,05,太陽能/Solar,澎湖尖山太陽光電/Penghu jianshan Solars,92305
+2026,05,太陽能/Solar,金門金沙太陽光電/Kinmen Jinsha Solars,36632
+2026,05,太陽能/Solar,金門塔山太陽光電/Kinmen Tashan Solars,27178
+2026,05,太陽能/Solar,金門鵲山太陽光電/Kinmen Queshan Solars,5823
+2026,05,太陽能/Solar,馬祖珠山太陽光電/Mazu Zhushan Solars,8278
+2026,05,太陽能/Solar,"淡水3.5萬噸配水池太陽光電/Danshui Distribution Reservoir(35,000 tons) Solar",36360
+2026,05,太陽能/Solar,中大D/S太陽光電/Zhongda D/S Solars,3582
+2026,05,太陽能/Solar,平鎮淨水場太陽光電/Pingzhen Water Treatment Plant Solars,134714
+2026,05,太陽能/Solar,大湳淨水場太陽光電/Danan Water Treatment Plant Solars,98565
+2026,05,太陽能/Solar,龜山加壓站太陽光電/Guishan Booster Station Solars,35284
+2026,05,太陽能/Solar,龍潭淨水場太陽光電/Longtan Water Treatment Plant Solars,40281
+2026,05,太陽能/Solar,卓蘭會館太陽光電/Zhuolan Hostel Solars,3630
+2026,05,太陽能/Solar,東興淨水場太陽光電/Dongxing Water Treatment Plant Solars,88174
+2026,05,太陽能/Solar,后里E/S太陽光電/Houli E/S Solars,10027
+2026,05,太陽能/Solar,中部儲運中心太陽光電/Central Storage and Transportation Center Solars,9660
+2026,05,太陽能/Solar,東勢新伯公太陽光電/Dongshi Xinbogong Solars,88489
+2026,05,太陽能/Solar,嘉義民雄太陽光電/Jiayi Minxiong Solars,4104
+2026,05,太陽能/Solar,嘉義分所太陽光電/Chiayi Agricultural Experiment Branch Solars,38136
+2026,05,太陽能/Solar,義竹工作站太陽光電/Yizhu Workstation Solars,47136
+2026,05,太陽能/Solar,路北E/S太陽光電/Lubei E/S Solars,5350
+2026,05,太陽能/Solar,高訓中心光電/Kaohsiung Training Institute Solars,48891
+2026,05,太陽能/Solar,蘭嶼電廠太陽光電/Lanyu Power Plant Solars,3897
+2026,05,太陽能/Solar,蘭嶼貯存場太陽光電/Lanyu Storage Unit Solars,4528
+2026,05,太陽能/Solar,金門酒廠太陽光電/Kinmen Kaoliang Liquor Inc. Solars,107664
+2026,05,地熱/Geothermal,仁澤地熱/Renze Geothermal,205244
+2026,06,陸域風力/Onshore Wind,石門風力/Shimen Wind Power,0
+2026,06,陸域風力/Onshore Wind,林口風力/Linkou Wind Power,327226
+2026,06,陸域風力/Onshore Wind,蘆竹風力/Luzhu Wind Power,301384
+2026,06,陸域風力/Onshore Wind,觀園風力/Guanyuan Wind Power,2837099
+2026,06,陸域風力/Onshore Wind,大潭風力/Datan Wind Power,297496
+2026,06,陸域風力/Onshore Wind,新竹香山風力/Hsinchu Xiangshan Wind Power,564753
+2026,06,陸域風力/Onshore Wind,台中港區風力/Taichung Harbor Wind Power,2325274
+2026,06,陸域風力/Onshore Wind,台中電廠風力/Taichung Power Plant Wind Power,67660
+2026,06,陸域風力/Onshore Wind,彰工風力Changgong Wind Power,4918834
+2026,06,陸域風力/Onshore Wind,彰化王功風力/Changhua Wanggong Wind Power,1806450
+2026,06,陸域風力/Onshore Wind,彰化永興風力/Changhua Yongxing Wind Power,839992
+2026,06,陸域風力/Onshore Wind,雲林麥寮風力/Yunlin Mailiao Wind Power,2566890
+2026,06,陸域風力/Onshore Wind,雲林台西風力發電站/Yunlin Taixi Wind Power,820107
+2026,06,陸域風力/Onshore Wind,雲林四湖風力/Yunlin Sihu Wind Power,2108590
+2026,06,陸域風力/Onshore Wind,恆春風力/Hengchun Wind Power,346643
+2026,06,陸域風力/Onshore Wind,澎湖湖西風力/Penghu Huxi Wind Power,325475
+2026,06,陸域風力/Onshore Wind,金沙風力/Jinsha Wind Power,225702
+2026,06,陸域風力/Onshore Wind,澎湖龍門風力/Penghu Longmen Wind Power,565872
+2026,06,離岸風力/Offshore Wind,離岸一期風力/Offshore Phase1 Wind Power,14828697
+2026,06,太陽能/Solar,大潭電廠太陽光電/Datang Power Plant Solars,130302
+2026,06,太陽能/Solar,北部儲運中心太陽光電/Northern Storage and Transportation Center Solars,96467
+2026,06,太陽能/Solar,龍潭E/S太陽光電/Longtan E/S Solars,14754
+2026,06,太陽能/Solar,竹工E/S太陽光電/Zhugong E/S Solars,23224
+2026,06,太陽能/Solar,台中電廠太陽光電/Taichung Power Plant Solars,341921
+2026,06,太陽能/Solar,台中龍井太陽光電/Taichung Longjing Solars,565416
+2026,06,太陽能/Solar,中科E/S太陽光電/Zhongke E/S Solars,19717
+2026,06,太陽能/Solar,彰化彰濱太陽光電/Changhua Changbin Solars,9813869
+2026,06,太陽能/Solar,彰林E/S太陽光電/Changlin E/S Solars,26960
+2026,06,太陽能/Solar,南投大彎太陽光電/Nantou Dawan Solars,137803
+2026,06,太陽能/Solar,台南鹽田太陽光電/Tainan salt field Solars,15889377
+2026,06,太陽能/Solar,台南七股太陽光電/Tainan Qigu Solars,544402
+2026,06,太陽能/Solar,興達電廠太陽光電/Xingda Power Plant Solars,157326
+2026,06,太陽能/Solar,永安鹽灘地太陽光電/Yongan Salt Flats Solars,284469
+2026,06,太陽能/Solar,燕巢倉庫太陽光電/Yanchao Warehouse Solars,43650
+2026,06,太陽能/Solar,高雄E/S太陽光電/Kaohsiung E/S Solars,75145
+2026,06,太陽能/Solar,高雄保寧太陽光電/Kaohsiung Baoning Solars,70531
+2026,06,太陽能/Solar,鳳山水庫太陽光電/Fengshan Reservoir Solars,188206
+2026,06,太陽能/Solar,核三廠太陽光電/3rd Nuclear Power Plants Solars,2672171
+2026,06,太陽能/Solar,澎湖七美太陽光電/Penghu Qimei Solars,19586
+2026,06,太陽能/Solar,澎湖尖山太陽光電/Penghu jianshan Solars,90664
+2026,06,太陽能/Solar,金門金沙太陽光電/Kinmen Jinsha Solars,36710
+2026,06,太陽能/Solar,金門塔山太陽光電/Kinmen Tashan Solars,24938
+2026,06,太陽能/Solar,金門鵲山太陽光電/Kinmen Queshan Solars,5329
+2026,06,太陽能/Solar,馬祖珠山太陽光電/Mazu Zhushan Solars,7565
+2026,06,太陽能/Solar,"淡水3.5萬噸配水池太陽光電/Danshui Distribution Reservoir(35,000 tons) Solar",29478
+2026,06,太陽能/Solar,中大D/S太陽光電/Zhongda D/S Solars,2881
+2026,06,太陽能/Solar,平鎮淨水場太陽光電/Pingzhen Water Treatment Plant Solars,105842
+2026,06,太陽能/Solar,大湳淨水場太陽光電/Danan Water Treatment Plant Solars,81071
+2026,06,太陽能/Solar,龜山加壓站太陽光電/Guishan Booster Station Solars,28341
+2026,06,太陽能/Solar,龍潭淨水場太陽光電/Longtan Water Treatment Plant Solars,31552
+2026,06,太陽能/Solar,卓蘭會館太陽光電/Zhuolan Hostel Solars,2887
+2026,06,太陽能/Solar,東興淨水場太陽光電/Dongxing Water Treatment Plant Solars,74874
+2026,06,太陽能/Solar,后里E/S太陽光電/Houli E/S Solars,8160
+2026,06,太陽能/Solar,中部儲運中心太陽光電/Central Storage and Transportation Center Solars,8121
+2026,06,太陽能/Solar,東勢新伯公太陽光電/Dongshi Xinbogong Solars,73811
+2026,06,太陽能/Solar,嘉義民雄太陽光電/Jiayi Minxiong Solars,2968
+2026,06,太陽能/Solar,嘉義分所太陽光電/Chiayi Agricultural Experiment Branch Solars,29131
+2026,06,太陽能/Solar,義竹工作站太陽光電/Yizhu Workstation Solars,34938
+2026,06,太陽能/Solar,路北E/S太陽光電/Lubei E/S Solars,3678
+2026,06,太陽能/Solar,高訓中心光電/Kaohsiung Training Institute Solars,39012
+2026,06,太陽能/Solar,蘭嶼電廠太陽光電/Lanyu Power Plant Solars,3258
+2026,06,太陽能/Solar,蘭嶼貯存場太陽光電/Lanyu Storage Unit Solars,3904
+2026,06,太陽能/Solar,金門酒廠太陽光電/Kinmen Kaoliang Liquor Inc. Solars,97013
+2026,06,地熱/Geothermal,仁澤地熱/Renze Geothermal,182345
+2026,07,陸域風力/Onshore Wind,石門風力/Shimen Wind Power,69
+2026,07,陸域風力/Onshore Wind,林口風力/Linkou Wind Power,358311
+2026,07,陸域風力/Onshore Wind,蘆竹風力/Luzhu Wind Power,598631
+2026,07,陸域風力/Onshore Wind,觀園風力/Guanyuan Wind Power,2698980
+2026,07,陸域風力/Onshore Wind,大潭風力/Datan Wind Power,621479
+2026,07,陸域風力/Onshore Wind,新竹香山風力/Hsinchu Xiangshan Wind Power,32869
+2026,07,陸域風力/Onshore Wind,台中港區風力/Taichung Harbor Wind Power,2058520
+2026,07,陸域風力/Onshore Wind,台中電廠風力/Taichung Power Plant Wind Power,72752
+2026,07,陸域風力/Onshore Wind,彰工風力Changgong Wind Power,3800182
+2026,07,陸域風力/Onshore Wind,彰化王功風力/Changhua Wanggong Wind Power,1827323
+2026,07,陸域風力/Onshore Wind,彰化永興風力/Changhua Yongxing Wind Power,1031599
+2026,07,陸域風力/Onshore Wind,雲林麥寮風力/Yunlin Mailiao Wind Power,2098448
+2026,07,陸域風力/Onshore Wind,雲林台西風力發電站/Yunlin Taixi Wind Power,981859
+2026,07,陸域風力/Onshore Wind,雲林四湖風力/Yunlin Sihu Wind Power,1657991
+2026,07,陸域風力/Onshore Wind,恆春風力/Hengchun Wind Power,551928
+2026,07,陸域風力/Onshore Wind,澎湖湖西風力/Penghu Huxi Wind Power,134880
+2026,07,陸域風力/Onshore Wind,金沙風力/Jinsha Wind Power,198267
+2026,07,陸域風力/Onshore Wind,澎湖龍門風力/Penghu Longmen Wind Power,468445
+2026,07,離岸風力/Offshore Wind,離岸一期風力/Offshore Phase1 Wind Power,13703034
+2026,07,太陽能/Solar,大潭電廠太陽光電/Datang Power Plant Solars,178040
+2026,07,太陽能/Solar,北部儲運中心太陽光電/Northern Storage and Transportation Center Solars,131232
+2026,07,太陽能/Solar,龍潭E/S太陽光電/Longtan E/S Solars,16950
+2026,07,太陽能/Solar,竹工E/S太陽光電/Zhugong E/S Solars,30468
+2026,07,太陽能/Solar,台中電廠太陽光電/Taichung Power Plant Solars,428711
+2026,07,太陽能/Solar,台中龍井太陽光電/Taichung Longjing Solars,717043
+2026,07,太陽能/Solar,中科E/S太陽光電/Zhongke E/S Solars,24589
+2026,07,太陽能/Solar,彰化彰濱太陽光電/Changhua Changbin Solars,12321629
+2026,07,太陽能/Solar,彰林E/S太陽光電/Changlin E/S Solars,34027
+2026,07,太陽能/Solar,南投大彎太陽光電/Nantou Dawan Solars,200041
+2026,07,太陽能/Solar,台南鹽田太陽光電/Tainan salt field Solars,20269307
+2026,07,太陽能/Solar,台南七股太陽光電/Tainan Qigu Solars,706673
+2026,07,太陽能/Solar,興達電廠太陽光電/Xingda Power Plant Solars,129776
+2026,07,太陽能/Solar,永安鹽灘地太陽光電/Yongan Salt Flats Solars,343662
+2026,07,太陽能/Solar,燕巢倉庫太陽光電/Yanchao Warehouse Solars,56751
+2026,07,太陽能/Solar,高雄E/S太陽光電/Kaohsiung E/S Solars,89885
+2026,07,太陽能/Solar,高雄保寧太陽光電/Kaohsiung Baoning Solars,88035
+2026,07,太陽能/Solar,鳳山水庫太陽光電/Fengshan Reservoir Solars,224533
+2026,07,太陽能/Solar,核三廠太陽光電/3rd Nuclear Power Plants Solars,3488693
+2026,07,太陽能/Solar,澎湖七美太陽光電/Penghu Qimei Solars,28317
+2026,07,太陽能/Solar,澎湖尖山太陽光電/Penghu jianshan Solars,106549
+2026,07,太陽能/Solar,金門金沙太陽光電/Kinmen Jinsha Solars,46577
+2026,07,太陽能/Solar,金門塔山太陽光電/Kinmen Tashan Solars,31778
+2026,07,太陽能/Solar,金門鵲山太陽光電/Kinmen Queshan Solars,6869
+2026,07,太陽能/Solar,馬祖珠山太陽光電/Mazu Zhushan Solars,10960
+2026,07,太陽能/Solar,"淡水3.5萬噸配水池太陽光電/Danshui Distribution Reservoir(35,000 tons) Solar",42505
+2026,07,太陽能/Solar,中大D/S太陽光電/Zhongda D/S Solars,3953
+2026,07,太陽能/Solar,平鎮淨水場太陽光電/Pingzhen Water Treatment Plant Solars,150208
+2026,07,太陽能/Solar,大湳淨水場太陽光電/Danan Water Treatment Plant Solars,111574
+2026,07,太陽能/Solar,龜山加壓站太陽光電/Guishan Booster Station Solars,40118
+2026,07,太陽能/Solar,龍潭淨水場太陽光電/Longtan Water Treatment Plant Solars,41858
+2026,07,太陽能/Solar,卓蘭會館太陽光電/Zhuolan Hostel Solars,3818
+2026,07,太陽能/Solar,東興淨水場太陽光電/Dongxing Water Treatment Plant Solars,94993
+2026,07,太陽能/Solar,后里E/S太陽光電/Houli E/S Solars,9899
+2026,07,太陽能/Solar,中部儲運中心太陽光電/Central Storage and Transportation Center Solars,10210
+2026,07,太陽能/Solar,東勢新伯公太陽光電/Dongshi Xinbogong Solars,88380
+2026,07,太陽能/Solar,嘉義民雄太陽光電/Jiayi Minxiong Solars,3681
+2026,07,太陽能/Solar,嘉義分所太陽光電/Chiayi Agricultural Experiment Branch Solars,35662
+2026,07,太陽能/Solar,義竹工作站太陽光電/Yizhu Workstation Solars,44634
+2026,07,太陽能/Solar,路北E/S太陽光電/Lubei E/S Solars,4481
+2026,07,太陽能/Solar,高訓中心光電/Kaohsiung Training Institute Solars,47253
+2026,07,太陽能/Solar,蘭嶼電廠太陽光電/Lanyu Power Plant Solars,3678
+2026,07,太陽能/Solar,蘭嶼貯存場太陽光電/Lanyu Storage Unit Solars,4707
+2026,07,太陽能/Solar,金門酒廠太陽光電/Kinmen Kaoliang Liquor Inc. Solars,123124
+2026,07,地熱/Geothermal,仁澤地熱/Renze Geothermal,170246

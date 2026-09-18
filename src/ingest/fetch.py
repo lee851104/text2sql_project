@@ -22,7 +22,7 @@ import certifi
 
 from ingest.validate import PROJECT_ROOT
 
-BASE_URL = "https://service.taipower.com.tw/data/opendata/apply/file/{resource}/001.csv"
+BASE_URL = "https://service.taipower.com.tw/data/opendata/apply/file/{resource}/001.{suffix}"
 
 
 @dataclass(frozen=True)
@@ -31,10 +31,12 @@ class Dataset:
     resource: str
     filename: str
     description: str
+    suffix: str = "csv"
+    """官方端點的副檔名；`d006001` 只提供 JSON。"""
 
     @property
     def url(self) -> str:
-        return BASE_URL.format(resource=self.resource)
+        return BASE_URL.format(resource=self.resource, suffix=self.suffix)
 
 
 DATASETS = {
@@ -43,6 +45,15 @@ DATASETS = {
         Dataset("units", "d004011", "units.csv", "水火力發電廠位置及機組設備"),
         Dataset("daily", "d006005", "daily.csv", "過去電力供需資訊（滾動視窗）"),
         Dataset("outage", "d006008", "outage.csv", "機組歲修排程"),
+        Dataset("re_sites", "d693002", "re_sites.csv", "再生能源各場址資料"),
+        Dataset("re_generation", "d693001", "re_generation.csv", "自建各類再生能源發電量"),
+        Dataset(
+            "units_generation",
+            "d006001",
+            "units_generation.json",
+            "各機組發電量即時資訊（含外購電力）",
+            suffix="json",
+        ),
     )
 }
 
@@ -84,7 +95,7 @@ def download_datasets(
     for dataset in datasets:
         payload = downloader(dataset.url)
         digest = hashlib.sha256(payload).hexdigest()
-        archive_path = data_root / "archive" / dataset.name / f"{digest}.csv"
+        archive_path = data_root / "archive" / dataset.name / f"{digest}.{dataset.suffix}"
         latest_path = data_root / "raw" / dataset.filename
         if not archive_path.exists():
             _atomic_write(archive_path, payload)

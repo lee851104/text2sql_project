@@ -13,6 +13,7 @@ def test_required_configuration_files_are_valid_yaml() -> None:
         "config.yaml",
         "align.yaml",
         "outage_overrides.yaml",
+        "renewable_overrides.yaml",
         "llm.yaml",
         "retriever.yaml",
         "guard.yaml",
