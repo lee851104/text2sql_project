@@ -50,7 +50,9 @@ def die(msg: str) -> None:
     raise SystemExit(3)
 
 
-def run(cmd: list[str], timeout: int = 1800) -> subprocess.CompletedProcess:
+def run(
+    cmd: list[str], timeout: int = 1800, input_text: str | None = None
+) -> subprocess.CompletedProcess:
     try:
         return subprocess.run(
             cmd,
@@ -60,6 +62,7 @@ def run(cmd: list[str], timeout: int = 1800) -> subprocess.CompletedProcess:
             encoding="utf-8",
             errors="replace",
             timeout=timeout,
+            input=input_text,
         )
     except FileNotFoundError:
         return subprocess.CompletedProcess(cmd, 127, "", f"找不到執行檔: {cmd[0]}")
@@ -120,6 +123,25 @@ def trim(lines: list[str], limit: int = 25) -> list[str]:
     if len(lines) <= limit:
         return lines
     return lines[:limit] + [f"...（另有 {len(lines) - limit} 筆，已省略）"]
+
+
+def overall(findings: list[Finding]) -> str:
+    """任一 BLOCK → BLOCK；否則有 WARN 或 SKIP → WARN；全 PASS 才 PASS。
+
+    SKIP 不得視為通過 —— 沒跑過的檢查不構成證據。
+    """
+    statuses = {f.status for f in findings}
+    if "BLOCK" in statuses:
+        return "BLOCK"
+    if statuses & {"WARN", "SKIP"}:
+        return "WARN"
+    return "PASS"
+
+
+def uv_prefix() -> list[str]:
+    """優先用 uv 跑專案鎖定的版本；沒有 uv 就退回目前直譯器的 python -m。"""
+    uv = shutil.which("uv")
+    return [uv, "run"] if uv else [sys.executable, "-m"]
 
 
 # --------------------------------------------------------------------------
@@ -476,10 +498,43 @@ def check_tests_touched(files: list[str]) -> Finding:
     return Finding("test.coupling", "測試同步", "PASS", "程式與測試一起變更，或這次沒有動到 src/。")
 
 
-def check_doc_sync(files: list[str], rules: dict) -> Finding:
+def format_only_files(
+    files: list[str], merge_base: str, branch: str, prefix: list[str]
+) -> set[str]:
+    """找出「只有排版變動」的 Python 檔案。
+
+    `ruff format` 重排會動到很多檔案但不改行為。若只看「這個檔案有沒有被改」，
+    純排版的分支也會被要求更新 API 文件（實測發生過）。這裡把兩個版本都丟給
+    `ruff format -` 正規化，結果相同就代表這次改動不含語意變更。
+
+    取不到 ruff 時回傳空集合 —— 寧可保留原本的警告，也不要靜默放行。
+    """
+    out: set[str] = set()
+    for path in files:
+        if not path.endswith(".py"):
+            continue
+        old = git("show", f"{merge_base}:{path}")
+        new = git("show", f"{branch}:{path}")
+        if old.returncode != 0 or new.returncode != 0:
+            continue  # 新增或刪除的檔案不算純排版
+        if old.stdout == new.stdout:
+            out.add(path)
+            continue
+        norm_old = run([*prefix, "ruff", "format", "-"], timeout=120, input_text=old.stdout)
+        norm_new = run([*prefix, "ruff", "format", "-"], timeout=120, input_text=new.stdout)
+        ok = norm_old.returncode == 0 and norm_new.returncode == 0
+        if ok and norm_old.stdout == norm_new.stdout:
+            out.add(path)
+    return out
+
+
+def check_doc_sync(files: list[str], rules: dict, format_only: set[str] | None = None) -> Finding:
+    skip = format_only or set()
     gaps = []
     for rule in rules.get("doc_sync", []):
-        touched = [p for p in files if any(match_pattern(p, w) for w in rule["when"])]
+        touched = [
+            p for p in files if p not in skip and any(match_pattern(p, w) for w in rule["when"])
+        ]
         if not touched:
             continue
         if any(any(match_pattern(p, e) for e in rule["expect_any"]) for p in files):
@@ -552,8 +607,7 @@ def ci_findings(skip_reason: str | None) -> list[Finding]:
         ("ci.test", "pytest", ["pytest", "-q"], False),
     ]
 
-    uv = shutil.which("uv")
-    prefix = [uv, "run"] if uv else [sys.executable, "-m"]
+    prefix = uv_prefix()
 
     # 把實際跑的 ruff 版本寫進報告：本機版本與 pyproject 的 pin 不同時，
     # 會出現 CI 不會有的 BLOCK，看得到版本才查得出來
@@ -717,7 +771,7 @@ def main() -> int:
         check_commit_format(commits, rules),
         check_log_checkpoint(files, merge_base, branch),
         check_tests_touched(files),
-        check_doc_sync(files, rules),
+        check_doc_sync(files, rules, format_only_files(files, merge_base, branch, uv_prefix())),
         *([] if skip_reason else [check_worktree(branch)]),
         *ci_findings(skip_reason),
     ]
@@ -726,13 +780,7 @@ def main() -> int:
     warns = [f for f in findings if f.status == "WARN"]
     skips = [f for f in findings if f.status == "SKIP"]
     passes = [f for f in findings if f.status == "PASS"]
-
-    if blocks:
-        result = "BLOCK"
-    elif warns or skips:
-        result = "WARN"
-    else:
-        result = "PASS"
+    result = overall(findings)
 
     if result == "BLOCK":
         next_action = (

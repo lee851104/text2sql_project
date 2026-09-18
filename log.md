@@ -14,6 +14,9 @@
 - 文件同步：`SKILL.md` 的 description、Purpose、選項與步驟已移除所有權相關內容；`references/merge_rules.md` 改寫，新增「範圍：只檢查對齊，不檢查分工」一節，並補上 ruff 掃描範圍對齊 CI 的作法與 `--force-exclude` 的必要性。
 - 驗收：`uv run ruff format --check`、`uv run ruff check` 對 `check_merge.py` 皆通過；`create-skill` 的 `validate.py` 回報 ERROR 0；以 `--base 81fe958` 實跑確認 14 項檢查全部可執行且無所有權殘留。
 - 修復 ruff 掃描範圍：CI 是乾淨簽出只看得到受版控檔案，本機 `ruff .` 會連未 gitignore 的暫存目錄一起掃，曾因 `extensions/` 產生 28 個無關錯誤造成假 BLOCK。改為明列 `git ls-files '*.py' '*.pyi'` 的結果並加 `--force-exclude`（明確傳路徑時 ruff 會忽略 pyproject 的 `exclude`，不加會多掃 `taipower_align`），報告附上「N 個受版控檔案，與 CI 範圍一致」。以未進版控且未被忽略的爛格式檔案實測：`ruff check .` 報 5 個錯，新範圍 All checks passed，而「工作目錄狀態」仍正確提醒該檔案存在。
+- 修復文件同步誤報：原規則只看「這個檔案有沒有被改」，`ruff format` 重排 `src/serving/app.py` 也會被要求更新 API 契約（實測誤報過）。新增 `format_only_files()`，把同一檔案的新舊版本都以 `ruff format -` 正規化後比對，相同即視為純排版變更並排除在 `doc_sync` 之外；取不到 ruff 時回傳空集合，寧可保留警告也不靜默放行。
+- 新增自動化測試：`tests/test_merge_gate.py` 12 項，以 importlib 載入門檻腳本，並用暫存 git repo 搭配 monkeypatch 改寫 `REPO`。涵蓋先前未被觸發過的路徑：大型檔案 BLOCK、log.md 只寫一半、中文檔名八進位還原、機密允許清單與 inline marker、髒工作目錄不得判 PASS、SKIP 不得判 PASS、純排版與真實變更的區分，以及一項端到端（離開碼 2 並產出報告）。門檻的判定聚合抽成 `overall()` 以便直接測試。
+- 全套驗收：`uv run pytest -q` 227 passed（main 基線 215，本分支淨增 12）；`ruff format --check`、`ruff check`、`node --check` 全數通過；門檻自檢 15 PASS／1 WARN，唯一 WARN 為使用者未提交的簡報檔。
 - 回退方式：回退本 CP 對應的 commit 即可恢復 CP-014 的所有權版本；`docs/TEAM_4_ROLES.md` 未在本次變更，不受影響。
 
 ## CP-015 — 電廠分權分支的格式修復與 main 同步
