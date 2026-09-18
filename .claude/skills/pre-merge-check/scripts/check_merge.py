@@ -757,7 +757,9 @@ def main() -> int:
     skip_reason = None
     if args.no_ci:
         skip_reason = "指定了 --no-ci"
-    elif branch != head:
+    # 比 SHA 而不是名稱：CI 簽出後常是 detached HEAD（名稱會變成 "HEAD"），
+    # 只比名稱會誤判成「不是目前分支」而白白跳過 ruff／pytest
+    elif git("rev-parse", branch).stdout.strip() != git("rev-parse", "HEAD").stdout.strip():
         skip_reason = f"要檢查的是 {branch}，但目前簽出的是 {head}"
 
     findings: list[Finding] = [

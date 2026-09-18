@@ -88,6 +88,23 @@ CI 是乾淨簽出，只看得到受版控的檔案。本機直接跑 `ruff chec
 `pyproject.toml` 只寫 `ruff>=0.12,<1`，但 `uv.lock` 鎖定確切版本，CI 以 `uv sync --extra dev` 安裝同一版，
 所以本機與 CI 原則上一致。報告仍會附上實際執行的 ruff 版本，環境沒同步時才查得出來。
 
+## 在 PR 上自動貼報告
+
+`.github/workflows/merge-gate.yml` 會在每個 PR 上跑一次門檻，把報告貼成 PR 留言，
+判定 BLOCK 時讓該檢查失敗。用 Actions 內建的 `GITHUB_TOKEN`，不需要任何額外憑證。
+
+幾個刻意的設計：
+
+- **checkout 取 `head.ref` 而不是 PR 的合併預覽 commit**，因為門檻要評的是這個分支本身；
+  搭配 `fetch-depth: 0`，否則算不出 merge-base 也讀不到逐個 commit。
+- **只有 BLOCK 會讓檢查失敗**，WARN 不會 —— WARN 的定義就是「可合併，但需要人看一眼」，
+  讓它擋住合併會逼大家養成無視紅燈的習慣。
+- **貼留言用 `--edit-last` 就地更新**，每次推送不會洗版。
+- **貼留言失敗不影響門檻結果**（`continue-on-error`）：fork 發出的 PR 拿不到
+  `pull-requests: write`，不該因此把整個門檻判成失敗。
+
+判定用的是腳本的離開碼（`2` = BLOCK），不是去解析報告文字。
+
 ## 修改規則
 
 要調整門檻時，**只改 `references/gate_rules.json`**，不要改 `scripts/check_merge.py`。可改的欄位：
