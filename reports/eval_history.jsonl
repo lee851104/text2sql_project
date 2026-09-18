@@ -1,3 +1,4 @@
 {"generated_at":"2026-09-13T06:07:32.768369+00:00","mode":"offline_deterministic_rules","status":"pass","intent_accuracy":1.0,"execution_accuracy":1.0,"out_of_corpus_accuracy":1.0,"semantic_trap_accuracy":1.0,"semantic_false_positive_rate":0.0}
 {"generated_at":"2026-09-13T06:09:25.939640+00:00","mode":"offline_deterministic_rules","status":"pass","intent_accuracy":1.0,"execution_accuracy":1.0,"out_of_corpus_accuracy":1.0,"semantic_trap_accuracy":1.0,"semantic_false_positive_rate":0.0}
 {"generated_at":"2026-09-18T13:49:58.315478+00:00","mode":"offline_deterministic_rules","status":"pass","intent_accuracy":1.0,"execution_accuracy":1.0,"out_of_corpus_accuracy":1.0,"semantic_trap_accuracy":1.0,"semantic_false_positive_rate":0.0}
+{"generated_at":"2026-09-18T14:13:51.668140+00:00","mode":"offline_deterministic_rules","status":"pass","intent_accuracy":1.0,"execution_accuracy":1.0,"out_of_corpus_accuracy":1.0,"semantic_trap_accuracy":1.0,"semantic_false_positive_rate":0.0}

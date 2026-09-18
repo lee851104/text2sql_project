@@ -45,6 +45,7 @@ DATASETS = {
         Dataset("units", "d004011", "units.csv", "水火力發電廠位置及機組設備"),
         Dataset("daily", "d006005", "daily.csv", "過去電力供需資訊（滾動視窗）"),
         Dataset("outage", "d006008", "outage.csv", "機組歲修排程"),
+        Dataset("nuclear_units", "d056001", "nuclear_units.csv", "核能發電廠位置及機組設備"),
         Dataset("re_sites", "d693002", "re_sites.csv", "再生能源各場址資料"),
         Dataset("re_generation", "d693001", "re_generation.csv", "自建各類再生能源發電量"),
         Dataset(

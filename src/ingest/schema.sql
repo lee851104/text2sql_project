@@ -35,7 +35,12 @@ CREATE TABLE dim_b_column (
     b_column TEXT NOT NULL UNIQUE,
     grain TEXT NOT NULL,
     category TEXT NOT NULL,
-    has_unit_master INTEGER NOT NULL CHECK (has_unit_master IN (0, 1))
+    has_unit_master INTEGER NOT NULL CHECK (has_unit_master IN (0, 1)),
+    -- 沒有機組主檔的欄位（核能、IPP、汽電共生與風光彙總）改由 configs/b_column_capacity.yaml
+    -- 指定的官方來源填入。capacity_source 記錄是核能主檔、8931 明細還是 8931 小計，
+    -- 8931 是每 10 分鐘覆寫的快照，因此另附當次快照的 SHA-256 前綴。
+    capacity_kw INTEGER CHECK (capacity_kw IS NULL OR capacity_kw > 0),
+    capacity_source TEXT NOT NULL DEFAULT ''
 );
 
 CREATE TABLE bridge_b_column (
@@ -217,7 +222,11 @@ SELECT
     c.grain AS "粒度",
     c.category AS "類別",
     COALESCE(b.n_units, 0) AS "涵蓋機組數",
-    b.cap_a_wankw AS "對應裝置容量_萬瓩",
+    COALESCE(b.cap_a_wankw, ROUND(c.capacity_kw / 10000.0, 4)) AS "對應裝置容量_萬瓩",
+    CASE
+        WHEN b.cap_a_wankw IS NOT NULL THEN 'crosswalk'
+        ELSE c.capacity_source
+    END AS "容量來源",
     COALESCE(b.is_residual, 0) AS "是殘差欄",
     COALESCE(b.is_bucket, 0) AS "是彙總欄",
     c.has_unit_master AS "有機組主檔"

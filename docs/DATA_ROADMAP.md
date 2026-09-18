@@ -18,7 +18,8 @@
 | `dim_re_site`／`fact_re_monthly`／`v_re_generation` | ✅ 65 站、1,976 月 |
 | 限定「台電自建」範圍的 disclose 規則 | ✅ `RENEWABLE_SELF_BUILT_ONLY` |
 | 離線 router 可回答（無需 API key） | ✅ `renewable_generation`／`renewable_site` |
-| 8931 補 `dim_b_column` 的無主檔欄位 | ⬜ 未開始 |
+| 8931 補 `dim_b_column` 的無主檔欄位 | ✅ 21 欄補到 18 欄 |
+| 核能機組主檔（資料集 10858） | ✅ 補齊核一～核三 6 欄 |
 
 執行 `uv run python -m align` 會重建 `taipower_align/re_station_crosswalk.csv`
 並把結果寫入 `reports/alignment.json` 的 `renewable` 區段。對齊率低於 90% 時整份報告判定 fail。
@@ -172,9 +173,10 @@ JSON 頂層帶 `DateTime`（實測 `2026-09-18T19:40:00`），是整份快照的
 1. ~~**17141 場址主檔**~~ —— 已完成。剔除小計後建立 `dim_re_site`，粒度為一列一發電站。
 2. ~~**17140 月發電量**~~ —— 已完成。`fact_re_monthly` 1,976 列、`v_re_generation` 上線，
    `RENEWABLE_SELF_BUILT_ONLY` 在問句層與 SQL 層都會附範圍揭露。
-3. **8931 機組容量** —— 只取 `機組名稱` 與 `裝置容量(MW)` 兩欄補 `dim_b_column` 的
-   21 個無主檔欄位（×1000 換算）。`淨發電量` 欄不入事實表。`備註` 的運轉狀態先寫成
-   `meta_pitfall` 規則，不建獨立維度。
+3. ~~**8931 機組容量**~~ —— 已完成，並額外納入資料集 10858 的核能主檔。21 個無主檔欄位
+   補到 18 個（核能 6、8931 明細 9、8931 小計 3），`v_peak` 的容量覆蓋從 43／64 提升到
+   61／64。麥寮 3 欄因即時清單已無該機組、月報又只按能源別彙總，維持 NULL。
+   `淨發電量` 欄未入事實表；`備註` 的運轉狀態仍未建維度。
 
 ## 這些資料仍然回答不了的問題
 
