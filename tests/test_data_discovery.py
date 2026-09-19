@@ -9,7 +9,12 @@ import pytest
 
 from ingest.validate import PROJECT_ROOT
 from text2sql.entities import extract_entities
-from text2sql.router import DATA_SCOPE_QUESTIONS, classify_intent, data_scope_topic
+from text2sql.router import (
+    DATA_SCOPE_QUESTIONS,
+    classify_intent,
+    data_scope_topic,
+    nearest_scope_topic,
+)
 from text2sql.semantic_guard import META_QUESTION_PATTERNS, SemanticGuard
 
 SCOPE_QUESTIONS = ("有哪些電廠", "有哪些燃料別", "資料涵蓋到什麼時候", "總共有幾台機組")
@@ -147,3 +152,50 @@ def test_scope_questions_are_short_complete_sentences() -> None:
         for form in accepted:
             assert len(form) <= 12, form
             assert Path(form).name == form
+
+
+# ── 近似問句 ──────────────────────────────────────────────────────────
+# 「有哪些電廠」和「目前有哪些電廠」是同一個問題，但完全比對只認前者。用子序列比對
+# 接住多餘的贅字（課程 minisql/nicknames.py 的第三層），代價是它**本身並不安全** ——
+# 「大觀發電廠有哪些設備」同樣是「發電廠有哪些」的子序列。擋住它的是規則順序，不是
+# 比對本身，所以下面兩組測試必須成對存在。
+
+PADDED_SCOPE_QUESTIONS = {
+    "目前有哪些電廠": "plants",
+    "現在有哪些電廠": "plants",
+    "請問有哪些電廠呢": "plants",
+    "資料庫裡有哪些電廠": "plants",
+    "電廠總共有哪些": "plants",
+    "總共有哪些燃料別": "fuels",
+    "資料涵蓋到什麼時候為止": "period",
+    "一共有幾台機組": "units",
+}
+
+
+@pytest.mark.parametrize("question", sorted(PADDED_SCOPE_QUESTIONS))
+def test_a_padded_scope_question_is_still_a_scope_question(question: str) -> None:
+    assert classify_intent(question) == "data_scope"
+
+
+@pytest.mark.parametrize("question, topic", sorted(PADDED_SCOPE_QUESTIONS.items()))
+def test_a_padded_scope_question_keeps_the_right_topic(question: str, topic: str) -> None:
+    assert nearest_scope_topic(question) == topic
+
+
+@pytest.mark.parametrize("question, intent", sorted(QUESTIONS_THAT_WERE_STOLEN.items()))
+def test_rule_order_is_what_protects_the_stolen_questions(question: str, intent: str) -> None:
+    """近似比對排在最後一條，所以更具體的規則先接走這些題目。"""
+
+    assert classify_intent(question) == intent
+
+
+def test_the_near_match_would_steal_them_if_it_ran_first() -> None:
+    """證明上一條守的是順序，不是比對的精準度。搬動規則順序時這裡會提醒你。"""
+
+    assert nearest_scope_topic("大觀發電廠有哪些設備") == "plants"
+    assert nearest_scope_topic("碧海在資料期間的峰值日期") == "period"
+
+
+def test_an_unrelated_question_does_not_near_match() -> None:
+    assert nearest_scope_topic("2026年7月備轉容量率最低是哪一天") is None
+    assert nearest_scope_topic("容量缺口欄位有哪些") is None

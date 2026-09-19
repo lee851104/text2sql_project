@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from functools import lru_cache
 
 from align.naming import chinese_number
 from text2sql.aliases import resolve_peak_column, resolve_peak_columns, resolve_plant
 from text2sql.entities import Entities
+from text2sql.retriever import TfidfRetriever
 
 
 @dataclass(frozen=True)
@@ -74,6 +76,72 @@ def data_scope_topic(question: str) -> str | None:
         if compact in accepted:
             return topic
     return None
+
+
+def _is_subsequence(needle: str, haystack: str) -> bool:
+    """``needle`` 的每個字依序出現在 ``haystack`` 裡，不必相鄰。"""
+
+    iterator = iter(haystack)
+    return all(char in iterator for char in needle)
+
+
+def nearest_scope_topic(question: str) -> str | None:
+    """Return the scope topic whose accepted form is a subsequence of ``question``.
+
+    接住「目前有哪些電廠」這種只多了贅字的問法，不必維護一份贅字清單。
+
+    **這個比對本身不安全**：「大觀發電廠有哪些設備」同樣包含「發電廠有哪些」這個子
+    序列。安全性來自呼叫端 —— 它是 ``classify_intent`` 的**最後一條**規則，那些題目
+    在上游就被更具體的規則接走了。把它往前搬會讓離線執行率再掉一次，
+    ``tests/test_data_discovery.py`` 有成對的測試釘住這件事。
+
+    同一句話命中多個主題時回 ``None``：分不出要問什麼就不要猜。
+    """
+
+    compact = re.sub(r"\s+", "", question).strip(_SCOPE_TRAILING)
+    topics = {
+        topic
+        for topic, accepted in DATA_SCOPE_QUESTIONS.items()
+        if any(_is_subsequence(form, compact) for form in accepted)
+    }
+    return topics.pop() if len(topics) == 1 else None
+
+
+# 近似建議的相似度門檻。實測 benchmarks/ 185 題對這 21 句已接受問法的最高分：0.938
+# （大觀發電廠有哪些設備）與 0.846（碧海在資料期間的峰值日期）都由更具體的規則接走，
+# 走不到建議這一步；走得到的題目最高 0.692。門檻取 0.75 把它們全部留在線下，同時接住
+# 「燃料別有哪幾種」(0.879)、「電廠有哪幾座」(0.810) 這種真的只是換個講法的問句。
+#
+# 低於門檻一律不建議：「電廠總共有幾間」最接近的是「總共有幾台機組」(0.626)，主題是
+# 錯的。猜錯的代價是使用者以為那就是他問的，而畫面上不會有任何異狀。
+SCOPE_SUGGESTION_THRESHOLD = 0.75
+
+
+@lru_cache(maxsize=1)
+def _scope_retriever() -> TfidfRetriever:
+    return TfidfRetriever(
+        [
+            {"id": f"{topic}|{form}", "question": form}
+            for topic, accepted in sorted(DATA_SCOPE_QUESTIONS.items())
+            for form in sorted(accepted)
+        ]
+    )
+
+
+def suggest_scope_question(question: str) -> str | None:
+    """Return the accepted scope question closest to ``question``, or ``None``.
+
+    只在管線已經答不出來時才用 —— 這時候的替代選項是一句「未能通過驗證與執行」，
+    所以給得出一個夠接近的問法就是淨賺。給不出來就維持原樣，不硬湊。
+    """
+
+    compact = re.sub(r"\s+", "", question).strip(_SCOPE_TRAILING)
+    if not compact:
+        return None
+    best = _scope_retriever().retrieve(compact, top_k=1)
+    if not best or best[0].score < SCOPE_SUGGESTION_THRESHOLD:
+        return None
+    return str(best[0].example["question"])
 
 
 def classify_intent(question: str) -> str:
@@ -213,6 +281,9 @@ def classify_intent(question: str) -> str:
         return "unit_day"
     if any(word in question for word in ("最高", "最低", "最大", "最小", "峰值", "極值")):
         return "unit_extreme"
+    # 最後一條。順序就是優先權：到這裡表示沒有任何具體規則認領這句話。
+    if nearest_scope_topic(question) is not None:
+        return "data_scope"
     return "other"
 
 
@@ -624,7 +695,7 @@ def route(
             )
 
     if intent == "data_scope":
-        topic = data_scope_topic(question)
+        topic = data_scope_topic(question) or nearest_scope_topic(question)
         if topic == "plants":
             return RoutedQuery(
                 intent,
