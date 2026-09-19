@@ -141,6 +141,7 @@ class AdminPrincipal:
     expires_at: datetime
     using_default_credentials: bool
     plant_id: int | None = None
+    can_review: bool = False
 
     @property
     def sees_every_plant(self) -> bool:
@@ -154,6 +155,7 @@ class AdminPrincipal:
             "expires_at": self.expires_at.isoformat(),
             "using_default_credentials": self.using_default_credentials,
             "plant_id": self.plant_id,
+            "can_review": self.can_review,
         }
 
 
@@ -179,6 +181,7 @@ class _StoredSession:
     expires_monotonic: float
     csrf_digest: bytes = field(repr=False)
     plant_id: int | None = None
+    can_review: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -190,6 +193,7 @@ class _StoredAccount:
     salt: bytes = field(repr=False)
     digest: bytes = field(repr=False)
     plant_id: int | None = None
+    can_review: bool = False
 
 
 class AdminAuthManager:
@@ -271,6 +275,7 @@ class AdminAuthManager:
                     salt=salt,
                     digest=self._derive_password(password or "", salt, self._pbkdf2_iterations),
                     plant_id=None,
+                    can_review=True,
                 )
             }
         else:
@@ -283,6 +288,7 @@ class AdminAuthManager:
                     salt=salt,
                     digest=digest,
                     plant_id=account.plant_id,
+                    can_review=account.can_review,
                 )
         self._dummy_password_salt = secrets.token_bytes(16)
         self._dummy_password_digest = self._derive_password(
@@ -485,6 +491,7 @@ class AdminAuthManager:
             expires_monotonic=now + self.session_ttl_seconds,
             csrf_digest=self._digest_text(csrf_token),
             plant_id=account.plant_id,
+            can_review=account.can_review,
         )
         self._sessions[token_digest] = stored
         principal = self._principal(stored)
@@ -535,6 +542,7 @@ class AdminAuthManager:
             expires_at=session.expires_at,
             using_default_credentials=self.using_default_credentials,
             plant_id=session.plant_id,
+            can_review=session.can_review,
         )
 
     def _lookup_session(self, token: str, now: float) -> _StoredSession:

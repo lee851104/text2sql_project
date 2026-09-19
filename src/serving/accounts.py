@@ -44,6 +44,7 @@ class Account:
     password_hash: str = field(repr=False)
     plant_id: int | None
     expected_plant_name: str | None = None
+    can_review: bool = False
 
     @property
     def sees_every_plant(self) -> bool:
@@ -140,7 +141,15 @@ def parse_roster(payload: object) -> tuple[Account, ...]:
         ):
             raise AccountRosterError(f"帳號「{username}」的 plant_name 必須是非空字串。")
 
+        can_review = entry.get("can_review", False)
+        if not isinstance(can_review, bool):
+            raise AccountRosterError(f"帳號「{username}」的 can_review 必須是 true 或 false。")
+
         plant_id = _scope_of(entry, username)
+        if can_review and plant_id is not None:
+            raise AccountRosterError(
+                f"帳號「{username}」綁定了電廠，不能有審核權；審核是全廠範圍的職責。"
+            )
         if plant_id is None and expected_name is not None:
             raise AccountRosterError(
                 f"帳號「{username}」的 scope 是 {ALL_PLANTS}，不應該同時綁定 plant_name。"
@@ -151,7 +160,14 @@ def parse_roster(payload: object) -> tuple[Account, ...]:
                 password_hash=password_hash.strip(),
                 plant_id=plant_id,
                 expected_plant_name=expected_name.strip() if expected_name else None,
+                can_review=can_review,
             )
+        )
+    if not any(account.can_review for account in accounts):
+        # 沒有人能核准時，變更會一路卡在 pending_review，而且要等到有人按下核准才
+        # 發現。名冊載入就失敗，比執行時才爆好。
+        raise AccountRosterError(
+            "名冊至少需要一個 can_review: true 的帳號，否則沒有任何變更能發布。"
         )
     return tuple(accounts)
 
@@ -274,6 +290,8 @@ def render_roster(
         lines.append("")
         for account in accounts:
             lines.append(f"- {account.username}")
+            if account.can_review:
+                lines.append("    審核：可核准變更與語料")
             if account.sees_every_plant:
                 lines.append("    範圍：全部電廠")
             else:
@@ -283,8 +301,12 @@ def render_roster(
 
     lines.append("")
     problems = 0
+    reviewers = 0
     for binding in describe_bindings(accounts, plant_names):
         lines.append(f"- {binding.account.username}")
+        if binding.account.can_review:
+            reviewers += 1
+            lines.append("    審核：可核准變更與語料")
         if binding.account.sees_every_plant:
             lines.append("    範圍：全部電廠")
             continue
@@ -299,6 +321,10 @@ def render_roster(
             lines.append(f"    綁定：✗ {binding.problem}")
 
     lines.append("")
+    lines.append(f"可審核帳號：{reviewers}")
+    if reviewers < 2:
+        # 唯一審核者自己不能提案（四眼會擋），一旦他需要提案就卡死；請假也沒人能發布。
+        lines.append("　※ 只有一個審核者時，那個帳號一旦提案就沒有人能核准。建議至少兩個。")
     if problems:
         lines.append(f"有 {problems} 個帳號的綁定對不上資料庫；服務會在解析時拒絕這些帳號。")
     else:

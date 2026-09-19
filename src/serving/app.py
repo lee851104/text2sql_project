@@ -204,11 +204,29 @@ def _require_manage_mutation(request: Request) -> AdminPrincipal:
     return _require_all_plants(_require_admin_mutation(request))
 
 
+def _require_reviewer(request: Request) -> AdminPrincipal:
+    """Approving is a capability, not a side effect of being able to manage data.
+
+    沒有這一道的話，任何 `scope: all` 帳號一建立就默默取得發布權 —— 權限預設開啟，
+    與這個系統其他地方的 fail-closed 相反。`can_review` 預設 false，要明寫才有。
+    """
+
+    principal = _require_manage_mutation(request)
+    if not principal.can_review:
+        raise HTTPException(
+            status_code=403,
+            detail="這個帳號沒有審核權；請由名冊上 can_review 的帳號審核。",
+            headers={"Cache-Control": "no-store", "Pragma": "no-cache"},
+        )
+    return principal
+
+
 # Admin* 只驗身分，供登入與登出使用；Manage* 另外要求全廠範圍。
 AdminRead = Annotated[AdminPrincipal, Depends(_require_admin)]
 AdminMutation = Annotated[AdminPrincipal, Depends(_require_admin_mutation)]
 ManageRead = Annotated[AdminPrincipal, Depends(_require_manage_read)]
 ManageMutation = Annotated[AdminPrincipal, Depends(_require_manage_mutation)]
+ReviewMutation = Annotated[AdminPrincipal, Depends(_require_reviewer)]
 
 
 class QueryRequest(BaseModel):
@@ -845,7 +863,7 @@ def create_app(
     def review_corpus_entry(
         candidate_id: str,
         payload: CorpusReviewRequest,
-        principal: ManageMutation,
+        principal: ReviewMutation,
     ) -> dict[str, object]:
         service = current_runtime()
         learning = required_learning(service)
@@ -1007,7 +1025,7 @@ def create_app(
     def review_data_change(
         change_id: str,
         payload: DataChangeReviewRequest,
-        principal: ManageMutation,
+        principal: ReviewMutation,
     ) -> dict[str, object]:
         try:
             change = required_data_manager().review(
