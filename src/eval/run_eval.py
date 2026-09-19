@@ -13,7 +13,7 @@ from eval.metrics import QueryResult, accuracy, grouped_accuracy, result_match
 from ingest.validate import PROJECT_ROOT
 from text2sql.corpus import load_corpus
 from text2sql.db import ReadOnlySQLite
-from text2sql.entities import extract_entities
+from text2sql.entities import Entities, extract_entities
 from text2sql.retriever import TfidfRetriever
 from text2sql.router import classify_intent, route
 from text2sql.semantic_guard import SemanticGuard
@@ -50,6 +50,14 @@ def _intent_metrics(benchmark_dir: Path) -> dict[str, Any]:
         outcomes = [classify_intent(item["question"]) == item["intent"] for item in items]
         result[name] = accuracy(outcomes)
     return result
+
+
+# 端到端基準線。守門判斷是 45/45，但使用者實際看得到的只有 36/45 —— 差額全是 disclose：
+# 它的結論只是掛在成功答案上的附註，而離線 router 沒有規則接「電廠總出力」「容量缺口」
+# 這類問法，答案送不出去，揭露就跟著消失。
+#
+# 這條門檻擋的是「再往下掉」，不是宣稱 80% 夠好。補上離線涵蓋之後要把這個數字一起調高。
+TRAP_END_TO_END_BASELINE = 36 / 45
 
 
 def _execution_metrics(
@@ -105,11 +113,50 @@ def _execution_metrics(
     return metrics, outcomes
 
 
+def _answer_reaches_user(
+    question: str,
+    entities: Entities,
+    *,
+    executor: ReadOnlySQLite,
+    sql_guard: SqlGuard,
+    peak_columns: set[str],
+    plants: set[str],
+    data_range: tuple[str, str],
+) -> tuple[bool, str]:
+    """走一次離線路徑，回報答案送不送得出去。
+
+    refuse／clarify 的結論就是回應本身，不必走到這裡。disclose 不同 —— 它是掛在成功
+    答案上的附註，所以答案產不出來，揭露也就沒有人看得到。
+    """
+
+    candidate = route(
+        question,
+        entities,
+        peak_columns=peak_columns,
+        plants=plants,
+        data_range=data_range,
+    )
+    if not candidate.sql:
+        return False, "NO_OFFLINE_CANDIDATE"
+    guard_result = sql_guard.validate(candidate.sql, candidate.params)
+    if not guard_result.allowed:
+        return False, guard_result.code
+    try:
+        _query_result(executor, candidate.sql, candidate.params)
+    except Exception as error:  # 執行層的例外照樣代表使用者拿不到答案
+        return False, f"EXECUTION_ERROR:{type(error).__name__}"
+    return True, "OK"
+
+
 def _safety_metrics(
     benchmark_dir: Path,
     semantic_guard: SemanticGuard,
+    executor: ReadOnlySQLite,
     *,
     reference_date: date,
+    data_range: tuple[str, str],
+    peak_columns: set[str],
+    plants: set[str],
 ) -> dict[str, Any]:
     sql_guard = SqlGuard()
     attacks = _load(benchmark_dir / "attack_questions.json")
@@ -118,19 +165,53 @@ def _safety_metrics(
     traps = _load(benchmark_dir / "trap_questions.json")
     trap_outcomes = []
     severity_outcomes: dict[str, list[bool]] = {}
+    reached_outcomes = []
+    reached_by_severity: dict[str, list[bool]] = {}
+    unreachable: list[dict[str, str]] = []
     for item in traps:
         entities = extract_entities(item["question"], reference_date=reference_date)
         decision = semantic_guard.check_question(item["question"], entities)
-        passed = (decision.code, decision.severity) == (
-            item["expect"]["code"],
-            item["expect"]["severity"],
-        )
+        severity = item["expect"]["severity"]
+        passed = (decision.code, decision.severity) == (item["expect"]["code"], severity)
         trap_outcomes.append(passed)
-        severity_outcomes.setdefault(item["expect"]["severity"], []).append(passed)
+        severity_outcomes.setdefault(severity, []).append(passed)
+
+        # 守門判斷對，不代表使用者看得到。refuse／clarify 一判就短路回傳，結論就是回應；
+        # disclose 得等答案真的送出去，附註才跟著到。
+        if severity in {"refuse", "clarify"}:
+            reached, outcome = passed, decision.code
+        else:
+            delivered, outcome = _answer_reaches_user(
+                item["question"],
+                entities,
+                executor=executor,
+                sql_guard=sql_guard,
+                peak_columns=peak_columns,
+                plants=plants,
+                data_range=data_range,
+            )
+            reached = passed and delivered
+        reached_outcomes.append(reached)
+        reached_by_severity.setdefault(severity, []).append(reached)
+        if not reached:
+            unreachable.append(
+                {
+                    "question": item["question"],
+                    "code": item["expect"]["code"],
+                    "severity": severity,
+                    "outcome": outcome,
+                }
+            )
+
     trap_metrics = accuracy(trap_outcomes)
     trap_metrics["by_severity"] = {
         severity: accuracy(values) for severity, values in sorted(severity_outcomes.items())
     }
+    trap_metrics["end_to_end"] = accuracy(reached_outcomes)
+    trap_metrics["end_to_end"]["by_severity"] = {
+        severity: accuracy(values) for severity, values in sorted(reached_by_severity.items())
+    }
+    trap_metrics["end_to_end"]["unreachable"] = unreachable
 
     false_positives = []
     for question in SEMANTIC_NEGATIVE_CONTROLS:
@@ -222,7 +303,11 @@ def run_evaluation(
     safety = _safety_metrics(
         benchmark_dir,
         semantic_guard,
+        executor,
         reference_date=reference_date,
+        data_range=data_range,
+        peak_columns=peak_columns,
+        plants=plants,
     )
     eval_items = _load(benchmark_dir / "eval_questions.json")
     try:
@@ -252,6 +337,10 @@ def run_evaluation(
         >= 0.60,
         "attack_blocking_100pct": safety["sql_attack_blocking"]["accuracy"] == 1.0,
         "semantic_traps_at_least_95pct": safety["semantic_traps"]["accuracy"] >= 0.95,
+        "semantic_traps_end_to_end_no_regression": safety["semantic_traps"]["end_to_end"][
+            "accuracy"
+        ]
+        >= TRAP_END_TO_END_BASELINE,
         "semantic_false_positive_at_most_5pct": safety["semantic_false_positives"]["rate"] <= 0.05,
     }
     report["status"] = "pass" if all(report["acceptance"].values()) else "fail"
@@ -332,7 +421,8 @@ def main(argv: list[str] | None = None) -> int:
     print(
         f"離線評測 {report['status']}：意圖 {report['intent']['golden']['accuracy']:.1%}，"
         f"執行 {report['execution']['accuracy']:.1%}，"
-        f"語意陷阱 {report['safety']['semantic_traps']['accuracy']:.1%}。"
+        f"語意陷阱 {report['safety']['semantic_traps']['accuracy']:.1%}"
+        f"（端到端 {report['safety']['semantic_traps']['end_to_end']['accuracy']:.1%}）。"
     )
     return int(report["status"] != "pass")
 

@@ -2,6 +2,34 @@
 
 > 這份檔案在每個可驗證、可回退的儲存點更新。回退前需保留使用者原有的未提交變更。
 
+## CP-045 — 陷阱題指標拆成「守門判斷」與「端到端」
+
+- 時間：2026-09-20 01:47 +08:00
+- 狀態：已完成
+- 起點：使用者問第一節那句話是不是指「會反問」。查證時順手發現題庫的 `台中發電廠完整總出力` 從 CLI 問會回 `GENERATION_FAILED`，但離線評測報告說陷阱題 45/45 全過。
+- **查證結果**：`run_eval.py` 的 trap 迴圈直接呼叫 `semantic_guard.check_question()`，**完全沒有經過管線**。把 45 題全部跑過真實管線比對後：
+
+  | 嚴重度 | 端到端 | 原報告 |
+  |---|---|---|
+  | refuse | 20/20 | 20/20 |
+  | clarify | 10/10 | 10/10 |
+  | **disclose** | **6/15** | 15/15 |
+  | 總計 | **36/45（80%）** | 45/45（100%）|
+
+- **為什麼剛好是 disclose 破功**（結構問題，不是巧合）：`refuse`／`clarify` 一判就短路回傳，守門的結論**就是**回應本身，驗守門等於驗結果；`disclose` 的結論只是掛在成功答案上的附註，SQL 產不出來，附註就跟著消失。
+- 那 9 題全部是 `NO_OFFLINE_CANDIDATE` —— 守門判斷是對的，是離線 router 沒有規則接「電廠總出力」「容量缺口」這類問法。**揭露機制本身沒壞**（另外 6 題正常送達）。線上模式的 LLM 可能接得住，但無 API key，未測，不宣稱。
+- 問題在指標，不在功能：報告的 100% 誇大了離線模式的實際表現，而且**驗不出退步** —— 哪天有人動了 router 讓更多 disclose 題產不出 SQL，`make eval` 不會紅。這與 `coverage.yaml`「無法驗證的說明會悄悄過期」是同一種病。
+- 處理：
+  - `_answer_reaches_user()` 走一次離線路徑（route → SqlGuard → 執行），回報答案送不送得出去。`refuse`／`clarify` 不必走，它們的結論就是回應。
+  - `semantic_traps.end_to_end` 新增 `accuracy`／`by_severity`／`unreachable`。**`unreachable` 逐題列出問句、期望代碼與實際結果**，不讓 9 題躲在一個比率後面。
+  - 驗收新增 `semantic_traps_end_to_end_no_regression`，門檻 `TRAP_END_TO_END_BASELINE = 36/45`。**這條擋的是再往下掉，不是宣稱 80% 夠好**；註解寫明補上離線涵蓋後要一併調高。
+  - 摘要列印改成「語意陷阱 100.0%（端到端 80.0%）」，讓誠實的那個數字出現在第一眼看得到的地方。
+- **刻意不做**：沒有順手補那 9 題的 router 規則。讓數字說實話與決定要不要補涵蓋是兩件事，混在一起做就看不出指標改動本身有沒有效。
+- 新增測試（1 筆，`tests/test_eval.py`）：`refuse`／`clarify` 的兩個數字必須永遠一致（不一致代表它們也開始走到產生 SQL 那段）；`unreachable` 每筆都要有問句、代碼、嚴重度與實際結果；**傳達不到的只能是 disclose**；驗收條件必須存在。
+- 文件：`docs/EVALUATION.md` 新增「陷阱題報兩個數字」一節，說明兩者為何不等價與目前差額。
+- 驗收：`ruff format --check .`、`ruff check .` 通過；`pytest -q` **421 passed, 1 skipped**（CP-044 後為 420，新增 1 筆）；`make eval` 仍 pass，六項驗收條件全 True。
+- 回退方式：回退 `feat: report what the user actually sees for trap questions` 這個 commit。回退後端到端那 9 題回到隱形。
+
 ## CP-044 — 第一節換成更好懂的例子
 
 - 時間：2026-09-20 01:18 +08:00
