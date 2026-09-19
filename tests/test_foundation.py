@@ -19,6 +19,7 @@ def test_required_configuration_files_are_valid_yaml() -> None:
         "retriever.yaml",
         "guard.yaml",
         "accounts.example.yaml",
+        "coverage.yaml",
     }
     assert {path.name for path in config_dir.glob("*.yaml")} == expected
     for path in config_dir.glob("*.yaml"):

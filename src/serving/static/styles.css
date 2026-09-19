@@ -515,3 +515,38 @@
     min-height: 44px;
   }
 }
+
+/* 資料涵蓋：可以回答 / 目前答不出 */
+.coverage-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: 1.25rem;
+}
+
+.coverage-columns h4 {
+  margin: 0 0 0.5rem;
+  font-size: 0.95rem;
+}
+
+.coverage-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.coverage-list li {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.coverage-list strong {
+  font-size: 0.92rem;
+}
+
+.coverage-list span {
+  font-size: 0.85rem;
+  opacity: 0.8;
+  line-height: 1.5;
+}

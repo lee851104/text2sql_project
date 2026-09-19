@@ -164,7 +164,21 @@
           </div>
 
           <div class="dashboard-grid">
-            <section class="surface span-two" aria-labelledby="analysisCatalogTitle">
+                          <section class="surface coverage-card" aria-labelledby="coverageTitle">
+                <div class="content-heading"><div><p class="eyebrow">DATA COVERAGE</p><h3 id="coverageTitle">可以回答什麼，答不出什麼</h3></div><p id="coverageFacts">讀取中…</p></div>
+                <div class="coverage-columns">
+                  <div>
+                    <h4>可以回答</h4>
+                    <ul class="coverage-list" id="coverageAnswerable"><li>讀取中…</li></ul>
+                  </div>
+                  <div>
+                    <h4>目前答不出</h4>
+                    <ul class="coverage-list" id="coverageLimitations"><li>讀取中…</li></ul>
+                  </div>
+                </div>
+                <p class="training-policy" id="coveragePitfalls" hidden></p>
+              </section>
+              <section class="surface span-two" aria-labelledby="analysisCatalogTitle">
               <div class="content-heading"><div><p class="eyebrow">ANALYSIS CATALOG</p><h3 id="analysisCatalogTitle">分析主題</h3></div><p>選擇後會帶回查詢中心執行。</p></div>
               <div class="catalog-grid">
                 <button class="catalog-card" type="button" data-question="2026年7月每日備轉容量率"><span class="catalog-mark blue" aria-hidden="true">01</span><span><strong>備轉容量趨勢</strong><small>依日期比較供電餘裕與最低點</small></span><span aria-hidden="true">→</span></button>
