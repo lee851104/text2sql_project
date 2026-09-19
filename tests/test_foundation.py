@@ -21,7 +21,15 @@ def test_required_configuration_files_are_valid_yaml() -> None:
         "accounts.example.yaml",
         "coverage.yaml",
     }
-    assert {path.name for path in config_dir.glob("*.yaml")} == expected
+    # 名冊是每台機器自己的檔案（不進版控），存在與否都不該影響這個清單檢查。
+    local_only = {"accounts.yaml"}
+
+    present = {path.name for path in config_dir.glob("*.yaml")}
+
+    assert expected <= present, f"缺少設定檔：{sorted(expected - present)}"
+    assert present - expected <= local_only, (
+        f"configs/ 出現未預期的檔案：{sorted(present - expected - local_only)}"
+    )
     for path in config_dir.glob("*.yaml"):
         assert yaml.safe_load(path.read_text(encoding="utf-8")) is not None
 
