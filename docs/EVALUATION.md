@@ -3,8 +3,8 @@
 `uv run python -m eval.run_eval` 在固定 SQLite 快照上執行四份版控題庫，不需要 API key；已安裝 `make` 的環境也可用 `make eval` 捷徑。評測會產生：
 
 - `reports/eval_latest.json`：當次完整指標、驗收條件、失敗清單與對照實驗。
-- `reports/eval_history.jsonl`：只追加的歷史摘要，用於追蹤語料或規則更新是否退步。
-- `reports/figures/eval_summary.svg`：意圖、執行、語意與 SQL 攻擊防護的簡表。
+- `reports/eval_history.jsonl`：只追加的歷史摘要，用於追蹤語料或規則更新是否退步。陷阱題記 `semantic_trap_accuracy`（守門判斷）與 `semantic_trap_end_to_end`（使用者實際看得到）兩欄。
+- `reports/figures/eval_summary.svg`：意圖、執行、語意守門、語意端到端與 SQL 攻擊防護五條簡表。
 
 ## 指標定義
 
