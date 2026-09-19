@@ -12,6 +12,19 @@
 
 語意安全同時報告 45 題陷阱命中率與 20 個合法邊界反例的誤攔率。SQL 安全守門必須攔截全部 15 種攻擊。
 
+### 陷阱題報兩個數字
+
+`semantic_traps.accuracy` 只驗 `check_question()` 的判斷是否正確；`semantic_traps.end_to_end` 再走一次離線路徑，驗**使用者實際看不看得到那個結論**。
+
+兩者不等價，而且分歧集中在一種嚴重度：
+
+- `refuse`／`clarify` 一判就短路回傳，守門的結論**就是**回應本身，所以兩個數字必然一致。
+- `disclose` 不是。它只是掛在成功答案上的附註 —— 答案產不出來，揭露就跟著消失，使用者看到的是 `GENERATION_FAILED`。
+
+目前守門判斷 45/45，端到端 36/45；差額 9 題全是 `disclose`，全部卡在 `NO_OFFLINE_CANDIDATE`（離線 router 沒有規則接「電廠總出力」「容量缺口」這類問法）。清單在 `end_to_end.unreachable`，逐題列出問句、期望代碼與實際結果。
+
+只報前者的話，那 15 題 `disclose` 端到端全滅，指標仍然是 100%，而且驗不出退步。驗收條件 `semantic_traps_end_to_end_no_regression` 以 `TRAP_END_TO_END_BASELINE` 擋住往下掉 —— 那是目前的量測底線，不是「80% 夠好」的宣稱；補上離線涵蓋後要一併調高。
+
 ## 離線結果的界線
 
 目前執行準確率是 `offline_deterministic_rules` 基準：衡量規則 handler 可重現的覆蓋與結果正確性，不是線上 GPT 模型的準確率。RAG ablation 只報檢索器 top-1 意圖；關閉規則路由的線上 LLM 對照在沒有 API key 時標記為 `not_run_without_online_llm`，不會使用標準答案假裝模型輸出。

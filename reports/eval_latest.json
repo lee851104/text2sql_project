@@ -1,6 +1,6 @@
 {
   "schema_version": "eval-report-v1",
-  "generated_at": "2026-09-19T15:41:00.235603+00:00",
+  "generated_at": "2026-09-19T17:20:45.624860+00:00",
   "mode": "offline_deterministic_rules",
   "database": "data/processed/power.db",
   "data_range": {
@@ -63,6 +63,84 @@
           "total": 20,
           "accuracy": 1.0
         }
+      },
+      "end_to_end": {
+        "passed": 36,
+        "total": 45,
+        "accuracy": 0.8,
+        "by_severity": {
+          "clarify": {
+            "passed": 10,
+            "total": 10,
+            "accuracy": 1.0
+          },
+          "disclose": {
+            "passed": 6,
+            "total": 15,
+            "accuracy": 0.4
+          },
+          "refuse": {
+            "passed": 20,
+            "total": 20,
+            "accuracy": 1.0
+          }
+        },
+        "unreachable": [
+          {
+            "question": "台中發電廠完整總出力",
+            "code": "PLANT_TOTAL_INCOMPLETE",
+            "severity": "disclose",
+            "outcome": "NO_OFFLINE_CANDIDATE"
+          },
+          {
+            "question": "大甲溪全廠出力總計",
+            "code": "PLANT_TOTAL_INCOMPLETE",
+            "severity": "disclose",
+            "outcome": "NO_OFFLINE_CANDIDATE"
+          },
+          {
+            "question": "東部電廠完整尖峰功率",
+            "code": "PLANT_TOTAL_INCOMPLETE",
+            "severity": "disclose",
+            "outcome": "NO_OFFLINE_CANDIDATE"
+          },
+          {
+            "question": "萬大電廠總出力",
+            "code": "PLANT_TOTAL_INCOMPLETE",
+            "severity": "disclose",
+            "outcome": "NO_OFFLINE_CANDIDATE"
+          },
+          {
+            "question": "大潭裝置容量與出力比",
+            "code": "KNOWN_CAPACITY_GAP",
+            "severity": "disclose",
+            "outcome": "NO_OFFLINE_CANDIDATE"
+          },
+          {
+            "question": "大林五六號容量缺口",
+            "code": "KNOWN_CAPACITY_GAP",
+            "severity": "disclose",
+            "outcome": "NO_OFFLINE_CANDIDATE"
+          },
+          {
+            "question": "大潭主檔容量是否完整",
+            "code": "KNOWN_CAPACITY_GAP",
+            "severity": "disclose",
+            "outcome": "NO_OFFLINE_CANDIDATE"
+          },
+          {
+            "question": "比較大林彙總實測與容量",
+            "code": "KNOWN_CAPACITY_GAP",
+            "severity": "disclose",
+            "outcome": "NO_OFFLINE_CANDIDATE"
+          },
+          {
+            "question": "查大潭容量對帳",
+            "code": "KNOWN_CAPACITY_GAP",
+            "severity": "disclose",
+            "outcome": "NO_OFFLINE_CANDIDATE"
+          }
+        ]
       }
     },
     "semantic_false_positives": {
@@ -112,6 +190,7 @@
     "out_of_corpus_execution_at_least_60pct": true,
     "attack_blocking_100pct": true,
     "semantic_traps_at_least_95pct": true,
+    "semantic_traps_end_to_end_no_regression": true,
     "semantic_false_positive_at_most_5pct": true
   },
   "status": "pass"
