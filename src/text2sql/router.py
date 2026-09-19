@@ -17,10 +17,71 @@ class RoutedQuery:
     params: tuple[object, ...] = ()
 
 
+# 入門型「資料裡有什麼」問句。使用者第一次打開時最先想知道的就是邊界，但這類問句
+# 沒有日期、電廠或燃料實體，會掉進 other 然後產不出 SQL。
+#
+# 這裡用**完全比對**而不是包含比對。實測包含比對會偷走既有題目：「大觀發電廠有哪些
+# 設備」命中「電廠有哪些」、「碧海在資料期間的峰值日期」命中「資料期間」、「資料涵蓋
+# 的最早與最晚日期」命中「資料涵蓋」，離線執行率因此從 100% 掉到 95%。
+#
+# 代價是換個講法就不會命中，會掉回 other —— 但那與現況相同，不是退步；長尾講法本來
+# 就該由線上模式的 LLM 接手（語料已收錄這四句）。
+DATA_SCOPE_QUESTIONS: dict[str, frozenset[str]] = {
+    "plants": frozenset(
+        {
+            "有哪些電廠",
+            "有哪些發電廠",
+            "電廠有哪些",
+            "發電廠有哪些",
+            "電廠清單",
+            "列出所有電廠",
+        }
+    ),
+    "fuels": frozenset(
+        {
+            "有哪些燃料",
+            "有哪些燃料別",
+            "有哪些燃料種類",
+            "燃料有哪些",
+            "燃料別有哪些",
+            "燃料種類有哪些",
+        }
+    ),
+    "period": frozenset(
+        {
+            "資料涵蓋到什麼時候",
+            "資料到什麼時候",
+            "資料期間",
+            "資料範圍",
+            "資料涵蓋期間",
+        }
+    ),
+    "units": frozenset({"總共有幾台機組", "共有幾台機組", "有幾台機組", "機組總數"}),
+}
+
+_SCOPE_TRAILING = "？?。.！!、，,"
+
+
+def data_scope_topic(question: str) -> str | None:
+    """Return which scope question this is, or None when it is not one.
+
+    只認完整的問句。任何多餘的修飾（電廠名、日期、其他欄位）都表示使用者要問的是別的
+    東西，應該交給既有意圖處理。
+    """
+
+    compact = re.sub(r"\s+", "", question).strip(_SCOPE_TRAILING)
+    for topic, accepted in DATA_SCOPE_QUESTIONS.items():
+        if compact in accepted:
+            return topic
+    return None
+
+
 def classify_intent(question: str) -> str:
     question = re.sub(r"\s+", "", question)
     if "成本" in question:
         return "generation_cost"
+    if data_scope_topic(question) is not None:
+        return "data_scope"
     # 再生能源只有 v_re_generation 有電量資料；每日尖峰資料的風光欄位是瞬時出力，
     # 因此只在問句明講「發電量／度數」或「自建」時才走這條路，不搶尖峰出力的題目。
     if _renewable_words(question):
@@ -560,6 +621,29 @@ def route(
                 'SELECT "日期", "機組欄位", "尖峰出力_萬瓩" FROM v_peak '
                 f'{prefix}{clause} ORDER BY "日期", "機組欄位" LIMIT 200',
                 params,
+            )
+
+    if intent == "data_scope":
+        topic = data_scope_topic(question)
+        if topic == "plants":
+            return RoutedQuery(
+                intent,
+                'SELECT DISTINCT "電廠" FROM v_unit ORDER BY "電廠" LIMIT 200',
+            )
+        if topic == "fuels":
+            return RoutedQuery(
+                intent,
+                'SELECT DISTINCT "燃料" FROM v_unit ORDER BY "燃料" LIMIT 200',
+            )
+        if topic == "period":
+            return RoutedQuery(
+                intent,
+                'SELECT MIN("日期") AS "最早", MAX("日期") AS "最晚" FROM v_system LIMIT 1',
+            )
+        if topic == "units":
+            return RoutedQuery(
+                intent,
+                'SELECT COUNT(*) AS "機組數" FROM v_unit LIMIT 1',
             )
 
     if intent == "other":
