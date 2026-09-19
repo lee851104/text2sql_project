@@ -31,6 +31,12 @@ from text2sql.llm import GeneratedQuery
 from text2sql.pipeline import PipelineResponse, Text2SQLPipeline
 
 CANDIDATE_SCHEMA = "corpus-candidates-v1"
+
+
+class CorpusSelfApprovalError(ValueError):
+    """The account whose query produced a candidate may not promote it itself."""
+
+
 EVENT_SCHEMA = "corpus-events-v1"
 WORKSPACE_SCHEMA = "corpus-workspace-v1"
 DEFAULT_WORKSPACE_NAME = ".powerquery-learning"
@@ -194,9 +200,11 @@ class CorpusLearningService:
         schema_version: str = "semantic-v1",
         data_manifest_version: str | None = None,
         maximum_retrieval_drop: float = 0.0,
+        allow_self_approval: bool = False,
     ):
         if not 0 <= maximum_retrieval_drop <= 1:
             raise ValueError("maximum_retrieval_drop 必須介於 0 與 1。")
+        self.allow_self_approval = bool(allow_self_approval)
         self.database = Path(database).resolve()
         self.canonical_corpus_path = Path(canonical_corpus_path).resolve()
         self.workspace = (workspace or self.database.parent / DEFAULT_WORKSPACE_NAME).resolve()
@@ -552,6 +560,7 @@ class CorpusLearningService:
         *,
         pipeline: Text2SQLPipeline | None = None,
         data_provenance: Mapping[str, Any] | None = None,
+        proposed_by: str | None = None,
     ) -> dict[str, Any]:
         """Record a query outcome without propagating learning failures to callers."""
         try:
@@ -581,6 +590,7 @@ class CorpusLearningService:
                 tables=tuple(str(table) for table in data.get("tables", ())),
                 data_provenance=data_provenance,
                 pipeline=pipeline,
+                proposed_by=proposed_by,
             )
         except Exception as error:  # Learning is explicitly fail-open for query delivery.
             try:
@@ -612,8 +622,14 @@ class CorpusLearningService:
         data_provenance: Mapping[str, Any] | None = None,
         pipeline: Text2SQLPipeline | None = None,
         candidate_id: str | None = None,
+        proposed_by: str | None = None,
     ) -> dict[str, Any]:
-        """Submit a successful result for validation and mandatory human review."""
+        """Submit a successful result for validation and mandatory human review.
+
+        ``proposed_by`` 是讓這筆候選產生的登入帳號（匿名查詢為 ``None``）。候選本身是
+        系統從成功查詢抓下來的，沒有「提案人」欄位可比對，所以要管制「自己讓它進來、
+        自己核准」就得先把這件事記下來。
+        """
         with self._workspace_transaction():
             active_pipeline = self._active_pipeline(pipeline)
             clean_question = deidentify(question).strip()
@@ -693,6 +709,7 @@ class CorpusLearningService:
                 "params": list(clean_params),
                 "intent": clean_intent,
                 "source": clean_source,
+                "proposed_by": deidentify(proposed_by).strip() if proposed_by else None,
                 "revision_of": revision_of,
                 "created_at": timestamp,
                 "updated_at": timestamp,
@@ -1004,6 +1021,17 @@ class CorpusLearningService:
                 raise KeyError(candidate_id)
             if entry["status"] != "pending_review":
                 raise ValueError("candidate_not_pending_review")
+            proposed_by = entry.get("proposed_by")
+            if approve and proposed_by and proposed_by == reviewer and not self.allow_self_approval:
+                # 匿名查詢記為 None：那不是一個身分，兩個不同的訪客都會長一樣，拿來
+                # 比對只會擋到不相干的人，也擋不住真的想繞的人（登出、問、再登入）。
+                # 因此這條規則只在「提出的人有帳號」時成立，這是它已知的邊界。
+                self._append_event(
+                    "candidate_self_approval_refused",
+                    candidate_id=candidate_id,
+                    reviewer=reviewer,
+                )
+                raise CorpusSelfApprovalError("這筆候選由你自己的查詢產生，請由另一個帳號審核。")
             entry["approved_by"] = reviewer
             entry["review_note"] = note
             entry["updated_at"] = _now()

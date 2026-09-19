@@ -2,6 +2,32 @@
 
 > 這份檔案在每個可驗證、可回退的儲存點更新。回退前需保留使用者原有的未提交變更。
 
+## CP-029 — 代理後面的來源判斷，與語料晉升的職責分離
+
+- 時間：2026-09-19 17:26 +08:00
+- 狀態：已完成
+- 範圍：清掉 CP-028 列的兩項未處理。
+
+### 一、信任代理與真實來源
+
+- 問題：`request.client.host` 在反向代理後面是代理自己。公開流量走 Tailscale Funnel → `127.0.0.1:8766`，所以**所有外部訪客在服務眼中都是 `127.0.0.1`**。後果有二：登入限速變成全域共用一桶（任何人打錯 5 次就鎖住所有管理員）；`_is_loopback_client` 會把外部訪客判成本機，使「預設帳密只准本機使用」形同虛設。後者目前沒爆，只是因為公開啟動程序會先設強帳密。
+- 處理：新增 `AdminAuthManager.client_address()`。只有當直連對端本身在 `POWERQUERY_TRUSTED_PROXIES` 裡時才讀 `X-Forwarded-For`，由右往左跳過信任代理，第一個非代理位址即為來源。**未設定信任代理時完全忽略該 header** —— 否則任何人都能自己填來源位址，一次繞過限速與 loopback 兩道。任何一段無法解析就回報來源未知（限速進 unknown 桶、loopback 判定為否），從嚴不猜。登入限速與預設帳密檢查都改用這個結果。
+- 反向驗證：把 `admin_auth.py` 還原成修正前版本（補上回傳對端位址的 `client_address` shim），7 筆新測試中 **6 筆紅**，包含「代理後的外部訪客可用預設帳密」與「共用代理的兩個訪客共用限速桶」。唯一在修正前後都綠的是「沒設信任代理時不採信 XFF」，那是迴歸護欄不是抓蟲工具。
+
+### 二、語料晉升的職責分離
+
+- 先確認結構再決定做法：語料候選由系統從成功查詢自動抓下（`source` 是 `router`／`llm`），**沒有人類提案人欄位**。直接把 CP-028 的規則搬過來是照搬，因為沒有可比對的對象。
+- 真正的缺口是實質的：任何人問一個問題讓管線成功，那個問答就成為待審語料；若這個人同時是管理員，他就能核准自己引發的語料進正式語料庫。系統原本連「是誰讓它進來的」都沒記，所以連要套規則都沒有依據。CP-027 已讓 `/api/query` 有身分，因此現在記得起來。
+- 處理：**先記錄，再管制**。候選新增 `proposed_by`（由 `/api/query` 的登入身分帶入，經同一套 `deidentify`）；`review()` 在核准且 `approved_by == proposed_by` 時擋下，丟 `CorpusSelfApprovalError`（`ValueError` 子類，API 對應 403，except 順序排在泛用 ValueError 之前），並寫入 `candidate_self_approval_refused` 事件。共用 `POWERQUERY_ALLOW_SELF_APPROVAL` 覆寫。
+- 已知邊界（刻意，不是遺漏）：匿名查詢記為 `None` 且不套此規則。匿名不是一個身分，兩個不同訪客都會長一樣，拿來比對只會擋到不相干的人，也擋不住真的想繞的人（登出、問、再登入）。這條寫進 README 與測試名稱，不留在程式碼裡讓人自己發現。
+- 相容性：`proposed_by` 缺席的舊候選取值為 `None`，規則不觸發，無需 bump `CANDIDATE_SCHEMA`。
+
+- 新增測試（13 筆）：`test_admin_auth.py` 7 筆（未設代理時忽略 XFF、僅信任對端才採信、取最右側非代理、無法解析回報未知、代理後的外部訪客不得用預設帳密、共用代理的兩訪客分屬不同限速桶、代理設定格式錯誤即拒絕）；`test_corpus_learning.py` 6 筆（記錄 proposed_by、提案帳號不得晉升、換帳號可晉升、可駁回自己的候選、匿名候選在規則外、覆寫涵蓋語料晉升）。
+- 文件：README 新增「反向代理後面的來源判斷」與語料規則差異說明；`PUBLIC_OFFLINE_SERVING.md` 新增「反向代理後面要設信任來源」；`.env.example` 補上 `POWERQUERY_TRUSTED_PROXIES`。
+- 未動公開啟動程序：是否真的能取到來源，取決於代理有沒有送 `X-Forwarded-For`。這點未實測，文件寫成「設定後仍需代理確實送出該 header 才生效」，沒有替 Tailscale 背書。
+- 驗收：`ruff format --check .`、`ruff check .` 通過；`pytest -q` **337 passed**（CP-028 後為 324，新增 13 筆，無回歸）。
+- 回退方式：回退 `feat: resolve the real client behind a proxy and extend four eyes to the corpus` 這個 commit。未設 `POWERQUERY_TRUSTED_PROXIES` 時來源判斷與回退前相同；舊語料候選沒有 `proposed_by`，規則不觸發。
+
 ## CP-028 — 四眼原則：提案人不可核准自己的變更
 
 - 時間：2026-09-19 17:02 +08:00

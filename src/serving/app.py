@@ -35,7 +35,7 @@ from serving.admin_auth import (
     InvalidCredentials,
     LoginRateLimited,
 )
-from serving.corpus_learning import CorpusLearningService
+from serving.corpus_learning import CorpusLearningService, CorpusSelfApprovalError
 from serving.data_management import (
     DATA_SLOTS,
     AuditIntegrityError,
@@ -534,6 +534,7 @@ def create_app(
                     benchmark_dir=service.root / "benchmarks",
                     pipeline=service.pipeline,
                     workspace=application.state.learning_workspace,
+                    allow_self_approval=_self_approval_allowed(),
                 )
                 application.state.learning_service = learning
                 application.state.learning_pipelines = WeakSet({service.pipeline})
@@ -631,7 +632,8 @@ def create_app(
         manager: AdminAuthManager = application.state.auth_manager
         try:
             manager.validate_login_request(request)
-            client_id = request.client.host if request.client is not None else None
+            # 限速要分到真正的來源；走信任代理時 request.client 會是代理自己。
+            client_id = manager.client_address(request)
             grant = manager.login(
                 payload.username,
                 payload.password.get_secret_value(),
@@ -830,6 +832,8 @@ def create_app(
             )
         except KeyError as error:
             raise HTTPException(status_code=404, detail="找不到指定的語料候選。") from error
+        except CorpusSelfApprovalError as error:
+            raise HTTPException(status_code=403, detail=str(error)) from error
         except ValueError as error:
             raise HTTPException(
                 status_code=409,
@@ -1193,6 +1197,7 @@ def create_app(
                     pipeline_response,
                     pipeline=service.pipeline,
                     data_provenance=provenance,
+                    proposed_by=principal.username if principal is not None else None,
                 )
                 if learning is not None
                 else {

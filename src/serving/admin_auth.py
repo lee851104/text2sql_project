@@ -41,6 +41,7 @@ ADMIN_USERNAME_ENV = "POWERQUERY_ADMIN_USERNAME"
 ADMIN_PASSWORD_ENV = "POWERQUERY_ADMIN_PASSWORD"
 SESSION_TTL_ENV = "POWERQUERY_ADMIN_SESSION_TTL_SECONDS"
 ALLOWED_HOSTS_ENV = "POWERQUERY_ADMIN_ALLOWED_HOSTS"
+TRUSTED_PROXIES_ENV = "POWERQUERY_TRUSTED_PROXIES"
 
 
 class DefaultCredentialsWarning(UserWarning):
@@ -100,6 +101,35 @@ class DefaultCredentialsRemoteAccessDenied(AdminAuthError):
 
     def __init__(self) -> None:
         super().__init__("預設管理員帳密只允許本機使用；請先以環境變數覆寫帳密。")
+
+
+_IPNetwork = ipaddress.IPv4Network | ipaddress.IPv6Network
+_IPAddress = ipaddress.IPv4Address | ipaddress.IPv6Address
+
+
+def _parse_trusted_proxies(values: Sequence[str]) -> tuple[_IPNetwork, ...]:
+    networks: list[_IPNetwork] = []
+    for value in values:
+        candidate = value.strip()
+        if not candidate:
+            continue
+        try:
+            networks.append(ipaddress.ip_network(candidate, strict=False))
+        except ValueError as error:
+            raise AdminAuthConfigurationError(
+                f"{TRUSTED_PROXIES_ENV} 的「{candidate}」不是合法的 IP 或網段。"
+            ) from error
+    return tuple(networks)
+
+
+def _parsed_address(value: str) -> _IPAddress | None:
+    candidate = value.strip().strip("[]")
+    if "%" in candidate:  # IPv6 zone identifier
+        candidate = candidate.split("%", 1)[0]
+    try:
+        return ipaddress.ip_address(candidate)
+    except ValueError:
+        return None
 
 
 @dataclass(frozen=True, slots=True)
@@ -171,6 +201,7 @@ class AdminAuthManager:
         username: str | None = None,
         password: str | None = None,
         accounts: Sequence[Account] | None = None,
+        trusted_proxies: Sequence[str] = (),
         using_default_credentials: bool = False,
         session_ttl_seconds: int = DEFAULT_SESSION_TTL_SECONDS,
         allowed_hosts: Sequence[str] = tuple(DEFAULT_ALLOWED_HOSTS),
@@ -219,6 +250,7 @@ class AdminAuthManager:
         self.using_default_credentials = using_default_credentials
         self.session_ttl_seconds = int(session_ttl_seconds)
         self.allowed_hosts = normalized_hosts
+        self.trusted_proxies = _parse_trusted_proxies(trusted_proxies)
         self.cookie_name = cookie_name
         self.csrf_header = csrf_header
         self._pbkdf2_iterations = int(pbkdf2_iterations)
@@ -303,6 +335,12 @@ class AdminAuthManager:
                 raise AdminAuthConfigurationError(f"{ALLOWED_HOSTS_ENV} 不可為空。")
             kwargs["allowed_hosts"] = hosts
 
+        raw_proxies = source.get(TRUSTED_PROXIES_ENV)
+        if raw_proxies is not None:
+            kwargs["trusted_proxies"] = tuple(
+                item.strip() for item in raw_proxies.split(",") if item.strip()
+            )
+
         return cls(
             username=username,
             password=password,
@@ -337,6 +375,12 @@ class AdminAuthManager:
             if not hosts:
                 raise AdminAuthConfigurationError(f"{ALLOWED_HOSTS_ENV} 不可為空。")
             kwargs["allowed_hosts"] = hosts
+
+        raw_proxies = source.get(TRUSTED_PROXIES_ENV)
+        if raw_proxies is not None:
+            kwargs["trusted_proxies"] = tuple(
+                item.strip() for item in raw_proxies.split(",") if item.strip()
+            )
 
         return cls(accounts=tuple(accounts), **kwargs)
 
@@ -619,6 +663,38 @@ class AdminAuthManager:
         if not hmac.compare_digest(supplied, expected):
             raise RequestOriginDenied
 
+    def _is_trusted_proxy(self, address: _IPAddress) -> bool:
+        return any(address in network for network in self.trusted_proxies)
+
+    def client_address(self, request: Request) -> str | None:
+        """Resolve the real client, honouring X-Forwarded-For only behind a trusted proxy.
+
+        直連位址就是對端位址。只有當對端本身是設定過的信任代理時，才往
+        `X-Forwarded-For` 裡找：由右往左跳過所有信任代理，第一個不是代理的位址就是
+        真正的來源。沒有設定信任代理時完全忽略這個 header —— 否則任何人都能自己填一
+        個來源位址，同時繞過登入限速與「預設帳密只准本機」這兩道。
+
+        反向代理（例如 Tailscale Funnel → 127.0.0.1）若未設定，所有外部訪客在服務眼中
+        都是同一個 loopback 位址：限速會變成全域共用一桶，loopback 判斷也會誤放。
+        """
+
+        peer = request.client.host if request.client is not None else None
+        if peer is None:
+            return None
+        peer_address = _parsed_address(peer)
+        if peer_address is None or not self._is_trusted_proxy(peer_address):
+            return peer
+        forwarded = request.headers.get("x-forwarded-for", "")
+        hops = [item.strip() for item in forwarded.split(",") if item.strip()]
+        for raw in reversed(hops):
+            address = _parsed_address(raw)
+            if address is None:
+                # 這一段無法解析就不猜來源；回報未知，讓限速與 loopback 判斷從嚴。
+                return None
+            if not self._is_trusted_proxy(address):
+                return str(address)
+        return peer
+
     @staticmethod
     def _is_loopback_client(client_host: str | None) -> bool:
         if not client_host:
@@ -635,8 +711,9 @@ class AdminAuthManager:
         """Validate login origin and forbid public defaults over the network."""
 
         self.validate_request_origin(request)
-        client_host = request.client.host if request.client is not None else None
-        if self.using_default_credentials and not self._is_loopback_client(client_host):
+        if self.using_default_credentials and not self._is_loopback_client(
+            self.client_address(request)
+        ):
             raise DefaultCredentialsRemoteAccessDenied
 
     def authenticate_request(
