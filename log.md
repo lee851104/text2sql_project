@@ -2,6 +2,29 @@
 
 > 這份檔案在每個可驗證、可回退的儲存點更新。回退前需保留使用者原有的未提交變更。
 
+## CP-025 — 發電成本資料源納入可重現下載
+
+- 時間：2026-09-19 11:02 +08:00
+- 狀態：已完成
+- 問題：`taipower_align/generation_cost.csv` 是八份原始資料中唯一不在 `ingest.fetch` 的 DATASETS 裡的一份。它沒有資源代號、沒有 `data/raw/` 副本、也沒有 checksum 紀錄，等於人工放進版控後就無從驗證是否與官方一致，也無法重抓。
+- 查到的來源：資料集 10856「台灣電力公司各種發電方式之發電成本」，識別碼 313310000K-000014，資源代號 `d018001`，官方標示每年更新。API 回報 26 筆、四個欄位，與本地檔完全相同。
+- 處理：加入 `src/ingest/fetch.py` 的 DATASETS。實際下載後與既有檔逐行比對（忽略換行符差異）**內容完全相同**，1,019 bytes，SHA-256 `73a574486ef6…`。證實人工放的那份就是官方原檔，沒有被改過。
+- 結果：八份原始資料現在全部可由 `uv run python -m ingest.fetch` 重現，並全部具備內容定址封存與 manifest 記錄。
+- 文件：README 資料來源表的發電成本列補上 data.gov.tw 連結。
+- 驗收：`uv run python -m ingest.fetch` 八份全數下載；`python -m ingest.build_db` 成功；`ruff format --check`、`ruff check` 通過；`pytest -q` **290 passed**，無回歸。
+- 回退方式：回退 `feat: fetch the generation cost dataset instead of tracking it by hand` 這個 commit。既有的 `taipower_align/generation_cost.csv` 內容不變，建庫路徑不受影響。
+
+## CP-024 — 資料血緣盤點與一處數字更正
+
+- 時間：2026-09-19 03:46 +08:00
+- 狀態：已完成（僅文件）
+- 盤點：以 8 份原始資料各一組「回溯 + 獨立查證」agent 逐一追出來源、清洗規則與產出檔案，並自行清點 `taipower_align/`（22 檔 + source_raw/）、`power.db`（18 表 6 檢視）與 `configs/`（8 個 yaml）。
+- 更正：CP-020 記載「去掉結尾『發電站』後提升至 61 個」有誤，實測為 **62 個**（場址主檔 64 個不重複站名、發電量檔 65 個、交集 62）。後續的 64 對齊與 65 覆蓋不受影響，因為那兩個數字是另外量出來的。`README.md` 與 `docs/DATA_ROADMAP.md` 已更正；CP-020 依 append-only 慣例保留原文，以本則更正。
+- 同時修正 `docs/DATA_ROADMAP.md` 的分類錯誤：原本把 `彰工風力Changgong Wind Power` 列為「需人工裁決」的四組之一，實際上 `chinese_part` 剝除結尾拉丁字母串後它自動對上，屬程式處理。真正的人工裁決只有高訓中心與龜山加壓站兩組，中屯風力則是補充檔。
+- 一致性查核：語料 `corpus/training_corpus.json` 的 6 條 DDL 與 `power.db` 實際檢視欄位逐欄比對，6/6 完全一致（v_peak 12 欄、v_re_generation 10 欄）。
+- 觀察但未處理：`re_sites.csv` 有兩筆容量是 149,999 與 99,999 瓩（台南鹽田、彰化彰濱），數字貼著整數門檻。這是案場為法規門檻刻意設計的常見做法，非資料缺陷，故不標記，但記錄備查。
+- 回退方式：回退 `docs: correct the station alignment figure and lineage notes` 這個 commit。
+
 ## CP-023 — 無機組主檔欄位的裝置容量補齊
 
 - 時間：2026-09-18 22:15 +08:00
