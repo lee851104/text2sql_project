@@ -349,22 +349,30 @@ def run_evaluation(
 
 
 def _write_svg(report: dict[str, Any], path: Path) -> None:
+    traps = report["safety"]["semantic_traps"]
+    # 守門判斷與端到端分成兩條。只畫前者的話，disclose 端到端壞掉時這張圖還是滿格 ——
+    # 那正是這兩個數字要拆開的理由，圖表沒有理由自成例外。
     values = (
         ("意圖", report["intent"]["golden"]["accuracy"]),
         ("執行", report["execution"]["accuracy"]),
-        ("語意", report["safety"]["semantic_traps"]["accuracy"]),
+        ("語意守門", traps["accuracy"]),
+        ("語意端到端", traps["end_to_end"]["accuracy"]),
         ("SQL攻擊", report["safety"]["sql_attack_blocking"]["accuracy"]),
     )
+    bar_x = 110
+    bar_width = 300
+    height = 38 + len(values) * 45 + 10
     bars = []
     for index, (label, value) in enumerate(values):
         y = 38 + index * 45
         bars.append(
             f'<text x="10" y="{y + 15}" font-size="13">{label}</text>'
-            f'<rect x="85" y="{y}" width="{value * 300:.1f}" height="22" fill="#1a5fb4"/>'
-            f'<text x="395" y="{y + 15}" font-size="13">{value:.1%}</text>'
+            f'<rect x="{bar_x}" y="{y}" width="{value * bar_width:.1f}" height="22" '
+            'fill="#1a5fb4"/>'
+            f'<text x="{bar_x + bar_width + 10}" y="{y + 15}" font-size="13">{value:.1%}</text>'
         )
     svg = (
-        '<svg xmlns="http://www.w3.org/2000/svg" width="470" height="230" role="img" '
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="480" height="{height}" role="img" '
         'aria-label="PowerQuery TW offline evaluation">'
         '<rect width="100%" height="100%" fill="white"/>'
         '<text x="10" y="22" font-size="16" font-weight="bold">Offline evaluation</text>'
@@ -390,6 +398,9 @@ def write_reports(
         "execution_accuracy": report["execution"]["accuracy"],
         "out_of_corpus_accuracy": report["execution"]["by_corpus_split"]["false"]["accuracy"],
         "semantic_trap_accuracy": report["safety"]["semantic_traps"]["accuracy"],
+        # 守門判斷對，不代表使用者看得到。少了這一欄，disclose 端到端壞掉的那一次在
+        # 歷史上會長得跟正常的一模一樣，事後就找不出是哪一次開始壞的。
+        "semantic_trap_end_to_end": report["safety"]["semantic_traps"]["end_to_end"]["accuracy"],
         "semantic_false_positive_rate": report["safety"]["semantic_false_positives"]["rate"],
     }
     with history_path.open("a", encoding="utf-8") as handle:
