@@ -2,6 +2,26 @@
 
 > 這份檔案在每個可驗證、可回退的儲存點更新。回退前需保留使用者原有的未提交變更。
 
+## CP-028 — 四眼原則：提案人不可核准自己的變更
+
+- 時間：2026-09-19 17:02 +08:00
+- 狀態：已完成
+- 問題：`stage_*` 記了 `created_by`、`review()` 記了 `reviewed_by`，但兩者從未比對。核准在 docstring 裡寫明是「發布邊界」，實際上一個帳號就能跨過去 —— 那兩個欄位記的是同一件事，精心設計的稽核鏈（checksum、atomic write、conflict 偵測）證明不了任何分工。
+- 軸的區分：資料範圍（CP-027）管「看得到什麼」，這條管「誰能讓東西上線」，是兩條不同的軸，不該混成一個等級階梯。
+- 處理：
+  - 新增 `SeparationOfDutiesError`，API 對應 **403**（不是混進既有的 409，語意不同）。
+  - `review()` 在 `approve` 且 `created_by == reviewer` 時拒絕。**駁回不受限制** —— 撤回自己的提案不會讓任何東西上線。
+  - 被擋下的自審寫入稽核鏈（`self_approval_refused`），不是靜默失敗。
+  - 單人部署覆寫 `POWERQUERY_ALLOW_SELF_APPROVAL`（預設關閉）。開啟後每一筆自審在**變更紀錄與稽核事件兩處**標上 `self_approved: true`，所以「沒有第二個人看過」不會因為設了環境變數就消失。逃生口是明寫且留痕的，不是把規則關掉。
+- 為什麼選「預設強制＋可稽核覆寫」而不是「有第二個帳號時才強制」：後者的逃生口是結構性的 —— 刪掉第二個帳號就自動恢復自審，不需要任何人明確決定，也不會留下痕跡。
+- 新增測試（5 筆，`tests/test_data_management.py`）：自審被拒且變更維持 `pending_review`、作用中版本不變；拒絕事件進稽核鏈；換一個帳號可核准且 `self_approved` 為 false；自己駁回自己允許；覆寫後仍標記 `self_approved`。
+- 改寫 `tests/test_data_management_api.py`：原本一個管理員從頭做到尾，改成 `data-uploader` 提案、`data-reviewer` 審核的兩帳號流程（用 CP-027 的名冊），並在中間斷言提案人自審回 403 且資料未上線。稽核鏈上提案與發布是兩個不同的名字，被擋下的那次也查得到。這個端到端測試現在本身就是四眼原則的證明。
+- 同步修正 `tests/test_runtime_consistency.py` 三處：原本 `actor` 與 `reviewer` 同名，改為不同名。那些測試測的是熱抽換一致性，不是授權。
+- 文件：README 新增「職責分離」小節；`PUBLIC_OFFLINE_SERVING.md` 新增「資料發布需要第二個人」（公開程序建立的是一組共用帳密，也就是一個帳號，預設無法自行發布，必須建第二個帳號或設覆寫）；`.env.example` 補上新環境變數。
+- 驗收：`ruff format --check .`、`ruff check .` 通過；`pytest -q` **324 passed**（CP-027 後為 319，新增 5 筆，無回歸）。
+- 未處理：`corpus_learning.review()` 的語料晉升也是一個發布邊界，目前未套用同一條規則；登入限速仍以 `request.client.host` 分桶，走反向代理時所有外部訪客共用一桶。
+- 回退方式：回退 `feat: require a second account to publish a data change` 這個 commit。回退後 `review()` 恢復為不比對提案人與審核人，既有變更紀錄與稽核鏈不受影響（`self_approved` 欄位只是多出來的鍵）。
+
 ## CP-027 — 帳號名冊與電廠範圍接上查詢路徑
 
 - 時間：2026-09-19 16:38 +08:00

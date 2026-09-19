@@ -44,6 +44,7 @@ from serving.data_management import (
     DataManagementNotFoundError,
     DataManagementService,
     DataManagementStateError,
+    SeparationOfDutiesError,
 )
 from serving.presentation import enrich_query_data
 from serving.query_log import QueryErrorLog
@@ -65,6 +66,7 @@ GENERIC_CONFIGURATION_ERROR = "執行環境設定無效；請檢查 configs、pr
 DATA_WORKSPACE_NAME = ".powerquery-data"
 ACCOUNT_ROSTER_PATH = PROJECT_ROOT / "configs" / "accounts.yaml"
 ANONYMOUS_SCOPE_ENV = "POWERQUERY_ANONYMOUS_QUERY_SCOPE"
+SELF_APPROVAL_ENV = "POWERQUERY_ALLOW_SELF_APPROVAL"
 DEFAULT_ANONYMOUS_SCOPE = "all"
 VIEW_SOURCE_SLOTS = {
     "v_unit": ("units_csv",),
@@ -92,7 +94,9 @@ def _auth_http_error(error: AdminAuthError) -> HTTPException:
 
 
 def _data_http_error(error: DataManagementError) -> HTTPException:
-    if isinstance(error, DataManagementNotFoundError):
+    if isinstance(error, SeparationOfDutiesError):
+        status_code = 403
+    elif isinstance(error, DataManagementNotFoundError):
         status_code = 404
     elif isinstance(error, (DataManagementConflictError, DataManagementStateError)):
         status_code = 409
@@ -116,6 +120,22 @@ def _build_auth_manager(roster_path: Path) -> tuple[AdminAuthManager, dict[str, 
     return AdminAuthManager.from_roster(accounts), {
         account.username: account for account in accounts
     }
+
+
+def _self_approval_allowed(environ: Mapping[str, str] | None = None) -> bool:
+    """Read the single-operator override for the four-eyes rule.
+
+    預設關閉。開啟時仍會把每一筆自審記進變更紀錄與稽核鏈，所以「沒有第二個人看過」
+    這件事不會因為設了環境變數就消失。
+    """
+
+    source = os.environ if environ is None else environ
+    value = source.get(SELF_APPROVAL_ENV, "").strip().casefold()
+    if value in {"", "0", "false", "no", "off"}:
+        return False
+    if value in {"1", "true", "yes", "on"}:
+        return True
+    raise AccountRosterError(f"{SELF_APPROVAL_ENV} 必須是 true 或 false。")
 
 
 def _anonymous_scope_policy(environ: Mapping[str, str] | None = None) -> str:
@@ -358,6 +378,7 @@ def create_app(
             initial_database=initial_database,
             build_database=build_candidate,
             switch_runtime=switch_managed_runtime,
+            allow_self_approval=_self_approval_allowed(),
         )
 
     def current_manager() -> RuntimeManager:
