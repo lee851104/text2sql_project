@@ -2,6 +2,20 @@
 
 > 這份檔案在每個可驗證、可回退的儲存點更新。回退前需保留使用者原有的未提交變更。
 
+## CP-033 — 同一個 session 可以有多組 CSRF 證明
+
+- 時間：2026-09-19 19:05 +08:00
+- 狀態：已完成
+- 問題：`GET /api/admin/session` 每次都會**覆蓋**該 session 的 CSRF 證明。原始意圖是對的（重新整理後 HttpOnly cookie 還在，但 JavaScript 記憶體裡的證明沒了，頁面要能再要一組），但覆蓋的代價是：開第二個分頁進資料管理，第一個分頁的證明就失效，下一次異動回 403，使用者被莫名踢回登入畫面，而 session 其實完全正常。
+- 處理：`_StoredSession.csrf_digest` 改為 `csrf_digests`（`deque`，上限 `MAXIMUM_CSRF_PROOFS = 4`）。`rotate_csrf` 更名為 `issue_csrf` —— 它做的是補發，不是撤銷。`validate_csrf` 接受其中任一組，且**不提早跳出**：命中哪一組不該由回應時間洩漏。
+- 取捨（寫進 docstring）：一組外洩的證明會多存活幾次要求才被擠掉。但證明只存在於 JavaScript 記憶體與請求標頭，要取得它等於已經有 XSS，那時整個 session 本來就守不住。用「多幾次要求的存活時間」換「分頁不會互相踢掉」，划算。
+- 測試調整（兩筆原本釘住舊行為的）：
+  - `test_csrf_can_rotate_after_page_refresh_without_extending_session` → `test_a_second_csrf_proof_does_not_invalidate_the_first`：補發後**兩組都有效**，且不延長 session。
+  - `test_login_cookie_session_refresh_rotation_and_logout` → `..._concurrent_proofs_and_logout`：HTTP 層驗證第一個分頁的證明在第二個分頁取得證明後仍可用；另外補一筆偽造證明必須回 403，確保放寬的是「並存」不是「驗證」。
+- 新增測試 1 筆：超過上限時最舊的被擠出，最後四組仍有效。
+- 驗收：`ruff format --check .`、`ruff check .`、`node --check src/serving/static/app.js` 通過；`pytest -q` **356 passed**（CP-032 後為 355，新增 1 筆、改寫 2 筆，無回歸）。
+- 回退方式：回退 `fix: let one session hold several CSRF proofs` 這個 commit。回退後回到單組覆蓋行為，分頁互踢的問題會回來。
+
 ## CP-032 — 審核是一種能力，不是管理權的副作用
 
 - 時間：2026-09-19 18:57 +08:00

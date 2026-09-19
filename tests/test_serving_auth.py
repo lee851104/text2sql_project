@@ -218,7 +218,7 @@ def test_query_and_public_status_endpoints_remain_available_without_login(
     assert session.headers["cache-control"] == "no-store"
 
 
-def test_login_cookie_session_refresh_rotation_and_logout(client: TestClient) -> None:
+def test_login_cookie_session_concurrent_proofs_and_logout(client: TestClient) -> None:
     login = client.post(
         "/api/admin/session",
         headers=_origin_headers(),
@@ -245,18 +245,26 @@ def test_login_cookie_session_refresh_rotation_and_logout(client: TestClient) ->
     second_csrf = refreshed.json()["data"]["csrf_token"]
     assert second_csrf != first_csrf
 
-    stale = client.put(
+    # 第二個分頁取得自己的證明後，第一個分頁的證明仍然有效 —— 補發不是撤銷。
+    still_valid = client.put(
         "/api/runtime/llm",
         headers=_mutation_headers(first_csrf),
         json={"mode": "offline"},
     )
-    assert stale.status_code == 403
+    assert still_valid.status_code == 200
     configured = client.put(
         "/api/runtime/llm",
         headers=_mutation_headers(second_csrf),
         json={"mode": "offline"},
     )
     assert configured.status_code == 200
+
+    forged = client.put(
+        "/api/runtime/llm",
+        headers=_mutation_headers("not-a-real-csrf-token"),
+        json={"mode": "offline"},
+    )
+    assert forged.status_code == 403
 
     logout = client.delete(
         "/api/admin/session",

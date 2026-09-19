@@ -35,6 +35,8 @@ MAXIMUM_SESSION_TTL_SECONDS = 60 * 60
 DEFAULT_PBKDF2_ITERATIONS = 600_000
 DEFAULT_COOKIE_NAME = "powerquery_admin_session"
 DEFAULT_CSRF_HEADER = "X-PowerQuery-CSRF"
+# 一個 session 同時保留幾組 CSRF 證明。每個分頁各自持有一組，超過就淘汰最舊的。
+MAXIMUM_CSRF_PROOFS = 4
 DEFAULT_ALLOWED_HOSTS = frozenset({"127.0.0.1", "localhost", "::1", "testserver"})
 
 ADMIN_USERNAME_ENV = "POWERQUERY_ADMIN_USERNAME"
@@ -179,7 +181,7 @@ class _StoredSession:
     expires_at: datetime
     issued_monotonic: float
     expires_monotonic: float
-    csrf_digest: bytes = field(repr=False)
+    csrf_digests: deque[bytes] = field(repr=False)
     plant_id: int | None = None
     can_review: bool = False
 
@@ -489,7 +491,7 @@ class AdminAuthManager:
             expires_at=expires_at,
             issued_monotonic=now,
             expires_monotonic=now + self.session_ttl_seconds,
-            csrf_digest=self._digest_text(csrf_token),
+            csrf_digests=deque([self._digest_text(csrf_token)], maxlen=MAXIMUM_CSRF_PROOFS),
             plant_id=account.plant_id,
             can_review=account.can_review,
         )
@@ -574,7 +576,13 @@ class AdminAuthManager:
             return self._sessions.pop(token_digest, None) is not None
 
     def validate_csrf(self, token: str | None, csrf_token: str | None) -> AdminPrincipal:
-        """Authenticate a session and compare its CSRF proof in constant time."""
+        """Authenticate a session and accept any of its live CSRF proofs.
+
+        一個 session 可以同時有幾組證明，因為同一個使用者可能開著好幾個分頁，每個
+        分頁各自向伺服器要過一組。只留一組的話，後開的分頁會把先開的踢回登入畫面。
+
+        比對不提早跳出：命中哪一組不該由回應時間洩漏。
+        """
 
         if not token:
             raise InvalidAdminSession
@@ -583,17 +591,23 @@ class AdminAuthManager:
         with self._lock:
             session = self._lookup_session(token, self._monotonic_clock())
             candidate = self._digest_text(csrf_token)
-            if not hmac.compare_digest(candidate, session.csrf_digest):
+            matched = False
+            for digest in session.csrf_digests:
+                matched |= hmac.compare_digest(candidate, digest)
+            if not matched:
                 raise CsrfValidationFailed
             return self._principal(session)
 
-    def rotate_csrf(self, token: str | None) -> tuple[AdminPrincipal, str]:
-        """Replace a live session's CSRF proof without extending its lifetime.
+    def issue_csrf(self, token: str | None) -> tuple[AdminPrincipal, str]:
+        """Hand a live session one more CSRF proof without extending its lifetime.
 
-        This supports restoring a page after refresh: the HttpOnly cookie is
-        still present, while the previous JavaScript-memory CSRF value is gone.
-        Only the new digest is retained server-side, so the old proof stops
-        working as soon as this method returns.
+        重新整理後 HttpOnly cookie 還在，但 JavaScript 記憶體裡的 CSRF 值沒了，所以
+        頁面要能再要一組。之前的做法是覆蓋掉舊的那組，代價是開第二個分頁會讓第一個
+        分頁的證明失效，使用者會莫名被踢回登入畫面。
+
+        改為保留最多 `MAXIMUM_CSRF_PROOFS` 組，超過就淘汰最舊的。取捨是一組外洩的證明
+        會多存活幾次要求才被擠掉；但證明只存在於 JavaScript 記憶體與請求標頭，要取得它
+        等於已經有 XSS，那時整個 session 本來就守不住。
         """
 
         if not token:
@@ -601,7 +615,7 @@ class AdminAuthManager:
         with self._lock:
             session = self._lookup_session(token, self._monotonic_clock())
             csrf_token = secrets.token_urlsafe(32)
-            session.csrf_digest = self._digest_text(csrf_token)
+            session.csrf_digests.append(self._digest_text(csrf_token))
             return self._principal(session), csrf_token
 
     @property
