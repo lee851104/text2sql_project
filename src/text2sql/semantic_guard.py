@@ -16,6 +16,23 @@ from text2sql.aliases import resolve_peak_column
 from text2sql.entities import Entities
 from text2sql.llm import GeneratedQuery
 
+# 後設問句：問的是「這個系統／資料庫有什麼」，而不是資料本身。這類沒有對應的 SQL，
+# 所以在守門就澄清，不進產生流程 —— 讓它一路失敗到 GENERATION_FAILED 只會給使用者
+# 一句「未能通過驗證與執行」，那對第一次打開的人沒有任何幫助。
+META_QUESTION_PATTERNS: tuple[str, ...] = (
+    "有哪些資料",
+    "有什麼資料",
+    "可以查什麼",
+    "可以查詢什麼",
+    "能查什麼",
+    "能查詢什麼",
+    "可以問什麼",
+    "能問什麼",
+    "怎麼用",
+    "資料庫有什麼",
+    "支援哪些查詢",
+)
+
 
 @dataclass(frozen=True)
 class SemanticDecision:
@@ -106,6 +123,21 @@ class SemanticGuard:
 
     def check_question(self, question: str, entities: Entities) -> SemanticDecision:
         compact = re.sub(r"\s+", "", question)
+
+        if any(pattern in compact for pattern in META_QUESTION_PATTERNS):
+            # 「這裡有什麼資料」的答案是 schema 層級的說明，不是資料列。硬產 SQL 只能去
+            # 查 sqlite_master，而那正是 SqlGuard 該擋的東西 —— 為了回答這個問題而在白
+            # 名單上開一個口，代價遠大於收益。改為在這裡澄清，並指向資料涵蓋說明。
+            return self._decision(
+                "clarify",
+                "DATA_SCOPE_QUESTION",
+                "這個問題不用查詢回答。資料涵蓋範圍、可回答的主題與目前答不出的項目，"
+                "都列在「資料總覽」頁，或呼叫 /api/coverage。",
+                "有哪些電廠",
+                "有哪些燃料別",
+                "資料涵蓋到什麼時候",
+                evidence={"see": "/api/coverage"},
+            )
 
         cost_types = (
             "火力",

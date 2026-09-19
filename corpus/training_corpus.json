@@ -316,6 +316,30 @@
       "question": "台電自建風力哪個發電站裝置容量最大",
       "intent": "renewable_site",
       "sql": "SELECT DISTINCT \"發電站\", \"縣市\", \"裝置容量_瓩\" FROM v_re_generation WHERE \"能源別\" = '陸域風力' ORDER BY \"裝置容量_瓩\" DESC LIMIT 20"
+    },
+    {
+      "id": "coverage-01",
+      "question": "有哪些電廠",
+      "intent": "plant_units",
+      "sql": "SELECT DISTINCT \"電廠\" FROM v_unit ORDER BY \"電廠\" LIMIT 200"
+    },
+    {
+      "id": "coverage-02",
+      "question": "有哪些燃料別",
+      "intent": "fuel_stats",
+      "sql": "SELECT DISTINCT \"燃料\" FROM v_unit ORDER BY \"燃料\" LIMIT 200"
+    },
+    {
+      "id": "coverage-03",
+      "question": "資料涵蓋到什麼時候",
+      "intent": "system_metric",
+      "sql": "SELECT MIN(\"日期\") AS \"最早\", MAX(\"日期\") AS \"最晚\" FROM v_system LIMIT 1"
+    },
+    {
+      "id": "coverage-04",
+      "question": "總共有幾台機組",
+      "intent": "fuel_stats",
+      "sql": "SELECT COUNT(*) AS \"機組數\" FROM v_unit LIMIT 1"
     }
   ]
 }
