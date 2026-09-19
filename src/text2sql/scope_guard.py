@@ -11,6 +11,11 @@ SQLite 沒有 GRANT 或使用者系統，授權只能在應用層執行。這個
 `v_system`、`v_generation_cost` 與 `v_re_generation` 不受管。全系統尖峰負載與備轉容量屬
 輸供電事業部電力調度處，發電成本屬會計處，兩者都沒有電廠欄位；再生能源場站屬再生能源
 處，不在 34 筆電廠主檔的組織範圍內，也沒有可對應的電廠。
+
+`SqlGuard` 放行的每一張檢視都必須出現在 `SCOPE_KEYS` 或 `SHARED_VIEWS`。兩邊都查不到的
+檢視會被拒絕，不是原封不動放行——否則新增一張帶電廠欄位的檢視就會讓電廠帳號讀到全部列，
+而且不會有任何錯誤訊息。這與建庫時「新的每日欄位沒指定 `access_scope` 就中止建庫」是同一
+條原則：授權範圍未知時停下來，不要猜。
 """
 
 from __future__ import annotations
@@ -49,6 +54,17 @@ class UnknownPlantError(ScopeError):
 
 class ScopeRewriteError(ScopeError):
     """The validated SQL could not be restricted to the account's rows."""
+
+
+class UnclassifiedViewError(ScopeRewriteError):
+    """A queryable view carries no authorisation classification."""
+
+    def __init__(self, view: str):
+        self.view = view
+        super().__init__(
+            f"檢視「{view}」沒有授權分類，無法判斷這個帳號看得到哪些列。"
+            "請在 SCOPE_KEYS 指定範圍欄位，或在 SHARED_VIEWS 記錄它不受管。"
+        )
 
 
 @dataclass(frozen=True)
@@ -132,13 +148,24 @@ class ScopeCatalog:
             raise UnknownPlantError(plant)
         return scope
 
+    def plant_names_by_id(self) -> dict[int, str]:
+        """Map the stable authorisation identifier to today's plant name.
+
+        帳號名冊綁的是編號，改寫用的是名稱；這個對照表是兩者之間唯一的轉換點。
+        """
+
+        return {scope.plant_id: scope.plant_name for scope in self.plants.values()}
+
 
 def _allowed_values(scope: PlantScope, view: str) -> Sequence[object]:
     if view == "v_unit":
         return (scope.plant_name,)
     if view == "v_peak":
         return scope.peak_columns
-    return scope.outage_ids
+    if view == "v_outage":
+        return scope.outage_ids
+    # SCOPE_KEYS 新增一張檢視卻沒有對應規則時，沿用上一張的值會放行錯的列。
+    raise ScopeRewriteError(f"受管檢視「{view}」沒有可見列規則，無法套用授權範圍。")
 
 
 def _name_original_placeholders(
@@ -206,8 +233,12 @@ class ScopeGuard:
 
         def rewrite(node: exp.Expression) -> exp.Expression:
             nonlocal counter
-            if not isinstance(node, exp.Table) or node.name not in SCOPE_KEYS:
+            if not isinstance(node, exp.Table):
                 return node
+            if node.name in SHARED_VIEWS:
+                return node
+            if node.name not in SCOPE_KEYS:
+                raise UnclassifiedViewError(node.name)
             names = []
             for value in _allowed_values(scope, node.name):
                 name = f"__s{counter}"

@@ -1,0 +1,26 @@
+# 帳號名冊格式範例。
+#
+# 真正的名冊請複製成 configs/accounts.yaml；該檔已由 .gitignore 排除，不進版控。
+# 名冊不存在時，服務沿用單一管理員帳號（環境變數 POWERQUERY_ADMIN_USERNAME /
+# POWERQUERY_ADMIN_PASSWORD），範圍為全廠。
+#
+# 產生密碼雜湊（密碼由 stdin 讀入，不會出現在命令列或 shell 歷史）：
+#
+#   echo -n 'your-password' | uv run python -m serving.accounts
+#
+# scope：
+#   all          看得到全部電廠的資料
+#   <整數>       只看得到該 plant_id 的資料（dim_plant_scope.plant_id）
+#
+# plant_name 選填。填了就會在啟動時與資料庫比對，編號與名稱對不起來就拒絕啟動。
+# 建議填，這是防止「電廠編號漂移導致帳號換了一座廠」的第二道檢查。
+
+accounts:
+  - username: admin
+    password: "pbkdf2_sha256$600000$REPLACE_WITH_SALT_HEX$REPLACE_WITH_DIGEST_HEX"  # pre-merge-check: allow-secret
+    scope: all
+
+  - username: linkou
+    password: "pbkdf2_sha256$600000$REPLACE_WITH_SALT_HEX$REPLACE_WITH_DIGEST_HEX"  # pre-merge-check: allow-secret
+    scope: 15
+    plant_name: 林口發電廠

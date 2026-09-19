@@ -188,7 +188,8 @@ def test_auto_scope_falls_back_to_a_direct_raw_row_match(tmp_path: Path) -> None
 
     class FailedPipeline:
         @staticmethod
-        def query(_question: str) -> FailedResponse:
+        def query(_question: str, *, plant: str | None = None) -> FailedResponse:
+            del plant
             return FailedResponse()
 
     class Runtime:

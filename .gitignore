@@ -23,6 +23,7 @@ data/
 # ── 機密 ──
 .env
 *.key
+configs/accounts.yaml
 .powerquery-public/
 logs/
 

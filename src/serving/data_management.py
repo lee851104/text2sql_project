@@ -137,6 +137,10 @@ class DataManagementStateError(DataManagementError):
     """An operation is invalid for the current review state."""
 
 
+class SeparationOfDutiesError(DataManagementError):
+    """The account that proposed a change may not be the one that publishes it."""
+
+
 class AuditIntegrityError(DataManagementError):
     """The append-only audit chain is missing, malformed, or has been altered."""
 
@@ -398,6 +402,7 @@ class DataManagementService:
         build_database: BuildDatabase,
         switch_runtime: SwitchRuntime | None = None,
         max_upload_bytes: int = 64 * 1024 * 1024,
+        allow_self_approval: bool = False,
     ) -> None:
         if max_upload_bytes < 1:
             raise ValueError("max_upload_bytes 必須大於 0。")
@@ -417,6 +422,7 @@ class DataManagementService:
         self._build_database = build_database
         self._switch_runtime = switch_runtime
         self.max_upload_bytes = max_upload_bytes
+        self.allow_self_approval = bool(allow_self_approval)
         self.sources_dir = self.workspace / "sources"
         self.databases_dir = self.workspace / "databases"
         self.changes_dir = self.workspace / "changes"
@@ -1822,7 +1828,16 @@ class DataManagementService:
         reviewer: str,
         reason: str = "",
     ) -> dict[str, Any]:
-        """Approve or reject one pending change; approval is the publication boundary."""
+        """Approve or reject one pending change; approval is the publication boundary.
+
+        核准是發布邊界，所以提案人不能核准自己的提案：一個人就能跨過這條邊界時，
+        `created_by` 與 `reviewed_by` 兩個欄位記的是同一件事，稽核鏈證明不了任何分工。
+
+        駁回不受這條規則限制 —— 撤回自己的提案不會讓任何東西上線。
+
+        單人部署可以用 `allow_self_approval` 明確放行，但每一筆自審都會在變更紀錄與
+        稽核日誌標上 `self_approved`，事後仍查得出哪些發布沒有經過第二個人。
+        """
 
         reviewer = _clean_text(reviewer, field="reviewer", maximum=80)
         reason = _clean_optional_text(reason, field="reason", maximum=500)
@@ -1831,6 +1846,17 @@ class DataManagementService:
             change = self.get_change(change_id)
             if change["status"] != "pending_review":
                 raise DataManagementStateError("變更已審核，不可重複處理。")
+            self_approved = approve and change.get("created_by") == reviewer
+            if self_approved and not self.allow_self_approval:
+                self._append_audit(
+                    "self_approval_refused",
+                    actor=reviewer,
+                    details={
+                        "change_id": change_id,
+                        "created_by": change.get("created_by"),
+                    },
+                )
+                raise SeparationOfDutiesError("提案人不可核准自己的變更；請由另一個帳號審核。")
             timestamp = _now()
             if not approve:
                 pending_change = dict(change)
@@ -1909,6 +1935,7 @@ class DataManagementService:
                 "reviewed_at": timestamp,
                 "reviewed_by": reviewer,
                 "review_reason": reason or None,
+                "self_approved": self_approved,
             }
             audit_event = self._new_audit_payload(
                 "change_approved",
@@ -1921,6 +1948,8 @@ class DataManagementService:
                     "active_revision": next_active["revision"],
                     "database_sha256": database_metadata["sha256"],
                     "reason": reason or None,
+                    # 覆寫過的自審必須留在稽核鏈上，否則等於沒有規則。
+                    "self_approved": self_approved,
                 },
             )
             if self._switch_runtime is not None:

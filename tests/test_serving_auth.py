@@ -24,8 +24,8 @@ class FakePipelineResponse:
 
 
 class FakePipeline:
-    def query(self, question: str) -> FakePipelineResponse:
-        del question
+    def query(self, question: str, *, plant: str | None = None) -> FakePipelineResponse:
+        del question, plant
         return FakePipelineResponse()
 
 

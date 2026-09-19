@@ -15,6 +15,7 @@ from serving.admin_auth import (
     DEFAULT_ADMIN_PASSWORD,
     DEFAULT_ADMIN_USERNAME,
     SESSION_TTL_ENV,
+    TRUSTED_PROXIES_ENV,
     AdminAuthConfigurationError,
     AdminAuthManager,
     CsrfValidationFailed,
@@ -66,8 +67,11 @@ def _request(
     client_host: str = "127.0.0.1",
     fetch_site: str | None = "same-origin",
     scheme: str = "http",
+    forwarded_for: str | None = None,
 ) -> Request:
     headers: list[tuple[bytes, bytes]] = [(b"host", host.encode("ascii"))]
+    if forwarded_for is not None:
+        headers.append((b"x-forwarded-for", forwarded_for.encode("ascii")))
     if token is not None:
         headers.append((b"cookie", f"powerquery_admin_session={token}".encode("ascii")))
     if csrf_token is not None:
@@ -384,3 +388,94 @@ def test_public_configuration_contains_no_secret_fields() -> None:
     assert set(configuration).isdisjoint(
         {"password", "password_hash", "token", "csrf", "api_key", "credential"}
     )
+
+
+def _proxy_manager(**kwargs: object) -> AdminAuthManager:
+    return _manager(trusted_proxies=("127.0.0.1",), **kwargs)
+
+
+def test_forwarded_for_is_ignored_without_a_configured_trusted_proxy() -> None:
+    """沒設信任代理時，任何人都能自己填 X-Forwarded-For；一律不採信。"""
+
+    manager = _manager()
+
+    resolved = manager.client_address(
+        _request(client_host="127.0.0.1", forwarded_for="203.0.113.9")
+    )
+
+    assert resolved == "127.0.0.1"
+
+
+def test_forwarded_for_is_used_only_when_the_peer_is_a_trusted_proxy() -> None:
+    manager = _proxy_manager()
+
+    behind_proxy = manager.client_address(
+        _request(client_host="127.0.0.1", forwarded_for="203.0.113.9")
+    )
+    direct = manager.client_address(
+        _request(client_host="192.168.50.20", forwarded_for="203.0.113.9")
+    )
+
+    assert behind_proxy == "203.0.113.9"
+    assert direct == "192.168.50.20", "直連來源不得被自己送的 header 改寫"
+
+
+def test_the_rightmost_untrusted_hop_is_taken_as_the_client() -> None:
+    manager = _proxy_manager()
+
+    resolved = manager.client_address(
+        _request(client_host="127.0.0.1", forwarded_for="198.51.100.7, 203.0.113.9, 127.0.0.1")
+    )
+
+    assert resolved == "203.0.113.9"
+
+
+def test_an_unparsable_hop_reports_an_unknown_client_rather_than_guessing() -> None:
+    manager = _proxy_manager()
+
+    resolved = manager.client_address(
+        _request(client_host="127.0.0.1", forwarded_for="not-an-address")
+    )
+
+    assert resolved is None
+
+
+def test_default_credentials_stay_local_when_the_real_client_is_remote() -> None:
+    """反向代理把外部訪客變成 127.0.0.1 時，預設帳密不得因此對外開放。"""
+
+    with pytest.warns(DefaultCredentialsWarning):
+        manager = AdminAuthManager.from_environment(
+            {TRUSTED_PROXIES_ENV: "127.0.0.1"}, pbkdf2_iterations=1_000
+        )
+
+    manager.validate_login_request(_request(client_host="127.0.0.1"))
+    with pytest.raises(DefaultCredentialsRemoteAccessDenied):
+        manager.validate_login_request(
+            _request(client_host="127.0.0.1", forwarded_for="203.0.113.9")
+        )
+
+
+def test_two_visitors_behind_one_proxy_get_separate_rate_limit_buckets() -> None:
+    """代理後面的訪客在 request.client 裡全是同一個位址；分桶必須用解析後的來源。"""
+
+    clock = FakeClock()
+    manager = _manager(clock, trusted_proxies=("127.0.0.1",), login_failure_limit=2)
+
+    def attempt(forwarded: str) -> None:
+        request = _request(client_host="127.0.0.1", forwarded_for=forwarded)
+        manager.login("review-admin", "wrong", client_id=manager.client_address(request))
+
+    for _attempt in range(2):
+        with pytest.raises(InvalidCredentials):
+            attempt("203.0.113.9")
+    with pytest.raises(LoginRateLimited):
+        attempt("203.0.113.9")
+
+    # 共用同一個代理的另一個訪客不該被前者鎖住；分錯桶時這裡會是 LoginRateLimited。
+    with pytest.raises(InvalidCredentials):
+        attempt("198.51.100.7")
+
+
+def test_a_malformed_trusted_proxy_setting_is_refused() -> None:
+    with pytest.raises(AdminAuthConfigurationError, match="不是合法的 IP 或網段"):
+        _manager(trusted_proxies=("not-a-network",))

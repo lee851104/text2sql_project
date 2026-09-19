@@ -2,6 +2,93 @@
 
 > 這份檔案在每個可驗證、可回退的儲存點更新。回退前需保留使用者原有的未提交變更。
 
+## CP-029 — 代理後面的來源判斷，與語料晉升的職責分離
+
+- 時間：2026-09-19 17:26 +08:00
+- 狀態：已完成
+- 範圍：清掉 CP-028 列的兩項未處理。
+
+### 一、信任代理與真實來源
+
+- 問題：`request.client.host` 在反向代理後面是代理自己。公開流量走 Tailscale Funnel → `127.0.0.1:8766`，所以**所有外部訪客在服務眼中都是 `127.0.0.1`**。後果有二：登入限速變成全域共用一桶（任何人打錯 5 次就鎖住所有管理員）；`_is_loopback_client` 會把外部訪客判成本機，使「預設帳密只准本機使用」形同虛設。後者目前沒爆，只是因為公開啟動程序會先設強帳密。
+- 處理：新增 `AdminAuthManager.client_address()`。只有當直連對端本身在 `POWERQUERY_TRUSTED_PROXIES` 裡時才讀 `X-Forwarded-For`，由右往左跳過信任代理，第一個非代理位址即為來源。**未設定信任代理時完全忽略該 header** —— 否則任何人都能自己填來源位址，一次繞過限速與 loopback 兩道。任何一段無法解析就回報來源未知（限速進 unknown 桶、loopback 判定為否），從嚴不猜。登入限速與預設帳密檢查都改用這個結果。
+- 反向驗證：把 `admin_auth.py` 還原成修正前版本（補上回傳對端位址的 `client_address` shim），7 筆新測試中 **6 筆紅**，包含「代理後的外部訪客可用預設帳密」與「共用代理的兩個訪客共用限速桶」。唯一在修正前後都綠的是「沒設信任代理時不採信 XFF」，那是迴歸護欄不是抓蟲工具。
+
+### 二、語料晉升的職責分離
+
+- 先確認結構再決定做法：語料候選由系統從成功查詢自動抓下（`source` 是 `router`／`llm`），**沒有人類提案人欄位**。直接把 CP-028 的規則搬過來是照搬，因為沒有可比對的對象。
+- 真正的缺口是實質的：任何人問一個問題讓管線成功，那個問答就成為待審語料；若這個人同時是管理員，他就能核准自己引發的語料進正式語料庫。系統原本連「是誰讓它進來的」都沒記，所以連要套規則都沒有依據。CP-027 已讓 `/api/query` 有身分，因此現在記得起來。
+- 處理：**先記錄，再管制**。候選新增 `proposed_by`（由 `/api/query` 的登入身分帶入，經同一套 `deidentify`）；`review()` 在核准且 `approved_by == proposed_by` 時擋下，丟 `CorpusSelfApprovalError`（`ValueError` 子類，API 對應 403，except 順序排在泛用 ValueError 之前），並寫入 `candidate_self_approval_refused` 事件。共用 `POWERQUERY_ALLOW_SELF_APPROVAL` 覆寫。
+- 已知邊界（刻意，不是遺漏）：匿名查詢記為 `None` 且不套此規則。匿名不是一個身分，兩個不同訪客都會長一樣，拿來比對只會擋到不相干的人，也擋不住真的想繞的人（登出、問、再登入）。這條寫進 README 與測試名稱，不留在程式碼裡讓人自己發現。
+- 相容性：`proposed_by` 缺席的舊候選取值為 `None`，規則不觸發，無需 bump `CANDIDATE_SCHEMA`。
+
+- 新增測試（13 筆）：`test_admin_auth.py` 7 筆（未設代理時忽略 XFF、僅信任對端才採信、取最右側非代理、無法解析回報未知、代理後的外部訪客不得用預設帳密、共用代理的兩訪客分屬不同限速桶、代理設定格式錯誤即拒絕）；`test_corpus_learning.py` 6 筆（記錄 proposed_by、提案帳號不得晉升、換帳號可晉升、可駁回自己的候選、匿名候選在規則外、覆寫涵蓋語料晉升）。
+- 文件：README 新增「反向代理後面的來源判斷」與語料規則差異說明；`PUBLIC_OFFLINE_SERVING.md` 新增「反向代理後面要設信任來源」；`.env.example` 補上 `POWERQUERY_TRUSTED_PROXIES`。
+- 未動公開啟動程序：是否真的能取到來源，取決於代理有沒有送 `X-Forwarded-For`。這點未實測，文件寫成「設定後仍需代理確實送出該 header 才生效」，沒有替 Tailscale 背書。
+- 驗收：`ruff format --check .`、`ruff check .` 通過；`pytest -q` **337 passed**（CP-028 後為 324，新增 13 筆，無回歸）。
+- 回退方式：回退 `feat: resolve the real client behind a proxy and extend four eyes to the corpus` 這個 commit。未設 `POWERQUERY_TRUSTED_PROXIES` 時來源判斷與回退前相同；舊語料候選沒有 `proposed_by`，規則不觸發。
+
+## CP-028 — 四眼原則：提案人不可核准自己的變更
+
+- 時間：2026-09-19 17:02 +08:00
+- 狀態：已完成
+- 問題：`stage_*` 記了 `created_by`、`review()` 記了 `reviewed_by`，但兩者從未比對。核准在 docstring 裡寫明是「發布邊界」，實際上一個帳號就能跨過去 —— 那兩個欄位記的是同一件事，精心設計的稽核鏈（checksum、atomic write、conflict 偵測）證明不了任何分工。
+- 軸的區分：資料範圍（CP-027）管「看得到什麼」，這條管「誰能讓東西上線」，是兩條不同的軸，不該混成一個等級階梯。
+- 處理：
+  - 新增 `SeparationOfDutiesError`，API 對應 **403**（不是混進既有的 409，語意不同）。
+  - `review()` 在 `approve` 且 `created_by == reviewer` 時拒絕。**駁回不受限制** —— 撤回自己的提案不會讓任何東西上線。
+  - 被擋下的自審寫入稽核鏈（`self_approval_refused`），不是靜默失敗。
+  - 單人部署覆寫 `POWERQUERY_ALLOW_SELF_APPROVAL`（預設關閉）。開啟後每一筆自審在**變更紀錄與稽核事件兩處**標上 `self_approved: true`，所以「沒有第二個人看過」不會因為設了環境變數就消失。逃生口是明寫且留痕的，不是把規則關掉。
+- 為什麼選「預設強制＋可稽核覆寫」而不是「有第二個帳號時才強制」：後者的逃生口是結構性的 —— 刪掉第二個帳號就自動恢復自審，不需要任何人明確決定，也不會留下痕跡。
+- 新增測試（5 筆，`tests/test_data_management.py`）：自審被拒且變更維持 `pending_review`、作用中版本不變；拒絕事件進稽核鏈；換一個帳號可核准且 `self_approved` 為 false；自己駁回自己允許；覆寫後仍標記 `self_approved`。
+- 改寫 `tests/test_data_management_api.py`：原本一個管理員從頭做到尾，改成 `data-uploader` 提案、`data-reviewer` 審核的兩帳號流程（用 CP-027 的名冊），並在中間斷言提案人自審回 403 且資料未上線。稽核鏈上提案與發布是兩個不同的名字，被擋下的那次也查得到。這個端到端測試現在本身就是四眼原則的證明。
+- 同步修正 `tests/test_runtime_consistency.py` 三處：原本 `actor` 與 `reviewer` 同名，改為不同名。那些測試測的是熱抽換一致性，不是授權。
+- 文件：README 新增「職責分離」小節；`PUBLIC_OFFLINE_SERVING.md` 新增「資料發布需要第二個人」（公開程序建立的是一組共用帳密，也就是一個帳號，預設無法自行發布，必須建第二個帳號或設覆寫）；`.env.example` 補上新環境變數。
+- 驗收：`ruff format --check .`、`ruff check .` 通過；`pytest -q` **324 passed**（CP-027 後為 319，新增 5 筆，無回歸）。
+- 未處理：`corpus_learning.review()` 的語料晉升也是一個發布邊界，目前未套用同一條規則；登入限速仍以 `request.client.host` 分桶，走反向代理時所有外部訪客共用一桶。
+- 回退方式：回退 `feat: require a second account to publish a data change` 這個 commit。回退後 `review()` 恢復為不比對提案人與審核人，既有變更紀錄與稽核鏈不受影響（`self_approved` 欄位只是多出來的鍵）。
+
+## CP-027 — 帳號名冊與電廠範圍接上查詢路徑
+
+- 時間：2026-09-19 16:38 +08:00
+- 狀態：已完成
+- 問題：`scope_guard` 的兩級授權（`plant`／`all`）自 CP-022 起就有完整實作與測試，但 `/api/query` 從來沒有傳入 `plant`，`Pipeline.query` 的預設是 `None`＝全廠。也就是說整套授權改寫沒有任何 HTTP 入口會觸發，能力只存在於測試裡，產品裡看不到。
+- 處理：
+  - **名冊**（`src/serving/accounts.py`）：`configs/accounts.yaml`，每個帳號有 username、PBKDF2 雜湊、`scope: all | <plant_id>`。檔案已加入 `.gitignore`；版控只留 `configs/accounts.example.yaml`，與 `.env.example` 同一套慣例。附 `python -m serving.accounts` 由 stdin 讀密碼產生雜湊，密碼不會進命令列歷史。
+  - **綁定用 plant_id 不用名稱**：名稱會改，編號是建庫時釘住並逐筆比對過漂移的識別碼。名冊可選填 `plant_name`，啟動時與 `dim_plant_scope` 比對，編號與名稱對不起來就拒絕服務 —— 建庫層漂移偵測在授權層的延伸。
+  - **多帳號驗證**：`AdminAuthManager` 改為持有帳號表，新增 `from_roster`。單一帳號路徑（環境變數）完全不變，兩者互斥 —— 兩套帳號來源同時有效會讓「誰能登入」取決於載入順序。登入仍是一次 PBKDF2 加一個假憑證比對，未知帳號與錯密碼維持同一條失敗路徑。
+  - **接上查詢**：`/api/query` 取得可選身分後帶入 `plant`。**沒有 cookie 才算匿名；帶了但已失效回 401**，不能悄悄退回匿名範圍，否則電廠帳號 session 一過期權限是往上跳。
+  - **堵住 raw 繞道**：電廠帳號的 `query_scope` 只能是 `trusted`。`/api/raw/*` 與 `auto` fallback 不經 `ScopeGuard`，開放給電廠帳號等於留一條繞過授權的路。
+  - **越權留痕與回應語意**：`SCOPE_DENIED` 寫入稽核日誌；電廠帳號拿到空結果時附 `scope_notice`，明講「可能是超出授權範圍，不代表資料不存在」。底層是公開資料，藏起邊界沒有保護作用，只會讓人一直重問，所以選擇講明 —— 這是刻意做的取捨，不是預設。
+  - **匿名政策**：`POWERQUERY_ANONYMOUS_QUERY_SCOPE`＝`all`（預設，維持公開展示現況）或 `denied`。預設不變更現有行為，但把這個選擇從隱含變成明寫。
+- 新增測試（20 筆，`tests/test_account_scope.py`）：名冊格式與重複帳號、scope 型別、雜湊格式的負向測試；**編號查不到**與**編號還在但已是另一座廠**兩條綁定失敗；名冊帳號各自帶著自己的範圍；名冊與單一帳號互斥；以及四筆端到端 —— 同一問句兩種帳號結果不同、電廠帳號讀得到自己廠、失效 session 回 401 不放寬、電廠帳號的 raw／auto 回 403。
+- 可展示證據：`uv run python scripts/demo_plant_scope.py`。問「列出台中發電廠所有設備」，全權限帳號 **14 筆**、林口帳號 **0 筆**；林口帳號問自己的廠 **3 筆**。輸出印出實際送進 SQLite 的 SQL，可看到 `FROM (SELECT * FROM v_unit WHERE "電廠" IN (?))`，證明限制在後端執行。
+- 同步修正：三處測試替身的 `query()` 補上 `plant` 參數（替身簽名與真實 `Pipeline.query` 不一致會掩蓋呼叫端改動）；`test_foundation` 的 configs 清單加入 `accounts.example.yaml`。
+- 驗收：`ruff format --check .`、`ruff check .` 通過；`pytest -q` **319 passed**（CP-026 後為 299，新增 20 筆，無回歸）。
+- 未處理：資料上傳與審核仍是同一個帳號可以自己審自己（四眼原則尚未加上）；登入限速仍以 `request.client.host` 分桶，走反向代理時所有外部訪客共用一桶。
+- 回退方式：回退 `feat: bind accounts to a plant scope and apply it to queries` 這個 commit。名冊不存在時服務行為與本 commit 前相同（單一管理員、全廠範圍），既有環境變數設定不受影響。
+
+## CP-026 — 授權範圍未涵蓋的檢視改為拒絕
+
+- 時間：2026-09-19 16:10 +08:00
+- 狀態：已完成
+- 問題：`ScopeGuard.apply` 原本寫成「不在 `SCOPE_KEYS` 的資料表就原封不動回傳」，這是 fail-open。`SHARED_VIEWS` 雖然列了三張不受管的檢視，但全專案只有定義那一行、沒有任何地方讀它，等於註解而不是機制。目前 6 張檢視剛好被兩個集合蓋滿是巧合；只要新增一張帶電廠欄位的檢視並加進 `sql_guard.ALLOWED_COLUMNS`，電廠帳號就會讀到它的全部列，沒有錯誤訊息、測試也不會紅。
+- 對照：建庫層（`build_db.py`）早就是 fail-closed —— 新的每日欄位沒指定 `access_scope` 就中止建庫。查詢層少了同一道。這次把兩層對齊。
+- 處理：
+  - `SHARED_VIEWS` 從宣告變成機制：改寫時先放行不受管檢視，兩個集合都查不到就丟 `UnclassifiedViewError`（繼承 `ScopeRewriteError`，沿用既有的 `SCOPE_DENIED` 拒絕路徑）。
+  - `_allowed_values` 移除 fallthrough。原本任何非 `v_unit`／`v_peak` 的檢視都會拿到 `outage_ids`，等於用錯的欄位值當授權範圍；改為明確判斷 `v_outage`，其餘丟錯。
+  - 只影響電廠帳號路徑；`plant=None`（全權限）維持原樣不改寫。
+- 新增測試（5 筆）：
+  - `test_every_queryable_view_has_an_authorisation_classification`：`ALLOWED_COLUMNS` 的鍵必須與 `SCOPE_KEYS ∪ SHARED_VIEWS` 完全相等。這是涵蓋性不變式，涵蓋**未來新增**的檢視，不需資料庫，每一層測試都會跑。
+  - `test_a_view_cannot_be_both_managed_and_shared`：兩個集合互斥。
+  - `test_database_views_match_the_authorisation_classification`：`power.db` 實際的 6 張 `v_*` 與分類表相符。
+  - `test_unclassified_view_is_refused_instead_of_passed_through`：未分類檢視必須拒絕。
+  - `test_managed_view_without_a_value_rule_is_refused`：列進 `SCOPE_KEYS` 卻沒有可見列規則時必須拒絕。
+- 反向驗證：把 `scope_guard.py` 還原成修正前版本（僅補上例外類別以便匯入）後重跑，後兩筆行為測試以 **DID NOT RAISE** 失敗，確認修正前確實是靜默放行、不是本來就會擋。前三筆涵蓋性測試在修正前後都綠 —— 它們是給未來的迴歸護欄，不是今天的抓蟲工具，這點不混為一談。
+- 驗收：`ruff format --check .`、`ruff check .` 通過；`pytest -q` **299 passed**（修改前基準 294，新增 5 筆，無回歸）。
+- 未處理（留待後續儲存點）：帳號名冊與 `plant` 綁定尚未建立，因此 `/api/query` 仍以全權限範圍執行，本次修正保護的是接上帳號之後的路徑；`/api/raw/*` 與 `query_scope="raw"` 仍完全不經 `ScopeGuard`，電廠帳號的處置另案處理。
+- 回退方式：回退 `fix: refuse views that carry no authorisation classification` 這個 commit。授權對照表、建庫流程與全權限查詢路徑都不受影響。
+
 ## CP-025 — 發電成本資料源納入可重現下載
 
 - 時間：2026-09-19 11:02 +08:00

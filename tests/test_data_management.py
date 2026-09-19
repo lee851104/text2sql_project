@@ -19,6 +19,7 @@ from serving.data_management import (
     DataManagementService,
     DataManagementStateError,
     DataManagementValidationError,
+    SeparationOfDutiesError,
 )
 
 
@@ -76,7 +77,9 @@ class Harness:
         self.switches.append(database)
 
 
-def _service(tmp_path: Path) -> tuple[DataManagementService, Harness, dict[str, Path]]:
+def _service(
+    tmp_path: Path, *, allow_self_approval: bool = False
+) -> tuple[DataManagementService, Harness, dict[str, Path]]:
     inputs = tmp_path / "inputs"
     inputs.mkdir(parents=True)
     paths: dict[str, Path] = {}
@@ -93,6 +96,7 @@ def _service(tmp_path: Path) -> tuple[DataManagementService, Harness, dict[str, 
         initial_database=database,
         build_database=harness.build,
         switch_runtime=harness.switch,
+        allow_self_approval=allow_self_approval,
     )
     return service, harness, paths
 
@@ -814,3 +818,73 @@ def test_change_reason_rejects_control_characters_or_conflicting_note(tmp_path: 
             reason="one reason",
             note="different note",
         )
+
+
+def _pending_upload(service: DataManagementService, actor: str) -> dict[str, Any]:
+    encoded, _payload = _encoded("outage_csv", "four-eyes")
+    return service.stage_upload("outage_csv", encoded, actor=actor, reason="four-eyes case")
+
+
+def test_the_proposer_cannot_approve_their_own_change(tmp_path: Path) -> None:
+    """核准是發布邊界；一個人就能跨過去時，稽核鏈證明不了任何分工。"""
+
+    service, _harness, _paths = _service(tmp_path)
+    change = _pending_upload(service, "uploader")
+
+    with pytest.raises(SeparationOfDutiesError, match="不可核准自己的變更"):
+        service.review(change["id"], approve=True, reviewer="uploader")
+
+    assert service.get_change(change["id"])["status"] == "pending_review"
+    assert service.active_version == change["base_version"]
+
+
+def test_a_refused_self_approval_is_recorded_in_the_audit_chain(tmp_path: Path) -> None:
+    service, _harness, _paths = _service(tmp_path)
+    change = _pending_upload(service, "uploader")
+
+    with pytest.raises(SeparationOfDutiesError):
+        service.review(change["id"], approve=True, reviewer="uploader")
+
+    events = service.list_audit(limit=200)
+    refused = [event for event in events if event["event"] == "self_approval_refused"]
+    assert len(refused) == 1
+    assert refused[0]["actor"] == "uploader"
+    assert refused[0]["details"]["created_by"] == "uploader"
+
+
+def test_another_account_may_approve_the_same_change(tmp_path: Path) -> None:
+    service, _harness, _paths = _service(tmp_path)
+    change = _pending_upload(service, "uploader")
+
+    approved = service.review(change["id"], approve=True, reviewer="reviewer")
+
+    assert approved["status"] == "approved"
+    assert approved["reviewed_by"] == "reviewer"
+    assert approved["self_approved"] is False
+
+
+def test_the_proposer_may_still_withdraw_their_own_change(tmp_path: Path) -> None:
+    """駁回不受四眼限制：撤回自己的提案不會讓任何東西上線。"""
+
+    service, _harness, _paths = _service(tmp_path)
+    change = _pending_upload(service, "uploader")
+
+    rejected = service.review(change["id"], approve=False, reviewer="uploader", reason="rethinking")
+
+    assert rejected["status"] == "rejected"
+    assert rejected["reviewed_by"] == "uploader"
+
+
+def test_a_single_operator_override_still_marks_the_publication(tmp_path: Path) -> None:
+    """覆寫可以讓單人部署運作，但不會讓「沒有第二個人看過」這件事消失。"""
+
+    service, _harness, _paths = _service(tmp_path, allow_self_approval=True)
+    change = _pending_upload(service, "solo")
+
+    approved = service.review(change["id"], approve=True, reviewer="solo")
+
+    assert approved["status"] == "approved"
+    assert approved["self_approved"] is True
+    events = service.list_audit(limit=200)
+    published = [event for event in events if event["event"] == "change_approved"]
+    assert published[-1]["details"]["self_approved"] is True

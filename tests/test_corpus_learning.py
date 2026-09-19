@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from serving.corpus_learning import CorpusLearningService
+from serving.corpus_learning import CorpusLearningService, CorpusSelfApprovalError
 from text2sql.corpus import corpus_checksum, load_corpus
 from text2sql.llm import FakeLLM
 from text2sql.pipeline import PipelineResponse, Text2SQLPipeline
@@ -58,6 +58,7 @@ def _service(
     *,
     benchmark_items: list[dict[str, str]] | None = None,
     runner=None,
+    allow_self_approval: bool = False,
 ) -> tuple[CorpusLearningService, Text2SQLPipeline, Path]:
     tmp_path.mkdir(parents=True, exist_ok=True)
     canonical = tmp_path / "canonical.json"
@@ -75,6 +76,7 @@ def _service(
         canonical_corpus_path=canonical,
         benchmark_paths=benchmark_paths,
         pipeline=pipeline,
+        allow_self_approval=allow_self_approval,
     )
     return service, pipeline, canonical
 
@@ -90,6 +92,7 @@ def _submit(
     rows=ROWS,
     tables=("v_system",),
     data_provenance=None,
+    proposed_by: str | None = None,
 ) -> dict[str, object]:
     return service.submit(
         question=question,
@@ -102,6 +105,7 @@ def _submit(
         tables=tables,
         data_provenance=data_provenance,
         candidate_id=candidate_id,
+        proposed_by=proposed_by,
     )
 
 
@@ -483,3 +487,73 @@ def test_end_to_end_learning_redacts_taiwan_personal_data(tmp_path: Path) -> Non
     assert "[NAME]" in surfaces[0]
     assert "[PHONE]" in surfaces[0]
     assert "[TW_ID]" in surfaces[0]
+
+
+def test_a_candidate_records_the_account_whose_query_produced_it(tmp_path: Path) -> None:
+    service, _pipeline, _canonical = _service(tmp_path)
+
+    pending = _submit(service, proposed_by="analyst")
+    anonymous = _submit(service, question="另一個問句 2026", candidate_id="second")
+
+    assert pending["proposed_by"] == "analyst"
+    assert anonymous["proposed_by"] is None
+
+
+def test_the_account_that_produced_a_candidate_cannot_promote_it(tmp_path: Path) -> None:
+    """自己問出來、自己核准進正式語料，實質上就是自審。"""
+
+    service, _pipeline, _canonical = _service(tmp_path)
+    pending = _submit(service, proposed_by="analyst")
+
+    with pytest.raises(CorpusSelfApprovalError, match="請由另一個帳號審核"):
+        service.review(pending["id"], approve=True, reviewer="analyst")
+
+    assert service.list_entries(state="pending_review", limit=10)[0]["id"] == pending["id"]
+    refused = [
+        event
+        for event in service.list_events(limit=50)
+        if event["event"] == "candidate_self_approval_refused"
+    ]
+    assert len(refused) == 1
+
+
+def test_another_account_may_promote_the_candidate(tmp_path: Path) -> None:
+    service, _pipeline, _canonical = _service(tmp_path)
+    pending = _submit(service, proposed_by="analyst")
+
+    promoted = service.review(pending["id"], approve=True, reviewer="reviewer")
+
+    assert promoted["status"] == "promoted"
+    assert promoted["approved_by"] == "reviewer"
+
+
+def test_the_proposer_may_still_reject_their_own_candidate(tmp_path: Path) -> None:
+    service, _pipeline, _canonical = _service(tmp_path)
+    pending = _submit(service, proposed_by="analyst")
+
+    rejected = service.review(pending["id"], approve=False, reviewer="analyst")
+
+    assert rejected["status"] == "rejected"
+
+
+def test_an_anonymous_candidate_is_outside_the_rule(tmp_path: Path) -> None:
+    """匿名不是身分：兩個不同訪客都會記成 None，拿來比對只會擋到不相干的人。
+
+    這是這條規則已知的邊界，不是遺漏 —— 匿名查詢產生的候選仍可由任何帳號審核。
+    """
+
+    service, _pipeline, _canonical = _service(tmp_path)
+    pending = _submit(service)
+
+    promoted = service.review(pending["id"], approve=True, reviewer="reviewer")
+
+    assert promoted["status"] == "promoted"
+
+
+def test_the_single_operator_override_also_covers_corpus_promotion(tmp_path: Path) -> None:
+    service, _pipeline, _canonical = _service(tmp_path, allow_self_approval=True)
+    pending = _submit(service, proposed_by="solo")
+
+    promoted = service.review(pending["id"], approve=True, reviewer="solo")
+
+    assert promoted["status"] == "promoted"

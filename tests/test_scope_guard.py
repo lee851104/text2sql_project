@@ -10,7 +10,15 @@ import pytest
 
 from ingest.build_db import ScopeAlignmentError, build_database
 from ingest.validate import PROJECT_ROOT, resolve_configured_paths
-from text2sql.scope_guard import ScopeGuard, UnknownPlantError
+from text2sql.scope_guard import (
+    SCOPE_KEYS,
+    SHARED_VIEWS,
+    ScopeGuard,
+    ScopeRewriteError,
+    UnclassifiedViewError,
+    UnknownPlantError,
+)
+from text2sql.sql_guard import ALLOWED_COLUMNS
 
 SHARED_COLUMNS = {"其他小水力", "太陽能發電", "氣渦輪", "汽電共生", "離島", "風力發電"}
 
@@ -250,3 +258,51 @@ def test_build_fails_when_an_outage_event_has_no_plant(tmp_path: Path) -> None:
 
     with pytest.raises(ScopeAlignmentError, match="沒有電廠歸屬"):
         build_database(tmp_path / "power.db", source_paths={"outage_scope_csv": incomplete})
+
+
+def test_every_queryable_view_has_an_authorisation_classification() -> None:
+    """守住新增檢視時最容易漏掉的一步。
+
+    `SqlGuard` 放行的每一張檢視都會走進 `ScopeGuard.apply`。只要有一張沒有被歸進
+    `SCOPE_KEYS`（受管）或 `SHARED_VIEWS`（不受管），電廠帳號就會讀到它的全部列，
+    而且沒有任何錯誤訊息。這個測試讓那一步在 CI 就紅，不必等到有人回報越權。
+    """
+
+    classified = set(SCOPE_KEYS) | set(SHARED_VIEWS)
+    queryable = set(ALLOWED_COLUMNS)
+
+    assert queryable - classified == set(), "可查詢卻未指定授權範圍的檢視"
+    assert classified - queryable == set(), "授權分類殘留已不可查詢的檢視"
+
+
+def test_a_view_cannot_be_both_managed_and_shared() -> None:
+    assert set(SCOPE_KEYS).isdisjoint(SHARED_VIEWS)
+
+
+@pytest.mark.integration
+def test_database_views_match_the_authorisation_classification(scoped_database: Path) -> None:
+    with sqlite3.connect(scoped_database) as connection:
+        views = {
+            str(row[0])
+            for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'view'")
+        }
+
+    assert views == set(SCOPE_KEYS) | set(SHARED_VIEWS)
+
+
+@pytest.mark.integration
+def test_unclassified_view_is_refused_instead_of_passed_through(guard: ScopeGuard) -> None:
+    with pytest.raises(UnclassifiedViewError, match="沒有授權分類"):
+        guard.apply('SELECT "日期" FROM v_unclassified LIMIT 1', (), plant="林口發電廠")
+
+
+@pytest.mark.integration
+def test_managed_view_without_a_value_rule_is_refused(
+    guard: ScopeGuard, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """有人把新檢視列進 SCOPE_KEYS，卻忘了指定該帳號看得到哪些值。"""
+
+    monkeypatch.setitem(SCOPE_KEYS, "v_newly_managed", "電廠")
+
+    with pytest.raises(ScopeRewriteError, match="沒有可見列規則"):
+        guard.apply('SELECT "日期" FROM v_newly_managed LIMIT 1', (), plant="林口發電廠")
