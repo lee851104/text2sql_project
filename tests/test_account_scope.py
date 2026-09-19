@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -12,8 +13,10 @@ from serving.accounts import (
     MINIMUM_ITERATIONS,
     Account,
     AccountRosterError,
+    _main,
     hash_password,
     parse_roster,
+    render_roster,
     resolve_plant_names,
     verify_password,
 )
@@ -341,3 +344,103 @@ def test_an_all_scope_account_keeps_its_management_rights(scoped_client: TestCli
     assert scoped_client.get("/api/data/status").status_code == 200
     assert scoped_client.get("/api/corpus/entries").status_code == 200
     _logout(scoped_client)
+
+
+# ── 名冊盤點指令 ──────────────────────────────────────────────────────────
+
+
+def _roster_account(username: str, **kwargs: object) -> Account:
+    return Account(username=username, password_hash=_hash(), **kwargs)
+
+
+def test_inventory_reports_every_broken_binding_not_just_the_first() -> None:
+    """盤點是診斷工具：一次看完整份名冊，不能在第一個問題就停。"""
+
+    accounts = [
+        _roster_account("admin", plant_id=None),
+        _roster_account("bad-id", plant_id=999),
+        _roster_account("moved", plant_id=15, expected_plant_name="台中發電廠"),
+    ]
+
+    report, code = render_roster(
+        roster_path=Path("configs/accounts.yaml"),
+        database=Path("power.db"),
+        accounts=accounts,
+        plant_names={15: BOUND_PLANT},
+    )
+
+    assert code == 1
+    assert "bad-id" in report and "不在 dim_plant_scope" in report
+    assert "moved" in report and "對不起來" in report
+    assert "有 2 個帳號的綁定對不上資料庫" in report
+
+
+def test_inventory_is_clean_when_every_binding_holds() -> None:
+    accounts = [
+        _roster_account("admin", plant_id=None),
+        _roster_account("linkou", plant_id=15, expected_plant_name=BOUND_PLANT),
+    ]
+
+    report, code = render_roster(
+        roster_path=Path("configs/accounts.yaml"),
+        database=Path("power.db"),
+        accounts=accounts,
+        plant_names={15: BOUND_PLANT},
+    )
+
+    assert code == 0
+    assert "所有綁定都對得上資料庫。" in report
+    assert "✗" not in report
+
+
+def test_a_missing_roster_is_reported_as_a_supported_mode() -> None:
+    report, code = render_roster(
+        roster_path=Path("configs/accounts.yaml"),
+        database=Path("power.db"),
+        accounts=None,
+        plant_names=None,
+    )
+
+    assert code == 0
+    assert "名冊不存在" in report
+
+
+def test_an_unreadable_database_reports_unverified_rather_than_ok() -> None:
+    """未驗不等於通過：驗不了綁定時離開碼必須非零。"""
+
+    accounts = [_roster_account("linkou", plant_id=15, expected_plant_name=BOUND_PLANT)]
+
+    report, code = render_roster(
+        roster_path=Path("configs/accounts.yaml"),
+        database=Path("missing.db"),
+        accounts=accounts,
+        plant_names=None,
+    )
+
+    assert code == 1
+    assert "無法驗證綁定" in report
+    assert "未驗證" in report
+    assert "ok" not in report
+
+
+def test_the_inventory_never_prints_password_material() -> None:
+    accounts = [_roster_account("linkou", plant_id=15, expected_plant_name=BOUND_PLANT)]
+
+    report, _code = render_roster(
+        roster_path=Path("configs/accounts.yaml"),
+        database=Path("power.db"),
+        accounts=accounts,
+        plant_names={15: BOUND_PLANT},
+    )
+
+    assert "pbkdf2" not in report
+    assert accounts[0].password_hash not in report
+
+
+@pytest.mark.parametrize("arguments", [["nonsense"], ["list", "extra"]])
+def test_unknown_or_extra_arguments_are_refused(arguments: list[str]) -> None:
+    assert _main(arguments) == 2
+
+
+def test_help_is_not_an_error() -> None:
+    assert _main(["--help"]) == 0
