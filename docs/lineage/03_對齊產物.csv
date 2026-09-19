@@ -1,0 +1,23 @@
+﻿檔名,類型,列數,位元組,由什麼產生,用途
+PLANTS.md,說明文件,72,6130,人工維護,電廠主檔的欄位定義、官方來源與限制
+README.md,說明文件,277,12831,人工維護,對齊方法與驗證結果
+align.py,程式,213,11257,人工維護,早期對齊腳本，產生 crosswalk
+crosswalk.csv,衍生,43,6031,taipower_align/align.py,64 個 B 欄位對機組主檔的對照與容量比
+crosswalk.txt,衍生,100,9472,taipower_align/align.py,上者的人可讀報告
+daily.csv,來源副本,577,171810,ingest.fetch 下載後複製,官方原檔逐字副本，未經任何修改
+daily_long.csv,衍生,36928,3791035,taipower_align/final.py,daily 寬表轉長表，577 天 × 64 欄
+daily_plant_scope.csv,人工補充,64,14066,人工維護,64 個 B 欄位的單廠／共用授權分類
+fetch.py,程式,67,2691,人工維護,早期下載腳本（現由 src/ingest/fetch.py 取代）
+final.py,程式,102,4823,人工維護,早期長表轉換腳本
+final.txt,衍生,28,1989,taipower_align/final.py,長表轉換的語意驗證與缺漏報告
+generation_cost.csv,來源副本,26,1019,ingest.fetch 下載後複製,官方原檔逐字副本，未經任何修改
+nuclear_units.csv,來源副本,8,882,ingest.fetch 下載後複製,官方原檔逐字副本，未經任何修改
+outage.csv,來源副本,138,6260,ingest.fetch 下載後複製,官方原檔逐字副本，未經任何修改
+outage_plant_map.csv,人工補充,138,11496,人工維護,138 筆歲修事件的所屬電廠對照
+plants.csv,人工補充,34,4352,人工維護（含 source_urls 欄）,34 筆電廠主檔：22 筆官方 + 12 筆補充（IPP 9、核能 3）
+re_generation.csv,來源副本,1976,163945,ingest.fetch 下載後複製,官方原檔逐字副本，未經任何修改
+re_sites.csv,來源副本,97,18647,ingest.fetch 下載後複製,官方原檔逐字副本，未經任何修改
+re_sites_supplement.csv,人工補充,1,281,人工維護（含 source_urls 欄）,場址主檔漏收的發電站，目前 1 筆：中屯風力
+re_station_crosswalk.csv,衍生,65,7892,uv run python -m align,17141 與 17140 的發電站對齊結果，含狀態與縣市
+units.csv,來源副本,175,21364,ingest.fetch 下載後複製,官方原檔逐字副本，未經任何修改
+units_generation.json,來源副本,215,36431,ingest.fetch 下載後複製,官方原檔逐字副本，未經任何修改

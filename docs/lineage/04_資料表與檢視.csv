@@ -1,0 +1,25 @@
+﻿名稱,類型,列數,資料來自,Text2SQL可查詢,欄位
+b_column_scope,資料表,64,daily_plant_scope.csv,否,b_column_id、access_scope、membership_status、note
+bridge_b_column,資料表,43,crosswalk.csv,否,id、b_column_id、a_plant、n_plants、n_units、cap_a_wankw、obs_max_b、ratio、confidence、is_residual、is_bucket、note
+bridge_b_column_plant,資料表,72,daily_plant_scope.csv,否,b_column_id、plant_id
+bridge_b_column_unit,資料表,175,crosswalk.csv,否,b_column_id、unit_id
+dim_b_column,資料表,64,daily.csv + nuclear_units.csv + units_generation.json,否,id、b_column、grain、category、has_unit_master、capacity_kw、capacity_source
+dim_date,資料表,577,daily.csv,否,date、year、month、day
+dim_outage,資料表,138,outage.csv + units.csv,否,id、unit_id、source_unit_name、fuel、start_date、end_date、reason、date_status、alignment_status
+dim_plant,資料表,22,units.csv,否,id、plant_name、postal_code、county、address、phone、fax、primary_fuel
+dim_plant_scope,資料表,34,plants.csv,否,plant_id、plant_name、plant_type、fuel_types、ownership、aliases
+dim_re_site,資料表,65,re_sites.csv + re_sites_supplement.csv,否,id、station_name、energy_type、county、site_count、capacity_kw、turbine_count、models、application_status、source、note
+dim_unit,資料表,175,units.csv,否,id、plant_id、unit_name、commercial_date、commercial_date_raw、commercial_date_precision、capacity_kw、fuel
+fact_daily_peak,資料表,36928,daily_long.csv,否,date、b_column_id、peak_wankw
+fact_daily_system,資料表,577,daily.csv,否,date、net_peak_supply_wankw、peak_load_wankw、operating_reserve_wankw、operating_reserve_rate_pct、industrial_usage_million_kwh、residential_usage_million_kwh
+fact_generation_cost,資料表,72,generation_cost.csv,否,id、source_group、generation_type、year、accounting_basis、cost_per_kwh
+fact_re_monthly,資料表,1976,re_generation.csv,否,site_id、year、month、generation_kwh、value_status、raw_value
+meta_manifest,資料表,1,建庫時產生,否,id、schema_version、data_version、data_start、data_end、built_at、source_sha256、table_counts、data_checksum
+meta_pitfall,資料表,21,對齊結果自動推導,否,id、pitfall_code、target_kind、target_name、severity、reason、suggestion、evidence
+outage_scope,資料表,138,outage_plant_map.csv,否,outage_id、plant_id、mapping_level
+v_generation_cost,語意檢視,72,fact_generation_cost,是,年度、電力來源、發電方式、成本_元每度、決算類型
+v_outage,語意檢視,138,dim_outage + dim_unit + dim_plant,是,歲修編號、機組名、電廠、燃料、開始日期、結束日期、原因、日期狀態、對齊狀態
+v_peak,語意檢視,36928,fact_daily_peak + dim_b_column + bridge_b_column,是,日期、機組欄位、尖峰出力_萬瓩、電廠、粒度、類別、涵蓋機組數、對應裝置容量_萬瓩、容量來源、是殘差欄、是彙總欄、有機組主檔
+v_re_generation,語意檢視,1976,fact_re_monthly + dim_re_site,是,年度、月份、發電站、能源別、縣市、發電量_度、裝置容量_瓩、場址數、數值狀態、主檔來源
+v_system,語意檢視,577,fact_daily_system,是,日期、淨尖峰供電能力_萬瓩、尖峰負載_萬瓩、備轉容量_萬瓩、備轉容量率_pct、工業用電_百萬度、民生用電_百萬度
+v_unit,語意檢視,175,dim_unit + dim_plant,是,機組名、電廠、縣市、裝置容量_瓩、裝置容量_萬瓩、燃料、商轉日期、商轉日期精度
