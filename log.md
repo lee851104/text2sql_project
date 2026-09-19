@@ -2,6 +2,23 @@
 
 > 這份檔案在每個可驗證、可回退的儲存點更新。回退前需保留使用者原有的未提交變更。
 
+## CP-034 — 公開部署改用兩個帳號並要求登入
+
+- 時間：2026-09-19 19:19 +08:00
+- 狀態：已完成
+- 背景：CP-028 加上四眼原則後，公開啟動程序產生的**一組**共用帳密就無法發布任何資料（提案人不能核准自己的變更）。這件事從 CP-028 起就掛著沒解。
+- 處理：
+  - 啟動程序改為產生**兩組**帳密（`powerquery-admin-1`／`-2`），兩者 `scope: all` 且 `can_review: true`，互為審核者。既有的單組憑證檔會被遷移：保留原本那組、補第二組，不換掉已發出去的密碼。
+  - 名冊寫在 `.powerquery-public/accounts.yaml`，**不寫進 `configs/accounts.yaml`**。後者會同時改變本機服務的帳號來源，而且公開服務停掉後還留著。為此新增 `POWERQUERY_ACCOUNT_ROSTER` 環境變數讓名冊路徑可設定。
+  - 新增 `-Mode roster`：不啟動服務就重建名冊。它呼叫的是啟動流程用的同一個寫入函式，所以這個模式驗證的是正式路徑，不是複製品。
+  - 公開環境設 `POWERQUERY_ANONYMOUS_QUERY_SCOPE=denied`（執行模式與 API key 是行程全域的，匿名可查等於任何訪客都在燒管理員那把 key）與 `POWERQUERY_TRUSTED_PROXIES=127.0.0.1,::1`（Funnel 轉到 loopback，不信任就會讓限速變成全域共用一桶）。名冊生效時清掉單一帳號的環境變數，不讓兩套帳號來源並存。
+- **端到端驗證抓到一個會讓公開部署完全登不進去的 bug**：Windows PowerShell 把字串管進原生程式時會加上 UTF-8 BOM。64 字元的密碼進到 Python 是 69 bytes（BOM 3 + CRLF 2），於是雜湊的是「BOM 加密碼」，產生的名冊沒有任何一組密碼驗得過。修正在 Python 側（`_read_password` 用 `utf-8-sig` 解碼），因為任何從 PowerShell 管進來的呼叫都會踩到。只剝除 CR 與 LF，不動其他空白 —— 那可能是密碼的一部分。
+  - 這個 bug 只有真的把 PowerShell 產出的名冊丟進 `load_roster` 與 `login` 才會現形；腳本語法、雜湊格式、YAML 解析全部都通過。
+- 新增測試（6 筆）：`_read_password` 對 BOM／CRLF／純文字／前後空白的處理（5 筆參數化），以及啟動腳本內容的檢查（兩個帳號、審核權、名冊路徑不落在 configs、要求登入、信任代理、清掉單一帳號變數）。
+- 驗收：`ruff format --check .`、`ruff check .`、PowerShell 語法解析、`node --check app.js` 通過；`pytest -q` **362 passed**（CP-033 後為 356，新增 6 筆，無回歸）。實機執行 `-Mode credentials` 與 `-Mode roster`，並以 `load_roster` + `AdminAuthManager.login` 驗證兩組密碼都登得進去。
+- 本機狀態：驗證過程在 `.powerquery-public/` 產生了實際可用的兩組帳密與名冊（該目錄已排除於版控）。`顯示公開管理密碼.bat` 可查看。
+- 回退方式：回退 `feat: give the public deployment two reviewing accounts` 這個 commit。回退後公開程序回到單一帳號，且該環境無法發布資料（除非設 `POWERQUERY_ALLOW_SELF_APPROVAL`）。
+
 ## CP-033 — 同一個 session 可以有多組 CSRF 證明
 
 - 時間：2026-09-19 19:05 +08:00

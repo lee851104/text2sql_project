@@ -1,6 +1,6 @@
 ﻿[CmdletBinding()]
 param(
-    [ValidateSet("start", "stop", "status", "credentials")]
+    [ValidateSet("start", "stop", "status", "credentials", "roster")]
     [string]$Mode = "start"
 )
 
@@ -11,8 +11,10 @@ $LogDirectory = Join-Path $ProjectRoot "logs"
 $PidPath = Join-Path $StateDirectory "public-offline.pid"
 $MetadataPath = Join-Path $StateDirectory "public-offline.json"
 $CredentialsPath = Join-Path $StateDirectory "admin-credentials.json"
+$RosterPath = Join-Path $StateDirectory "accounts.yaml"
 $LauncherLog = Join-Path $LogDirectory "public-offline-launcher.log"
 $PowerQueryExecutable = Join-Path $ProjectRoot ".venv\Scripts\powerquery.exe"
+$PowerQueryPython = Join-Path $ProjectRoot ".venv\Scripts\python.exe"
 $DatabasePath = Join-Path $ProjectRoot "data\processed\power.db"
 $TailscaleExecutable = "C:\Program Files\Tailscale\tailscale.exe"
 $LocalPort = 8766
@@ -127,30 +129,103 @@ function New-RandomAdminPassword {
     return [Convert]::ToBase64String($bytes)
 }
 
+function New-PublicAccountSet {
+    # 兩個帳號，兩個都有審核權。四眼原則禁止提案人核准自己的變更，所以只給一個帳號
+    # 會讓公開環境無法發布資料；兩個互為審核者，示範時也剛好能演完整流程。
+    return @(
+        [ordered]@{ username = "powerquery-admin-1"; password = New-RandomAdminPassword },
+        [ordered]@{ username = "powerquery-admin-2"; password = New-RandomAdminPassword }
+    )
+}
+
 function Get-OrCreateAdminCredentials {
     Initialize-Directories
     if (Test-Path -LiteralPath $CredentialsPath -PathType Leaf) {
         $saved = Get-Content -LiteralPath $CredentialsPath -Raw | ConvertFrom-Json
-        if ($saved.username -and $saved.password) {
+        if ($saved.accounts -and $saved.accounts.Count -ge 2) {
             return $saved
+        }
+        if ($saved.username -and $saved.password) {
+            # 舊格式只有一組帳密。保留原本那組，補第二組，不讓既有使用者的密碼被換掉。
+            $migrated = [ordered]@{
+                accounts = @(
+                    [ordered]@{ username = [string]$saved.username; password = [string]$saved.password },
+                    [ordered]@{ username = "powerquery-admin-2"; password = New-RandomAdminPassword }
+                )
+                created_at = if ($saved.created_at) { [string]$saved.created_at } else { [DateTimeOffset]::Now.ToString("o") }
+                migrated_at = [DateTimeOffset]::Now.ToString("o")
+            }
+            $migrated | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $CredentialsPath -Encoding UTF8
+            return [pscustomobject]$migrated
         }
         throw "Public administrator credential file is invalid: $CredentialsPath"
     }
 
     $credentials = [ordered]@{
-        username = "powerquery-admin"
-        password = New-RandomAdminPassword
+        accounts = New-PublicAccountSet
         created_at = [DateTimeOffset]::Now.ToString("o")
     }
-    $credentials | ConvertTo-Json | Set-Content -LiteralPath $CredentialsPath -Encoding UTF8
+    $credentials | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $CredentialsPath -Encoding UTF8
     return [pscustomobject]$credentials
+}
+
+function Get-PasswordHash {
+    param([Parameter(Mandatory = $true)][string]$Password)
+
+    $previous = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        $hash = ($Password | & $PowerQueryPython -m serving.accounts hash) | Select-Object -Last 1
+    }
+    finally {
+        $ErrorActionPreference = $previous
+    }
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($hash)) {
+        throw "無法產生密碼雜湊；請確認 .venv 已建立且 serving.accounts 可執行。"
+    }
+    return $hash.Trim()
+}
+
+function Write-PublicRoster {
+    param([Parameter(Mandatory = $true)]$Credentials)
+
+    Initialize-Directories
+    $lines = @(
+        "# 公開離線服務自動產生，請勿手動編輯；停止服務不會刪除本檔。",
+        "# 兩個帳號都有審核權：四眼原則禁止提案人核准自己的變更，只有一個帳號會無法發布。",
+        "accounts:"
+    )
+    foreach ($account in $Credentials.accounts) {
+        $hash = Get-PasswordHash -Password ([string]$account.password)
+        $lines += "  - username: $($account.username)"
+        $lines += "    password: `"$hash`""
+        $lines += "    scope: all"
+        $lines += "    can_review: true"
+    }
+    Set-Content -LiteralPath $RosterPath -Value $lines -Encoding UTF8
+    return $RosterPath
+}
+
+function Write-PublicRosterFile {
+    # 重建名冊而不啟動服務。啟動流程也會呼叫同一個寫入函式，所以這個模式驗證的
+    # 就是正式路徑，不是另一份複製品。
+    $credentials = Get-OrCreateAdminCredentials
+    $path = Write-PublicRoster -Credentials $credentials
+    Write-Host "Roster written: $path"
+    foreach ($account in $credentials.accounts) {
+        Write-Host "  $($account.username)  scope=all  can_review=true"
+    }
 }
 
 function Show-AdminCredentials {
     $credentials = Get-OrCreateAdminCredentials
-    Write-Host "Public data-center account: $($credentials.username)"
-    Write-Host "Public data-center password: $($credentials.password)"
+    Write-Host "Public data-center accounts (both may review):"
+    foreach ($account in $credentials.accounts) {
+        Write-Host "  $($account.username) / $($account.password)"
+    }
     Write-Host "Credential file: $CredentialsPath"
+    Write-Host "Roster file: $RosterPath"
+    Write-Host "Publishing data needs a second account: a proposer cannot approve their own change."
 }
 
 function Start-PublicOfflineService {
@@ -188,19 +263,31 @@ function Start-PublicOfflineService {
     $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
     $stdoutLog = Join-Path $LogDirectory "public-offline-$stamp.stdout.log"
     $stderrLog = Join-Path $LogDirectory "public-offline-$stamp.stderr.log"
+    $rosterPath = Write-PublicRoster -Credentials $credentials
     $savedEnvironment = @{
         OPENAI_API_KEY = [Environment]::GetEnvironmentVariable("OPENAI_API_KEY", "Process")
         POWERQUERY_ADMIN_USERNAME = [Environment]::GetEnvironmentVariable("POWERQUERY_ADMIN_USERNAME", "Process")
         POWERQUERY_ADMIN_PASSWORD = [Environment]::GetEnvironmentVariable("POWERQUERY_ADMIN_PASSWORD", "Process")
         POWERQUERY_ADMIN_ALLOWED_HOSTS = [Environment]::GetEnvironmentVariable("POWERQUERY_ADMIN_ALLOWED_HOSTS", "Process")
+        POWERQUERY_ACCOUNT_ROSTER = [Environment]::GetEnvironmentVariable("POWERQUERY_ACCOUNT_ROSTER", "Process")
+        POWERQUERY_ANONYMOUS_QUERY_SCOPE = [Environment]::GetEnvironmentVariable("POWERQUERY_ANONYMOUS_QUERY_SCOPE", "Process")
+        POWERQUERY_TRUSTED_PROXIES = [Environment]::GetEnvironmentVariable("POWERQUERY_TRUSTED_PROXIES", "Process")
         PYTHONUNBUFFERED = [Environment]::GetEnvironmentVariable("PYTHONUNBUFFERED", "Process")
     }
 
     try {
         [Environment]::SetEnvironmentVariable("OPENAI_API_KEY", $null, "Process")
-        [Environment]::SetEnvironmentVariable("POWERQUERY_ADMIN_USERNAME", [string]$credentials.username, "Process")
-        [Environment]::SetEnvironmentVariable("POWERQUERY_ADMIN_PASSWORD", [string]$credentials.password, "Process")
+        # 名冊生效時單一帳號的環境變數不再使用；清掉以免兩套帳號來源並存。
+        [Environment]::SetEnvironmentVariable("POWERQUERY_ADMIN_USERNAME", $null, "Process")
+        [Environment]::SetEnvironmentVariable("POWERQUERY_ADMIN_PASSWORD", $null, "Process")
+        [Environment]::SetEnvironmentVariable("POWERQUERY_ACCOUNT_ROSTER", $rosterPath, "Process")
         [Environment]::SetEnvironmentVariable("POWERQUERY_ADMIN_ALLOWED_HOSTS", "127.0.0.1,localhost,::1,$publicHost", "Process")
+        # Funnel 轉到 127.0.0.1，外部訪客在服務眼中全是 loopback；信任這個代理才能
+        # 從 X-Forwarded-For 取回真正的來源，否則限速會變成全域共用一桶。
+        [Environment]::SetEnvironmentVariable("POWERQUERY_TRUSTED_PROXIES", "127.0.0.1,::1", "Process")
+        # 公開網址的查詢需要登入：執行模式與 API key 是行程全域的，匿名可查等於任何
+        # 訪客都在燒管理員輸入的那把 key。
+        [Environment]::SetEnvironmentVariable("POWERQUERY_ANONYMOUS_QUERY_SCOPE", "denied", "Process")
         [Environment]::SetEnvironmentVariable("PYTHONUNBUFFERED", "1", "Process")
 
         $startParameters = @{
@@ -313,6 +400,7 @@ try {
         "stop" { Stop-PublicOfflineService }
         "status" { Show-PublicOfflineStatus }
         "credentials" { Show-AdminCredentials }
+        "roster" { Write-PublicRosterFile }
     }
 }
 catch {

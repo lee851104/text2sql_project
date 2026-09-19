@@ -9,11 +9,13 @@ import pytest
 from fastapi.testclient import TestClient
 
 from ingest.build_db import build_database
+from ingest.validate import PROJECT_ROOT
 from serving.accounts import (
     MINIMUM_ITERATIONS,
     Account,
     AccountRosterError,
     _main,
+    _read_password,
     hash_password,
     parse_roster,
     render_roster,
@@ -525,3 +527,50 @@ def test_the_inventory_does_not_warn_with_two_reviewers() -> None:
 
     assert "可審核帳號：2" in report
     assert "建議至少兩個" not in report
+
+
+# ── 公開部署的名冊 ────────────────────────────────────────────────────────
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        (b"plain-password", "plain-password"),
+        (b"\xef\xbb\xbfplain-password", "plain-password"),
+        (b"\xef\xbb\xbfplain-password\r\n", "plain-password"),
+        (b"plain-password\n", "plain-password"),
+        (b"  spaced  \r\n", "  spaced  "),
+    ],
+)
+def test_a_piped_password_ignores_the_shell_byte_order_mark(raw: bytes, expected: str) -> None:
+    """Windows PowerShell 管進 stdin 會加 UTF-8 BOM 與 CRLF。
+
+    照單全收的話雜湊的是 BOM 加密碼，公開部署會產生一份永遠登不進去的名冊，而且失敗點
+    離成因很遠。前後空白不剝除 —— 那可能是使用者密碼的一部分。
+    """
+
+    assert _read_password(raw) == expected
+
+
+def test_the_public_launcher_provisions_two_reviewers_and_requires_login() -> None:
+    script = (PROJECT_ROOT / "scripts" / "public_offline_service.ps1").read_text(
+        encoding="utf-8-sig"
+    )
+
+    # 兩個帳號，都有審核權：只有一個的話提案人無法被別人核准，公開環境就無法發布。
+    assert "powerquery-admin-1" in script
+    assert "powerquery-admin-2" in script
+    assert script.count("can_review: true") >= 1
+
+    # 名冊寫在版控外的公開狀態目錄，不得污染 configs/accounts.yaml。
+    assert "POWERQUERY_ACCOUNT_ROSTER" in script
+    assert 'Join-Path $StateDirectory "accounts.yaml"' in script
+
+    # 匿名查詢會用掉管理員輸入的 API key，所以公開網址要求登入。
+    assert 'SetEnvironmentVariable("POWERQUERY_ANONYMOUS_QUERY_SCOPE", "denied"' in script
+
+    # Funnel 轉到 loopback；不信任這個代理的話限速會變成全域共用一桶。
+    assert 'SetEnvironmentVariable("POWERQUERY_TRUSTED_PROXIES"' in script
+
+    # 名冊生效時不應同時留著單一帳號的環境變數。
+    assert 'SetEnvironmentVariable("POWERQUERY_ADMIN_USERNAME", $null' in script

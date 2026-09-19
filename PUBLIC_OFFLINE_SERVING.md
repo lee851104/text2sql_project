@@ -13,7 +13,13 @@
 
 原本的本機服務仍使用 `http://127.0.0.1:8765/`。LH 專案使用的 HTTPS 443 與本機 8000 不會被變更。
 
-公開程序啟動前會移除 `OPENAI_API_KEY`，並建立一組共用的強管理員帳密。知道帳密的使用者可透過公開網址登入資料中心、審核與修改資料，或在執行環境介面輸入 OpenAI API key 啟用付費線上模型。API key 只保存在服務記憶體，服務重啟後需要重新輸入。
+公開程序啟動前會移除 `OPENAI_API_KEY`，並建立**兩組**強管理員帳密（`powerquery-admin-1`、`powerquery-admin-2`），兩者都有審核權。知道帳密的使用者可透過公開網址登入資料中心、審核與修改資料，或在執行環境介面輸入 OpenAI API key 啟用付費線上模型。API key 只保存在服務記憶體，服務重啟後需要重新輸入。
+
+**公開網址的查詢需要登入。** 執行模式與 API key 是行程全域的，匿名可查等於任何訪客都在燒管理員輸入的那把 key，所以啟動程序會設 `POWERQUERY_ANONYMOUS_QUERY_SCOPE=denied`。
+
+兩組帳密而不是一組，是因為四眼原則禁止提案人核准自己的變更：只有一個帳號時公開環境無法發布任何資料。兩個互為審核者，示範時也剛好能演完整流程（A 上傳 → A 自審被擋 → B 核准 → 資料上線）。
+
+帳號名冊由啟動程序寫在 `.powerquery-public/accounts.yaml`，**不會寫進 `configs/accounts.yaml`** —— 那個檔案會同時改變本機服務的帳號來源，而且公開服務停掉之後還留著。名冊被刪掉時可用 `-Mode roster` 重建，不必啟動服務。
 
 管理員帳密保存在 `.powerquery-public/admin-credentials.json`，這個資料夾已排除於版本控制。請只提供給獲准管理資料及使用付費模型的人。
 
@@ -27,12 +33,11 @@
 
 ### 資料發布需要第二個人
 
-服務預設套用四眼原則：**提案人不能核准自己的資料變更**（API 回 403）。公開程序建立的是一組共用帳密，也就是一個帳號，因此上傳後無法自行發布。兩種做法：
-
-- 建立 `configs/accounts.yaml`，至少放兩個帳號（格式見 `configs/accounts.example.yaml`），由不同人分別提案與審核。這是預期做法。
-- 單人操作時設 `POWERQUERY_ALLOW_SELF_APPROVAL=true`。變更紀錄與稽核鏈仍會把該筆標上 `self_approved`，所以事後查得出哪些發布沒有經過第二個人。
+服務套用四眼原則：**提案人不能核准自己的資料變更**（API 回 403）。啟動程序已經建立兩個互為審核者的帳號，所以照流程走即可：一個帳號上傳，另一個帳號核准。
 
 駁回不受此限制 —— 撤回自己的提案不會讓任何東西上線。
+
+真的要單人操作時可設 `POWERQUERY_ALLOW_SELF_APPROVAL=true`，變更紀錄與稽核鏈會把該筆標上 `self_approved`，事後查得出哪些發布沒有經過第二個人。
 
 ## 啟動與停止
 
@@ -40,7 +45,13 @@
 
 雙擊 `停止公開服務.bat`，只會關閉 PowerQuery 的 HTTPS 8443 Funnel 與本機 8766 程序，不會停止 LH 專案。
 
-雙擊 `顯示公開管理密碼.bat` 可再次查看共用帳號與密碼。
+雙擊 `顯示公開管理密碼.bat` 可再次查看兩組帳號與密碼。
+
+名冊被刪掉或要重新產生時：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\public_offline_service.ps1 -Mode roster
+```
 
 查詢狀態：
 

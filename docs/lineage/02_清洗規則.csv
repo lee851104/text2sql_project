@@ -1,0 +1,35 @@
+﻿來源檔,階段,清洗規則,實作位置,實測效果
+（全部 8 份）,讀取,UTF-8 BOM 剝離（以 utf-8-sig 開檔）,src/ingest/validate.py:read_csv,不剝除的話第一個欄名會帶不可見字元，必要欄位比對直接失敗
+（全部 8 份）,讀取,必要欄位齊備檢查,src/ingest/validate.py:require_columns,每份檔案各有一組 *_REQUIRED 欄位清單，缺欄即中止建庫
+（全部 8 份）,讀取,逐欄位前後空白修剪,src/ingest/build_db.py:_text,防禦性規則；本快照實測無前後空白
+（全部 8 份）,封存,以 SHA-256 內容定址封存,src/ingest/fetch.py:download_datasets,相同內容不重複存檔；來源、位元組、checksum 記入 data/raw/manifest.json
+units.csv,驗證,"(電廠名稱, 機組名稱) 複合鍵唯一性斷言",src/ingest/validate.py:_assert_unique,175 組全部唯一，重複 0 筆
+units.csv,驗證,裝置容量須為有限數值且大於 0,src/ingest/validate.py:parse_number,"175 列全數通過，最小 110 瓩、最大 892,600 瓩，合計 29,629,241 瓩"
+units.csv,轉換,商轉日期雙精度解析：6 碼當年月（補當月 1 日）、8 碼當年月日,src/ingest/validate.py:parse_unit_date,123 列日精度、52 列月精度；原值與精度另存 commercial_date_raw / commercial_date_precision，避免月精度被誤讀成確切日期
+units.csv,彙總,175 台機組依電廠名稱收斂成 22 筆電廠,src/ingest/build_db.py:_insert_plants_and_units,地址三欄無分隔串接；多燃料電廠以 | 併列（台中＝煤|輕柴油等 4 廠）
+units.csv,對齊,B 欄位對機組的 43 條規則表，逐欄明寫不做前綴猜測,taipower_align/align.py:RULES,64 欄中 43 欄有主檔、21 欄無主檔；175 台機組 100% 被涵蓋
+units.csv,檢查,容量比須落在 0.80–1.06，逾界必須附人工備註,src/align/crosswalk.py:validate_crosswalk,43 列中 11 列逾界，但 11 列都有備註，因此 issues 為空
+daily.csv,轉換,寬表轉長表,taipower_align/final.py,"577 天 × 64 欄 → 36,928 列"
+daily.csv,轉換,裝置容量 瓩→萬瓩，使與每日出力同單位,taipower_align/align.py,"29,629,241 瓩 → 2,962.92 萬瓩；換算後才能算容量比"
+daily.csv,分類,B 欄位分成單機／多機彙總／殘差桶三種粒度,src/align/grain.py:classify_grain,58 個單廠欄位、6 個共用彙總欄（離島、其他小水力、氣渦輪、汽電共生、風力發電、太陽能發電）
+outage.csv,對齊,機組名稱正規化（全形＃→#、～→~、去除所有空白）後比對主檔,src/align/naming.py:normalize_name + outage_unit_candidates,138 筆中 125 筆對上（90.58%）；configs/outage_overrides.yaml 為空，代表全部由規則達成、0 筆人工裁決
+outage.csv,保留,起訖顛倒的列保留原值並標記，不自行猜測正確年份,src/ingest/build_db.py:_insert_outages,1 列標 date_status=invalid_range（開始 2027-12-20 晚於結束 2027-02-23，相差 -300 天）
+outage.csv,保留,未對齊列保留原始機組名，unit_id 留 NULL,src/ingest/build_db.py:_insert_outages,13 筆只確認到電廠、未確認機組；名單留在 reports/outage_unmatched.txt
+generation_cost.csv,解析,依 CSV 縮排層級判定葉節點與彙總列,src/ingest/validate.py:parse_generation_cost_rows,26 個標籤中 7 個是彙總（火力發電、再生能源發電等），21 筆（29.2%）是彙總資料
+generation_cost.csv,正規化,標籤的半形與全形空白一律剝除,src/ingest/validate.py:parse_generation_cost_rows,26 個標籤中 23 個帶空白縮排；「燃  油」正規化為「燃油」
+generation_cost.csv,轉置,寬表（3 個年度欄）轉長表,src/ingest/build_db.py:_insert_generation_costs,26 列 × 3 年 → fact_generation_cost 72 列
+re_sites.csv,剔除,依發電站編號含「小計」剔除彙總列,src/align/renewable.py:is_subtotal,"97 列 → 93 列明細；直接加總全部 97 列會得 1,514,419 瓩，實際明細只有 757,960 瓩，重複計算近一倍"
+re_sites.csv,解析,雙語字串取中文側，並剝除黏在中文後的拉丁字母,src/align/renewable.py:chinese_part,修復官方漏掉 / 分隔符的「彰工風力Changgong Wind Power」
+re_sites.csv,解析,從地址解析縣市,src/align/renewable.py:parse_county,93／93 成功，涵蓋 19 個縣市；小計列的地址欄塞的是說明文字，解析為 None
+re_sites.csv,彙總,同一發電站的多個場址彙總成一列,src/align/renewable.py:build_station_records,93 個場址 → 64 個發電站；容量與風機數相加，型號與申設狀態以 | 併列
+re_generation.csv,解析,發電量分類為 ok／missing／suspect／invalid,src/align/renewable.py:parse_generation,"1,976 列中 1,959 ok、16 missing、1 suspect"
+re_generation.csv,保留,缺值存 NULL 而不是 0,src/align/renewable.py:parse_generation,16 筆缺值：15 筆中屯風力、1 筆澎湖龍門風力 2024-02，經月報證實都是機組確實未發電
+re_generation.csv,修復,suspect 值不列入加總，除非 overrides 有附依據的人工修復,src/align/renewable.py:repair_generation,"1 筆：澎湖湖西風力 2024-07 原始值「357,156.00 2」，經 11307 月報驗算（382,722 毛 − 25,566 廠用 = 357,156）後修復"
+re_generation.csv,對齊,去掉發電站名稱結尾的「發電站」後與場址主檔比對,src/align/renewable.py:normalize_station,直接 join 只有 10 站對上；去後綴後 62 站；加 2 組人工確認別名 = 64 對齊（98.5%）；再加補充檔 = 65 覆蓋（100%）
+units_generation.json,剔除,剔除混在明細中的小計列（機組名稱含「小計」）,src/align/column_capacity.py:_realtime_index,215 列中 10 列是小計；風力的小計列寫成「小計(註5)」而非「小計」
+units_generation.json,解析,容量欄剝除百分比括號,src/align/column_capacity.py:parse_megawatts,小計列寫成「15918.1(26.052%)」，需取前綴數字
+units_generation.json,換算,MW → 瓩（×1000）,src/align/column_capacity.py:megawatts_to_kilowatts,與機組主檔同單位才能進 dim_b_column.capacity_kw
+units_generation.json,記錄,容量來源附當次快照的 SHA-256 前綴,src/ingest/build_db.py:_insert_column_capacities,這是每 10 分鐘覆寫的快照不是主檔，機組除役會直接消失（麥寮即如此），必須能回溯是哪一刻的狀態
+nuclear_units.csv,換算,MWe → 瓩（×1000）,src/align/column_capacity.py:_nuclear_index,核一 636×2、核二 985×2、核三 951×2
+nuclear_units.csv,排除,裝置容量欄非純數字者排除,src/align/column_capacity.py:_nuclear_index,龍門廠（核四）2 列商轉日期寫「封存中」，每日資料也沒有對應欄位，故不採用
+（跨檔）,檢查,填入的容量套用與 crosswalk 相同的容量比門檻,src/ingest/build_db.py:_insert_column_capacities,21 欄設定、18 欄補到容量；2 欄逾界寫入 KNOWN_CAPACITY_GAP：汽電共生 332%、星彰#1 107%
