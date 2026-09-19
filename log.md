@@ -2,6 +2,24 @@
 
 > 這份檔案在每個可驗證、可回退的儲存點更新。回退前需保留使用者原有的未提交變更。
 
+## CP-041 — README 簡化、細節進 SPEC，順手清掉重複文件
+
+- 時間：2026-09-20 00:05 +08:00
+- 狀態：已完成
+- 需求：README 太長（497 行），非技術讀者讀不完。改成八節，細節搬到規格文件。
+- 處理：
+  - `README.md` **497 → 223 行**，八節：解決什麼問題／實際操作（動畫待補）／用了哪些技術與踩了哪些坑／架構／工程亮點（含資料來源）／快速開始／深入閱讀／授權。技術選擇與踩坑各一張表，坑全部取自本檔既有紀錄（憑證鏈、CSV 缺時間戳、PowerShell BOM、語料餵錯模式、新意圖偷走舊題目、限制說明過期）。
+  - 新增 `docs/SPEC.md`（425 行）承接細節：系統設計、資料工程與踩坑、權限與職責分離、資料模型、資料來源、評測、已知限制、專案結構與里程碑。
+  - 修掉 README **7 個壞連結**：`docs/AI_AGENT_COLLABORATION.md` 不存在，`參考資料/*.md` 六份已由 `.gitignore` 排除不進版控。
+  - 移除已過期的敘述：開頭寫「管線、API 與前端仍分階段開發中」、架構圖前寫「目前已完成資料擷取部分」，但里程碑 Phase 1–8 全部完成。快速開始也從 `taipower_align` 的重現步驟改成實際的 `啟動.bat`／`make` 流程（對齊流程本來就在 `taipower_align/README.md` 有完整一份）。
+- **順手清掉的重複文件**：`DATA_DICTIONARY`、`EVALUATION`、`SEMANTIC_GUARD`、`SERVING`、`SYSTEM_CARD`、`TEXT2SQL_PIPELINE` 六份同時存在於根目錄與 `docs/`，讀者可能開到過期的那一份。
+  - **判斷依據不能只看提交時間**：根目錄的 `SERVING.md`／`EVALUATION.md` 提交時間較新（9/14 vs 9/13），內容卻是舊的。逐份比對才看得出來 —— `docs/SERVING.md` **187 行**、根目錄只有 **106 行**，少了「資料管理登入」與「資料熱插拔、資料庫版本與稽核」兩整節；`docs/` 版另外修好了「陷阡→陷阱」「汇總→彙總」兩個錯字，並把 `log.md` 連結改成正確的相對路徑。**六份一律保留 `docs/`。**
+  - README 4 條、`docs/SPEC.md` 10 條連結改指向 `docs/`。其中 `SERVING.md#自動語料學習` 這個 anchor 在 `docs/` 版叫「語料治理與來源調閱」，一併更正 —— 檔案換了，anchor 不會自己跟著換。
+  - 連帶修掉 `src/eval/run_eval.py` 的「語意陷阡」（每次評測都會印出來）。
+- 驗證：兩份文件的**全部連結逐條檢查可解析**（README 13 條、SPEC 27 條）；`tests/`、`.github/`、`Makefile` 沒有任何一處引用被刪的六份。
+- 驗收：`ruff format --check .`、`ruff check .` 通過；`pytest -q` **420 passed, 1 skipped**（skip 是本機 8765 被既有服務占用；與 CP-040 相同，本次為純文件與錯字，無回歸）。
+- 回退方式：回退 `docs: simplify the README and keep one copy of each document` 與 `fix: correct a typo in the offline evaluation summary` 兩個 commit。
+
 ## CP-040 — 近似問句：贅字直接答，差一點就反問
 
 - 時間：2026-09-19 23:42 +08:00
