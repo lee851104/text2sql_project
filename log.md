@@ -2,6 +2,26 @@
 
 > 這份檔案在每個可驗證、可回退的儲存點更新。回退前需保留使用者原有的未提交變更。
 
+## CP-027 — 帳號名冊與電廠範圍接上查詢路徑
+
+- 時間：2026-09-19 16:38 +08:00
+- 狀態：已完成
+- 問題：`scope_guard` 的兩級授權（`plant`／`all`）自 CP-022 起就有完整實作與測試，但 `/api/query` 從來沒有傳入 `plant`，`Pipeline.query` 的預設是 `None`＝全廠。也就是說整套授權改寫沒有任何 HTTP 入口會觸發，能力只存在於測試裡，產品裡看不到。
+- 處理：
+  - **名冊**（`src/serving/accounts.py`）：`configs/accounts.yaml`，每個帳號有 username、PBKDF2 雜湊、`scope: all | <plant_id>`。檔案已加入 `.gitignore`；版控只留 `configs/accounts.example.yaml`，與 `.env.example` 同一套慣例。附 `python -m serving.accounts` 由 stdin 讀密碼產生雜湊，密碼不會進命令列歷史。
+  - **綁定用 plant_id 不用名稱**：名稱會改，編號是建庫時釘住並逐筆比對過漂移的識別碼。名冊可選填 `plant_name`，啟動時與 `dim_plant_scope` 比對，編號與名稱對不起來就拒絕服務 —— 建庫層漂移偵測在授權層的延伸。
+  - **多帳號驗證**：`AdminAuthManager` 改為持有帳號表，新增 `from_roster`。單一帳號路徑（環境變數）完全不變，兩者互斥 —— 兩套帳號來源同時有效會讓「誰能登入」取決於載入順序。登入仍是一次 PBKDF2 加一個假憑證比對，未知帳號與錯密碼維持同一條失敗路徑。
+  - **接上查詢**：`/api/query` 取得可選身分後帶入 `plant`。**沒有 cookie 才算匿名；帶了但已失效回 401**，不能悄悄退回匿名範圍，否則電廠帳號 session 一過期權限是往上跳。
+  - **堵住 raw 繞道**：電廠帳號的 `query_scope` 只能是 `trusted`。`/api/raw/*` 與 `auto` fallback 不經 `ScopeGuard`，開放給電廠帳號等於留一條繞過授權的路。
+  - **越權留痕與回應語意**：`SCOPE_DENIED` 寫入稽核日誌；電廠帳號拿到空結果時附 `scope_notice`，明講「可能是超出授權範圍，不代表資料不存在」。底層是公開資料，藏起邊界沒有保護作用，只會讓人一直重問，所以選擇講明 —— 這是刻意做的取捨，不是預設。
+  - **匿名政策**：`POWERQUERY_ANONYMOUS_QUERY_SCOPE`＝`all`（預設，維持公開展示現況）或 `denied`。預設不變更現有行為，但把這個選擇從隱含變成明寫。
+- 新增測試（20 筆，`tests/test_account_scope.py`）：名冊格式與重複帳號、scope 型別、雜湊格式的負向測試；**編號查不到**與**編號還在但已是另一座廠**兩條綁定失敗；名冊帳號各自帶著自己的範圍；名冊與單一帳號互斥；以及四筆端到端 —— 同一問句兩種帳號結果不同、電廠帳號讀得到自己廠、失效 session 回 401 不放寬、電廠帳號的 raw／auto 回 403。
+- 可展示證據：`uv run python scripts/demo_plant_scope.py`。問「列出台中發電廠所有設備」，全權限帳號 **14 筆**、林口帳號 **0 筆**；林口帳號問自己的廠 **3 筆**。輸出印出實際送進 SQLite 的 SQL，可看到 `FROM (SELECT * FROM v_unit WHERE "電廠" IN (?))`，證明限制在後端執行。
+- 同步修正：三處測試替身的 `query()` 補上 `plant` 參數（替身簽名與真實 `Pipeline.query` 不一致會掩蓋呼叫端改動）；`test_foundation` 的 configs 清單加入 `accounts.example.yaml`。
+- 驗收：`ruff format --check .`、`ruff check .` 通過；`pytest -q` **319 passed**（CP-026 後為 299，新增 20 筆，無回歸）。
+- 未處理：資料上傳與審核仍是同一個帳號可以自己審自己（四眼原則尚未加上）；登入限速仍以 `request.client.host` 分桶，走反向代理時所有外部訪客共用一桶。
+- 回退方式：回退 `feat: bind accounts to a plant scope and apply it to queries` 這個 commit。名冊不存在時服務行為與本 commit 前相同（單一管理員、全廠範圍），既有環境變數設定不受影響。
+
 ## CP-026 — 授權範圍未涵蓋的檢視改為拒絕
 
 - 時間：2026-09-19 16:10 +08:00

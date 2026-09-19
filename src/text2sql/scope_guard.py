@@ -148,6 +148,14 @@ class ScopeCatalog:
             raise UnknownPlantError(plant)
         return scope
 
+    def plant_names_by_id(self) -> dict[int, str]:
+        """Map the stable authorisation identifier to today's plant name.
+
+        帳號名冊綁的是編號，改寫用的是名稱；這個對照表是兩者之間唯一的轉換點。
+        """
+
+        return {scope.plant_id: scope.plant_name for scope in self.plants.values()}
+
 
 def _allowed_values(scope: PlantScope, view: str) -> Sequence[object]:
     if view == "v_unit":

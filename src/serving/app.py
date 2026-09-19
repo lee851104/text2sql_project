@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import os
 import secrets
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from contextlib import suppress
 from pathlib import Path
 from threading import RLock
@@ -20,6 +21,12 @@ from pydantic import BaseModel, ConfigDict, SecretStr, StringConstraints
 
 from ingest.build_db import build_database
 from ingest.validate import PROJECT_ROOT, resolve_configured_paths
+from serving.accounts import (
+    Account,
+    AccountRosterError,
+    load_roster,
+    resolve_plant_names,
+)
 from serving.admin_auth import (
     AdminAuthError,
     AdminAuthManager,
@@ -56,6 +63,9 @@ GENERIC_RUNTIME_ERROR = (
 )
 GENERIC_CONFIGURATION_ERROR = "執行環境設定無效；請檢查 configs、provider 與模型設定。"
 DATA_WORKSPACE_NAME = ".powerquery-data"
+ACCOUNT_ROSTER_PATH = PROJECT_ROOT / "configs" / "accounts.yaml"
+ANONYMOUS_SCOPE_ENV = "POWERQUERY_ANONYMOUS_QUERY_SCOPE"
+DEFAULT_ANONYMOUS_SCOPE = "all"
 VIEW_SOURCE_SLOTS = {
     "v_unit": ("units_csv",),
     "v_system": ("daily_csv",),
@@ -93,6 +103,29 @@ def _data_http_error(error: DataManagementError) -> HTTPException:
     return HTTPException(status_code=status_code, detail=str(error))
 
 
+def _build_auth_manager(roster_path: Path) -> tuple[AdminAuthManager, dict[str, Account]]:
+    """Prefer the account roster; fall back to the single environment account.
+
+    名冊不存在時維持既有單一管理員行為，方便本機展示；名冊存在但讀不起來時直接失敗，
+    不退回單一帳號 —— 權限設定寫錯而服務照常啟動，是最糟的失敗方式。
+    """
+
+    if not roster_path.exists():
+        return AdminAuthManager.from_environment(), {}
+    accounts = load_roster(roster_path)
+    return AdminAuthManager.from_roster(accounts), {
+        account.username: account for account in accounts
+    }
+
+
+def _anonymous_scope_policy(environ: Mapping[str, str] | None = None) -> str:
+    source = os.environ if environ is None else environ
+    value = source.get(ANONYMOUS_SCOPE_ENV, DEFAULT_ANONYMOUS_SCOPE).strip().casefold()
+    if value not in {"all", "denied"}:
+        raise AccountRosterError(f"{ANONYMOUS_SCOPE_ENV} 必須是 all 或 denied。")
+    return value
+
+
 def _require_admin(request: Request) -> AdminPrincipal:
     try:
         return request.app.state.auth_manager.authenticate_request(request)
@@ -106,6 +139,23 @@ def _require_admin_mutation(request: Request) -> AdminPrincipal:
             request,
             require_csrf=True,
         )
+    except AdminAuthError as error:
+        raise _auth_http_error(error) from error
+
+
+def _query_principal(request: Request) -> AdminPrincipal | None:
+    """Identify the caller for a read, without widening access when a session lapses.
+
+    沒有帶 cookie 才算匿名。帶了但已過期或被撤銷時回 401，不能悄悄退回匿名範圍 ——
+    否則電廠帳號的 session 一過期就會看到全部電廠，權限是往上跳而不是往下掉。
+    """
+
+    manager: AdminAuthManager = request.app.state.auth_manager
+    token = request.cookies.get(manager.cookie_name)
+    if not token:
+        return None
+    try:
+        return manager.authenticate(token)
     except AdminAuthError as error:
         raise _auth_http_error(error) from error
 
@@ -214,6 +264,7 @@ def create_app(
     *,
     static_dir: Path | None = None,
     auth_manager: AdminAuthManager | None = None,
+    accounts: Sequence[Account] | None = None,
     data_manager: DataManagementService | None = None,
     raw_data_service: RawDataService | None = None,
 ) -> FastAPI:
@@ -226,7 +277,14 @@ def create_app(
         redoc_url=None,
     )
     application.state.runtime_manager = RuntimeManager(runtime) if runtime is not None else None
-    application.state.auth_manager = auth_manager or AdminAuthManager.from_environment()
+    if auth_manager is None:
+        application.state.auth_manager, application.state.accounts = _build_auth_manager(
+            ACCOUNT_ROSTER_PATH
+        )
+    else:
+        application.state.auth_manager = auth_manager
+        application.state.accounts = {account.username: account for account in accounts or ()}
+    application.state.anonymous_scope = _anonymous_scope_policy()
     application.state.data_manager = data_manager
     application.state.data_base_directory = (
         runtime.database.parent
@@ -995,8 +1053,42 @@ def create_app(
         except RawDataError as error:
             raise HTTPException(status_code=400, detail=str(error)) from error
 
+    def resolve_account_plant(
+        principal: AdminPrincipal | None, service: ServiceRuntime
+    ) -> str | None:
+        """Resolve the stable plant id on a session into today's plant name."""
+
+        if principal is None or principal.plant_id is None:
+            return None
+        guard = getattr(service.pipeline, "scope_guard", None)
+        if guard is None:
+            raise HTTPException(
+                status_code=503,
+                detail="此服務未載入授權對照，無法提供電廠帳號查詢。",
+            )
+        account = application.state.accounts.get(principal.username)
+        if account is None:
+            raise HTTPException(status_code=503, detail="帳號名冊與目前的登入階段不一致。")
+        try:
+            resolved = resolve_plant_names([account], guard.catalog.plant_names_by_id())
+        except AccountRosterError as error:
+            raise HTTPException(status_code=503, detail=str(error)) from error
+        return resolved[principal.username]
+
     @application.post("/api/query")
-    def query(payload: QueryRequest) -> dict[str, object]:
+    def query(
+        payload: QueryRequest,
+        principal: Annotated[AdminPrincipal | None, Depends(_query_principal)],
+    ) -> dict[str, object]:
+        plant_account = principal is not None and principal.plant_id is not None
+        if principal is None and application.state.anonymous_scope == "denied":
+            raise HTTPException(status_code=401, detail="此服務的查詢需要先登入。")
+        if plant_account and payload.query_scope != "trusted":
+            # 原始檔查詢不經 ScopeGuard；開放給電廠帳號等於留一條繞過授權的路。
+            raise HTTPException(
+                status_code=403,
+                detail="電廠帳號只能查詢受授權管制的語意檢視，不能查詢原始開放資料檔。",
+            )
         if payload.query_scope == "raw":
             try:
                 return application.state.raw_data_service.query(payload.question)
@@ -1028,8 +1120,16 @@ def create_app(
             learning = current_learning(service)
         except (FileNotFoundError, OSError, ValueError, RuntimeError):
             learning = None
-        pipeline_response = service.pipeline.query(payload.question)
+        plant = resolve_account_plant(principal, service)
+        pipeline_response = service.pipeline.query(payload.question, plant=plant)
         response = pipeline_response.to_dict()
+        if response.get("error_code") == "SCOPE_DENIED":
+            with suppress(DataManagementError, HTTPException, OSError, ValueError, AttributeError):
+                required_data_manager().record_audit(
+                    "scope_denied",
+                    actor=principal.username if principal is not None else "anonymous",
+                    details={"plant": plant, "error": response.get("error")},
+                )
         if not response["success"] and payload.query_scope == "auto":
             try:
                 fallback = application.state.raw_data_service.query(payload.question)
@@ -1082,6 +1182,13 @@ def create_app(
             )
             response["data"] = enrich_query_data(response["data"])
             response["data"]["query_scope"] = "trusted"
+            if plant is not None and not response["data"].get("rows"):
+                # 空結果對電廠帳號是有歧義的：可能真的沒有，也可能是被授權範圍擋掉。
+                # 底層是公開資料，藏起邊界沒有保護作用，只會讓人一直重問，所以講明。
+                response["data"]["scope_notice"] = (
+                    f"此帳號的資料範圍只涵蓋{plant}與跨廠共用欄位。"
+                    "查無資料可能是超出授權範圍，不代表該筆資料不存在。"
+                )
             response["data"]["runtime"] = {
                 "mode": service.mode,
                 "provider": service.provider,

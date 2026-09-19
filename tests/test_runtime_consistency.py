@@ -74,11 +74,11 @@ def test_query_keeps_runtime_and_provenance_on_same_snapshot_during_publish(
         )
         original_query = old_runtime.pipeline.query
 
-        def blocking_query(question: str):
+        def blocking_query(question: str, *, plant: str | None = None):
             started.set()
             if not release.wait(timeout=15):
                 raise AssertionError("timed out waiting for hot-swap publication")
-            return original_query(question)
+            return original_query(question, plant=plant)
 
         monkeypatch.setattr(old_runtime.pipeline, "query", blocking_query)
         with ThreadPoolExecutor(max_workers=1) as pool:
