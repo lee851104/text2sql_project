@@ -17,10 +17,10 @@
 
 accounts:
   - username: admin
-    password: "pbkdf2_sha256$600000$REPLACE_WITH_SALT_HEX$REPLACE_WITH_DIGEST_HEX"
+    password: "pbkdf2_sha256$600000$REPLACE_WITH_SALT_HEX$REPLACE_WITH_DIGEST_HEX"  # pre-merge-check: allow-secret
     scope: all
 
   - username: linkou
-    password: "pbkdf2_sha256$600000$REPLACE_WITH_SALT_HEX$REPLACE_WITH_DIGEST_HEX"
+    password: "pbkdf2_sha256$600000$REPLACE_WITH_SALT_HEX$REPLACE_WITH_DIGEST_HEX"  # pre-merge-check: allow-secret
     scope: 15
     plant_name: 林口發電廠
