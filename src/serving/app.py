@@ -707,7 +707,7 @@ def create_app(
         if not token:
             return {"success": True, "data": anonymous_admin_status()}
         try:
-            principal, csrf_token = manager.rotate_csrf(token)
+            principal, csrf_token = manager.issue_csrf(token)
         except InvalidAdminSession:
             manager.clear_session_cookie(
                 response,

@@ -245,25 +245,39 @@ def test_sessions_have_absolute_expiry_and_logout_revokes_them() -> None:
         manager.authenticate(replacement.token)
 
 
-def test_csrf_can_rotate_after_page_refresh_without_extending_session() -> None:
+def test_a_second_csrf_proof_does_not_invalidate_the_first() -> None:
+    """開第二個分頁不該把第一個分頁踢回登入畫面。"""
+
     clock = FakeClock()
     manager = _manager(clock)
     grant = manager.login("review-admin", "correct horse battery staple")
     original_expiry = grant.principal.expires_at
     clock.advance(300)
 
-    principal, replacement_csrf = manager.rotate_csrf(grant.token)
+    principal, second_csrf = manager.issue_csrf(grant.token)
 
-    assert principal.expires_at == original_expiry
-    assert replacement_csrf != grant.csrf_token
-    assert replacement_csrf not in repr(manager)
-    with pytest.raises(CsrfValidationFailed):
-        manager.validate_csrf(grant.token, grant.csrf_token)
-    assert manager.validate_csrf(grant.token, replacement_csrf) == principal
+    assert principal.expires_at == original_expiry, "補發證明不得延長 session"
+    assert second_csrf != grant.csrf_token
+    assert second_csrf not in repr(manager)
+    assert manager.validate_csrf(grant.token, second_csrf) == principal
+    assert manager.validate_csrf(grant.token, grant.csrf_token) == principal
 
     clock.advance(600)
     with pytest.raises(ExpiredAdminSession):
-        manager.rotate_csrf(grant.token)
+        manager.issue_csrf(grant.token)
+
+
+def test_csrf_proofs_beyond_the_cap_evict_the_oldest() -> None:
+    manager = _manager()
+    grant = manager.login("review-admin", "correct horse battery staple")
+
+    issued = [manager.issue_csrf(grant.token)[1] for _ in range(admin_auth.MAXIMUM_CSRF_PROOFS)]
+
+    # 最初那組已被擠出，最後 MAXIMUM_CSRF_PROOFS 組都還有效。
+    with pytest.raises(CsrfValidationFailed):
+        manager.validate_csrf(grant.token, grant.csrf_token)
+    for csrf_token in issued:
+        assert manager.validate_csrf(grant.token, csrf_token).username == manager.username
 
 
 def test_session_limit_evicts_the_oldest_grant() -> None:
