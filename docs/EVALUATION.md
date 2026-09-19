@@ -21,9 +21,11 @@
 - `refuse`／`clarify` 一判就短路回傳，守門的結論**就是**回應本身，所以兩個數字必然一致。
 - `disclose` 不是。它只是掛在成功答案上的附註 —— 答案產不出來，揭露就跟著消失，使用者看到的是 `GENERATION_FAILED`。
 
-目前守門判斷 45/45，端到端 36/45；差額 9 題全是 `disclose`，全部卡在 `NO_OFFLINE_CANDIDATE`（離線 router 沒有規則接「電廠總出力」「容量缺口」這類問法）。清單在 `end_to_end.unreachable`，逐題列出問句、期望代碼與實際結果。
+這個指標剛加上去時，端到端是 36/45：9 題 `disclose` 全部卡在 `NO_OFFLINE_CANDIDATE`，因為離線 router 沒有規則接「電廠總出力」「容量缺口」這類問法。補上 `route()` 最後那段 fallback 之後回到 **45/45**。
 
-只報前者的話，那 15 題 `disclose` 端到端全滅，指標仍然是 100%，而且驗不出退步。驗收條件 `semantic_traps_end_to_end_no_regression` 以 `TRAP_END_TO_END_BASELINE` 擋住往下掉 —— 那是目前的量測底線，不是「80% 夠好」的宣稱；補上離線涵蓋後要一併調高。
+`end_to_end.unreachable` 逐題列出傳達不到的問句、期望代碼與實際結果，不讓缺口躲在一個比率後面。驗收條件 `semantic_traps_end_to_end_no_regression` 以 `TRAP_END_TO_END_BASELINE`（目前 1.0）卡住已經達到的水準。
+
+只報前者的話，那 15 題 `disclose` 就算端到端全滅，指標仍然是 100%，而且驗不出退步。
 
 ## 離線結果的界線
 

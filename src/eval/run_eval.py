@@ -52,12 +52,13 @@ def _intent_metrics(benchmark_dir: Path) -> dict[str, Any]:
     return result
 
 
-# 端到端基準線。守門判斷是 45/45，但使用者實際看得到的只有 36/45 —— 差額全是 disclose：
-# 它的結論只是掛在成功答案上的附註，而離線 router 沒有規則接「電廠總出力」「容量缺口」
-# 這類問法，答案送不出去，揭露就跟著消失。
+# 端到端基準線。守門判斷正確不代表使用者看得到 —— disclose 的結論只是掛在成功答案上的
+# 附註，SQL 產不出來，揭露就跟著消失。
 #
-# 這條門檻擋的是「再往下掉」，不是宣稱 80% 夠好。補上離線涵蓋之後要把這個數字一起調高。
-TRAP_END_TO_END_BASELINE = 36 / 45
+# 這個數字一度是 36/45：9 題 disclose 卡在 NO_OFFLINE_CANDIDATE，因為離線 router 沒有
+# 規則接「電廠總出力」「容量缺口」這類問法。補上 route() 最後那段 fallback 之後回到
+# 45/45，門檻也跟著調到 1.0 —— 基準線是用來卡住已經達到的水準，不是拿來長期容忍缺口。
+TRAP_END_TO_END_BASELINE = 1.0
 
 
 def _execution_metrics(
