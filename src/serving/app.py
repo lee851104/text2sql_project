@@ -180,8 +180,35 @@ def _query_principal(request: Request) -> AdminPrincipal | None:
         raise _auth_http_error(error) from error
 
 
+def _require_all_plants(principal: AdminPrincipal) -> AdminPrincipal:
+    """Management is an all-plants function; a plant account is a data consumer.
+
+    只收窄「看得到哪些列」並不夠：管理端點不經 `ScopeGuard`，其中
+    `/api/data/files/{dataset}` 會直接送出所有電廠的原始來源檔，等於繞過整套授權。
+    """
+
+    if principal.plant_id is not None:
+        raise HTTPException(
+            status_code=403,
+            detail="電廠帳號只能查詢自己廠的資料，不能使用管理功能。",
+            headers={"Cache-Control": "no-store", "Pragma": "no-cache"},
+        )
+    return principal
+
+
+def _require_manage_read(request: Request) -> AdminPrincipal:
+    return _require_all_plants(_require_admin(request))
+
+
+def _require_manage_mutation(request: Request) -> AdminPrincipal:
+    return _require_all_plants(_require_admin_mutation(request))
+
+
+# Admin* 只驗身分，供登入與登出使用；Manage* 另外要求全廠範圍。
 AdminRead = Annotated[AdminPrincipal, Depends(_require_admin)]
 AdminMutation = Annotated[AdminPrincipal, Depends(_require_admin_mutation)]
+ManageRead = Annotated[AdminPrincipal, Depends(_require_manage_read)]
+ManageMutation = Annotated[AdminPrincipal, Depends(_require_manage_mutation)]
 
 
 class QueryRequest(BaseModel):
@@ -727,7 +754,7 @@ def create_app(
 
     @application.get("/api/training-status")
     def training_status(
-        _principal: AdminRead,
+        _principal: ManageRead,
     ) -> dict[str, object]:
         status = required_learning(current_runtime()).status()
         ready = bool(status["workspace_ready"] and status["index_synchronized"])
@@ -740,14 +767,14 @@ def create_app(
 
     @application.get("/api/runtime/llm")
     def runtime_status(
-        _principal: AdminRead,
+        _principal: ManageRead,
     ) -> dict[str, object]:
         return {"success": True, "data": current_manager().status()}
 
     @application.put("/api/runtime/llm")
     def configure_runtime(
         payload: RuntimeSettingsRequest,
-        principal: AdminMutation,
+        principal: ManageMutation,
     ) -> dict[str, object]:
         manager = current_manager()
         before = manager.status()
@@ -789,7 +816,7 @@ def create_app(
 
     @application.get("/api/corpus/entries")
     def corpus_entries(
-        _principal: AdminRead,
+        _principal: ManageRead,
         state: Literal[
             "all", "validating", "pending_review", "promoted", "rejected", "ignored"
         ] = "all",
@@ -808,7 +835,7 @@ def create_app(
 
     @application.get("/api/corpus/events")
     def corpus_events(
-        _principal: AdminRead,
+        _principal: ManageRead,
         limit: Annotated[int, Query(ge=1, le=500)] = 100,
     ) -> dict[str, object]:
         events = required_learning(current_runtime()).list_events(limit=limit)
@@ -818,7 +845,7 @@ def create_app(
     def review_corpus_entry(
         candidate_id: str,
         payload: CorpusReviewRequest,
-        principal: AdminMutation,
+        principal: ManageMutation,
     ) -> dict[str, object]:
         service = current_runtime()
         learning = required_learning(service)
@@ -853,14 +880,14 @@ def create_app(
         return {"success": True, "data": entry}
 
     @application.get("/api/data/status")
-    def data_status(_principal: AdminRead) -> dict[str, object]:
+    def data_status(_principal: ManageRead) -> dict[str, object]:
         try:
             return {"success": True, "data": required_data_manager().status()}
         except DataManagementError as error:
             raise _data_http_error(error) from error
 
     @application.get("/api/data/files")
-    def data_files(_principal: AdminRead) -> dict[str, object]:
+    def data_files(_principal: ManageRead) -> dict[str, object]:
         try:
             return {"success": True, "data": required_data_manager().list_sources()}
         except DataManagementError as error:
@@ -869,7 +896,7 @@ def create_app(
     @application.get("/api/data/files/{dataset}")
     def download_data_file(
         dataset: str,
-        _principal: AdminRead,
+        _principal: ManageRead,
         version: Annotated[
             str | None,
             Query(min_length=69, max_length=69),
@@ -887,7 +914,7 @@ def create_app(
         )
 
     @application.get("/api/data/query-errors")
-    def download_query_errors(_principal: AdminRead) -> FileResponse:
+    def download_query_errors(_principal: ManageRead) -> FileResponse:
         path = application.state.query_error_log.path
         if not path.is_file():
             raise HTTPException(status_code=404, detail="目前沒有查詢錯誤紀錄。")
@@ -899,7 +926,7 @@ def create_app(
 
     @application.get("/api/data/changes")
     def data_changes(
-        _principal: AdminRead,
+        _principal: ManageRead,
         state: Literal["all", "pending_review", "approved", "rejected", "failed"] = "all",
         limit: Annotated[int, Query(ge=1, le=500)] = 100,
     ) -> dict[str, object]:
@@ -916,7 +943,7 @@ def create_app(
         }
 
     @application.get("/api/data/changes/{change_id}")
-    def data_change(change_id: str, _principal: AdminRead) -> dict[str, object]:
+    def data_change(change_id: str, _principal: ManageRead) -> dict[str, object]:
         try:
             return {"success": True, "data": required_data_manager().get_change(change_id)}
         except DataManagementError as error:
@@ -924,7 +951,7 @@ def create_app(
 
     @application.get("/api/data/versions")
     def data_versions(
-        _principal: AdminRead,
+        _principal: ManageRead,
         limit: Annotated[int, Query(ge=1, le=500)] = 100,
     ) -> dict[str, object]:
         try:
@@ -935,7 +962,7 @@ def create_app(
 
     @application.get("/api/data/events")
     def data_events(
-        _principal: AdminRead,
+        _principal: ManageRead,
         limit: Annotated[int, Query(ge=1, le=500)] = 100,
     ) -> dict[str, object]:
         try:
@@ -947,7 +974,7 @@ def create_app(
     @application.post("/api/data/changes/upload")
     def stage_data_upload(
         payload: DataUploadRequest,
-        principal: AdminMutation,
+        principal: ManageMutation,
     ) -> dict[str, object]:
         try:
             change = required_data_manager().stage_upload(
@@ -964,7 +991,7 @@ def create_app(
     @application.post("/api/data/changes/remove")
     def stage_data_remove(
         payload: DataRemoveRequest,
-        principal: AdminMutation,
+        principal: ManageMutation,
     ) -> dict[str, object]:
         try:
             change = required_data_manager().stage_remove(
@@ -980,7 +1007,7 @@ def create_app(
     def review_data_change(
         change_id: str,
         payload: DataChangeReviewRequest,
-        principal: AdminMutation,
+        principal: ManageMutation,
     ) -> dict[str, object]:
         try:
             change = required_data_manager().review(
@@ -1001,7 +1028,7 @@ def create_app(
     def stage_data_rollback(
         version: str,
         payload: DataRollbackRequest,
-        principal: AdminMutation,
+        principal: ManageMutation,
     ) -> dict[str, object]:
         try:
             change = required_data_manager().stage_rollback(
@@ -1072,7 +1099,7 @@ def create_app(
         return {"success": True, "data": data}
 
     @application.post("/api/raw/rebuild")
-    def rebuild_raw_catalog(_principal: AdminMutation) -> dict[str, object]:
+    def rebuild_raw_catalog(_principal: ManageMutation) -> dict[str, object]:
         try:
             return {"success": True, "data": application.state.raw_data_service.rebuild()}
         except RawDataError as error:

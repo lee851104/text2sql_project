@@ -184,13 +184,20 @@ def scoped_client(tmp_path_factory: pytest.TempPathFactory):
         yield client
 
 
-def _login(client: TestClient, username: str) -> None:
+def _login(client: TestClient, username: str) -> dict[str, str]:
+    """Sign in and return the headers a mutation needs."""
+
     response = client.post(
         "/api/admin/session",
         headers={"Origin": ORIGIN, "Sec-Fetch-Site": "same-origin"},
         json={"username": username, "password": PASSWORD},
     )
     assert response.status_code == 200, response.text
+    return {
+        "Origin": ORIGIN,
+        "Sec-Fetch-Site": "same-origin",
+        "X-PowerQuery-CSRF": response.json()["data"]["csrf_token"],
+    }
 
 
 def _logout(client: TestClient) -> None:
@@ -265,3 +272,72 @@ def test_a_plant_account_cannot_reach_the_unscoped_raw_files(scoped_client: Test
 
     assert raw.status_code == 403
     assert auto.status_code == 403
+
+
+@pytest.mark.integration
+def test_a_plant_account_has_no_management_rights(scoped_client: TestClient) -> None:
+    """電廠帳號是資料使用者，不是系統管理者。
+
+    範圍只收窄「看得到哪些列」是不夠的：管理端點會繞過 `ScopeGuard`，其中
+    `/api/data/files/{dataset}` 直接送出所有電廠的原始來源檔。
+    """
+
+    headers = _login(scoped_client, PLANT_ACCOUNT)
+
+    reads = [
+        "/api/data/status",
+        "/api/data/files",
+        "/api/data/files/units_csv",
+        "/api/data/changes",
+        "/api/data/events",
+        "/api/corpus/entries",
+        "/api/corpus/events",
+        "/api/runtime/llm",
+        "/api/training-status",
+    ]
+    for path in reads:
+        assert scoped_client.get(path).status_code == 403, path
+
+    assert (
+        scoped_client.post(
+            "/api/data/changes/remove",
+            headers=headers,
+            json={"dataset": "outage_csv", "reason": "should never reach the service"},
+        ).status_code
+        == 403
+    )
+    assert (
+        scoped_client.put("/api/runtime/llm", headers=headers, json={"mode": "offline"}).status_code
+        == 403
+    )
+    assert (
+        scoped_client.post(
+            "/api/corpus/entries/anything/review",
+            headers=headers,
+            json={"decision": "approve"},
+        ).status_code
+        == 403
+    )
+    _logout(scoped_client)
+
+
+@pytest.mark.integration
+def test_a_plant_account_can_still_end_its_own_session(scoped_client: TestClient) -> None:
+    """收窄管理權限不能把登出一起擋掉。"""
+
+    headers = _login(scoped_client, PLANT_ACCOUNT)
+
+    response = scoped_client.delete("/api/admin/session", headers=headers)
+
+    assert response.status_code == 200
+    assert response.json()["data"]["authenticated"] is False
+    _logout(scoped_client)
+
+
+@pytest.mark.integration
+def test_an_all_scope_account_keeps_its_management_rights(scoped_client: TestClient) -> None:
+    _login(scoped_client, ALL_ACCOUNT)
+
+    assert scoped_client.get("/api/data/status").status_code == 200
+    assert scoped_client.get("/api/corpus/entries").status_code == 200
+    _logout(scoped_client)
