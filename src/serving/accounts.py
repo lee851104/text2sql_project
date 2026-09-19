@@ -30,6 +30,7 @@ DEFAULT_ITERATIONS = 600_000
 MINIMUM_ITERATIONS = 100_000
 MINIMUM_PASSWORD_LENGTH = 8
 MAXIMUM_PASSWORD_LENGTH = 512
+ROSTER_PATH_ENV = "POWERQUERY_ACCOUNT_ROSTER"
 
 
 class AccountRosterError(ValueError):
@@ -332,19 +333,37 @@ def render_roster(
     return "\n".join(lines) + "\n", 1 if problems else 0
 
 
+def roster_path(environ: Mapping[str, str] | None = None) -> Path:
+    """Locate the roster; the public deployment keeps its own outside the repo.
+
+    公開服務不能寫進 `configs/accounts.yaml` —— 那個檔案會同時改變本機服務的帳號
+    來源，而且會在公開服務停掉之後留著。因此路徑可由環境變數指定。
+    """
+
+    import os
+
+    from ingest.validate import PROJECT_ROOT
+
+    source = os.environ if environ is None else environ
+    configured = source.get(ROSTER_PATH_ENV, "").strip()
+    if configured:
+        return Path(configured).expanduser().resolve()
+    return PROJECT_ROOT / "configs" / "accounts.yaml"
+
+
 def _list_command() -> int:
     import sys
 
     from ingest.validate import PROJECT_ROOT, resolve_configured_paths
     from text2sql.scope_guard import ScopeCatalog
 
-    roster_path = PROJECT_ROOT / "configs" / "accounts.yaml"
+    path = roster_path()
     database = resolve_configured_paths(PROJECT_ROOT)["database"].resolve()
 
     accounts: Sequence[Account] | None = None
-    if roster_path.exists():
+    if path.exists():
         try:
-            accounts = load_roster(roster_path)
+            accounts = load_roster(path)
         except AccountRosterError as error:
             sys.stderr.write(f"{error}\n")
             return 2
@@ -357,7 +376,7 @@ def _list_command() -> int:
             plant_names = None
 
     report, code = render_roster(
-        roster_path=roster_path,
+        roster_path=path,
         database=database,
         accounts=accounts,
         plant_names=plant_names,
@@ -366,10 +385,21 @@ def _list_command() -> int:
     return code
 
 
+def _read_password(raw: bytes) -> str:
+    """Decode a password supplied on stdin, tolerating what the shell adds.
+
+    Windows PowerShell 把字串管進原生程式時會加上 UTF-8 BOM 與 CRLF。照單全收的話，
+    雜湊出來的是 BOM 加密碼，登入永遠失敗 —— 而且失敗點離成因很遠。`utf-8-sig` 會吃掉
+    BOM；行尾只剝除 CR 與 LF，不動其他空白，以免改掉使用者真正的密碼。
+    """
+
+    return raw.decode("utf-8-sig").rstrip("\r\n")
+
+
 def _hash_command() -> int:
     import sys
 
-    password = sys.stdin.read().rstrip("\r\n")
+    password = _read_password(sys.stdin.buffer.read())
     if not password:
         sys.stderr.write("請由 stdin 提供密碼。\n" + USAGE)
         return 2

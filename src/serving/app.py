@@ -26,6 +26,7 @@ from serving.accounts import (
     AccountRosterError,
     load_roster,
     resolve_plant_names,
+    roster_path,
 )
 from serving.admin_auth import (
     AdminAuthError,
@@ -64,7 +65,7 @@ GENERIC_RUNTIME_ERROR = (
 )
 GENERIC_CONFIGURATION_ERROR = "執行環境設定無效；請檢查 configs、provider 與模型設定。"
 DATA_WORKSPACE_NAME = ".powerquery-data"
-ACCOUNT_ROSTER_PATH = PROJECT_ROOT / "configs" / "accounts.yaml"
+
 ANONYMOUS_SCOPE_ENV = "POWERQUERY_ANONYMOUS_QUERY_SCOPE"
 SELF_APPROVAL_ENV = "POWERQUERY_ALLOW_SELF_APPROVAL"
 DEFAULT_ANONYMOUS_SCOPE = "all"
@@ -344,7 +345,7 @@ def create_app(
     application.state.runtime_manager = RuntimeManager(runtime) if runtime is not None else None
     if auth_manager is None:
         application.state.auth_manager, application.state.accounts = _build_auth_manager(
-            ACCOUNT_ROSTER_PATH
+            roster_path()
         )
     else:
         application.state.auth_manager = auth_manager
