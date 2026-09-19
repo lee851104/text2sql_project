@@ -1768,6 +1768,56 @@
     return item.description || item.answer || item.explanation || item.sql || item.notes || "尚無補充說明";
   }
 
+
+  function corpusSubmitParams() {
+    return byId("corpusSubmitParams").value
+      .split("\n")
+      .map(function (line) { return line.trim(); })
+      .filter(function (line) { return line.length > 0; });
+  }
+
+  function submitCorpusEntry(event) {
+    event.preventDefault();
+    if (managementRequestActive) return;
+    var formElement = byId("corpusSubmitForm");
+    if (!formElement.reportValidity()) return;
+    var feedback = byId("corpusSubmitFeedback");
+    var button = byId("corpusSubmitButton");
+    managementRequestActive = true;
+    button.disabled = true;
+    feedback.className = "review-feedback";
+    feedback.textContent = "正在驗證並送出候選…";
+    feedback.hidden = false;
+    adminMutation("/api/corpus/entries", {
+      method: "POST",
+      body: {
+        question: byId("corpusSubmitQuestion").value.trim(),
+        sql: byId("corpusSubmitSql").value.trim(),
+        params: corpusSubmitParams(),
+        intent: byId("corpusSubmitIntent").value.trim()
+      }
+    }).then(function (payload) {
+      businessData(payload);
+      byId("corpusSubmitQuestion").value = "";
+      byId("corpusSubmitSql").value = "";
+      byId("corpusSubmitParams").value = "";
+      byId("corpusSubmitIntent").value = "";
+      feedback.className = "review-feedback";
+      feedback.textContent = "候選已送出，等待審核。";
+      return refreshDataManagement(false);
+    }).then(function () {
+      announce("語料候選已送出，等待審核", false);
+    }).catch(function (error) {
+      feedback.className = "review-feedback error";
+      feedback.textContent = "候選未送出：" + error.message;
+      feedback.hidden = false;
+      announce(error.message, true);
+    }).finally(function () {
+      managementRequestActive = false;
+      button.disabled = false;
+    });
+  }
+
   function corpusDataSources(item) {
     var direct = firstArray(item, ["data_sources", "source_files", "datasets", "files"]);
     if (direct.length) return direct;
@@ -2168,6 +2218,7 @@
     this.setAttribute("aria-label", (show ? "隱藏" : "顯示") + "管理密碼");
   });
   byId("datasetUploadForm").addEventListener("submit", stageDatasetUpload);
+  byId("corpusSubmitForm").addEventListener("submit", submitCorpusEntry);
   byId("datasetFileInput").addEventListener("change", function () {
     var file = this.files && this.files[0];
     byId("datasetFileName").textContent = file ? file.name + " · " + humanFileSize(file.size) : "尚未選擇檔案（上限 64 MB）";
