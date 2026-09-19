@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import secrets
+import sqlite3
 from collections.abc import Mapping, Sequence
 from contextlib import suppress
 from pathlib import Path
@@ -37,6 +38,7 @@ from serving.admin_auth import (
     LoginRateLimited,
 )
 from serving.corpus_learning import CorpusLearningService, CorpusSelfApprovalError
+from serving.coverage import describe_coverage, load_coverage_document
 from serving.data_management import (
     DATA_SLOTS,
     AuditIntegrityError,
@@ -67,6 +69,7 @@ GENERIC_CONFIGURATION_ERROR = "執行環境設定無效；請檢查 configs、pr
 DATA_WORKSPACE_NAME = ".powerquery-data"
 
 ANONYMOUS_SCOPE_ENV = "POWERQUERY_ANONYMOUS_QUERY_SCOPE"
+COVERAGE_CONFIG_PATH = PROJECT_ROOT / "configs" / "coverage.yaml"
 SELF_APPROVAL_ENV = "POWERQUERY_ALLOW_SELF_APPROVAL"
 DEFAULT_ANONYMOUS_SCOPE = "all"
 VIEW_SOURCE_SLOTS = {
@@ -1136,6 +1139,22 @@ def create_app(
         except DataManagementError as error:
             raise _data_http_error(error) from error
         return {"success": True, "data": change}
+
+    @application.get("/api/coverage")
+    def coverage() -> dict[str, object]:
+        """Describe what the active database covers, and what it cannot answer.
+
+        數量與範圍一律現查，跟著作用中的資料庫走；資料換版後說明自動跟著變。只有
+        「每個檢視回答什麼」與「答不出什麼」來自設定檔，而每條限制都附可驗證的條件。
+        """
+
+        service = current_runtime()
+        views, limitations = load_coverage_document(COVERAGE_CONFIG_PATH)
+        try:
+            data = describe_coverage(service.database, views=views, limitations=limitations)
+        except sqlite3.Error as error:
+            raise HTTPException(status_code=503, detail="目前無法讀取資料涵蓋範圍。") from error
+        return {"success": True, "data": data}
 
     @application.get("/api/examples")
     def examples() -> dict[str, object]:

@@ -646,6 +646,59 @@
     });
   }
 
+
+  function renderCoverageList(holder, items, render) {
+    holder.textContent = "";
+    if (!items || !items.length) {
+      holder.appendChild(element("li", "", "—"));
+      return;
+    }
+    items.forEach(function (item) {
+      var entry = element("li", "");
+      entry.appendChild(element("strong", "", render.title(item)));
+      entry.appendChild(element("span", "", render.detail(item)));
+      holder.appendChild(entry);
+    });
+  }
+
+  function loadCoverage() {
+    return api("/api/coverage").then(function (payload) {
+      var data = businessData(payload);
+      var counts = data.counts || {};
+      var range = data.date_range || {};
+      var plantFact = valueText(counts.plants_with_units) + " 座電廠有機組明細";
+      if (counts.plants_in_roster) plantFact += "（電廠主檔共 " + valueText(counts.plants_in_roster) + " 座）";
+      var facts = [
+        "期間 " + valueText(range.start) + " ～ " + valueText(range.end),
+        plantFact,
+        valueText(counts.units) + " 台機組",
+        "燃料別：" + (data.fuels || []).join("、")
+      ];
+      byId("coverageFacts").textContent = facts.join("　·　");
+      renderCoverageList(byId("coverageAnswerable"), data.answerable, {
+        title: function (item) { return item.title; },
+        detail: function (item) { return item.answers; }
+      });
+      renderCoverageList(byId("coverageLimitations"), data.limitations, {
+        title: function (item) { return item.topic; },
+        detail: function (item) { return item.detail; }
+      });
+      var pitfalls = data.pitfalls || [];
+      var refused = pitfalls.filter(function (item) { return item.severity === "refuse"; });
+      var note = byId("coveragePitfalls");
+      if (pitfalls.length) {
+        note.textContent = "已知資料陷阱 " + pitfalls.reduce(function (total, item) { return total + item.count; }, 0) +
+          " 項，其中 " + refused.reduce(function (total, item) { return total + item.count; }, 0) +
+          " 項會直接拒答，其餘會在答案旁標示範圍。詳細條件由後端語意守門判斷。";
+        note.hidden = false;
+      } else {
+        note.hidden = true;
+      }
+    }).catch(function (error) {
+      byId("coverageFacts").textContent = "無法讀取涵蓋範圍：" + error.message;
+    });
+  }
+
   function loadStats(announceResult) {
     var button = byId("refreshOverview");
     button.disabled = true;
@@ -656,6 +709,7 @@
       byId("outageRecords").textContent = valueText(stats.outage_records) + " 筆";
       byId("dateRange").textContent = valueText(stats.date_range);
       if (announceResult) announce("資料總覽已更新", false);
+      return loadCoverage();
     }).catch(function (error) {
       if (announceResult) announce(error.message, true);
     }).finally(function () { button.disabled = false; });
@@ -2207,6 +2261,7 @@
   byId("modeShortcut").addEventListener("click", function () { showView("settings"); });
   byId("clearHistory").addEventListener("click", clearHistory);
   byId("refreshOverview").addEventListener("click", function () { loadStats(true); });
+  loadCoverage();
   byId("refreshDataManagement").addEventListener("click", function () { refreshDataManagement(true); });
   byId("dataLoginForm").addEventListener("submit", loginAdmin);
   byId("dataLogout").addEventListener("click", logoutAdmin);
