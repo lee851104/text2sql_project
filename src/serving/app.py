@@ -17,7 +17,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, ConfigDict, SecretStr, StringConstraints
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, StringConstraints
 
 from ingest.build_db import build_database
 from ingest.validate import PROJECT_ROOT, resolve_configured_paths
@@ -254,6 +254,15 @@ class AdminLoginRequest(BaseModel):
 
     username: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=80)]
     password: SecretStr
+
+
+class CorpusSubmissionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    question: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)]
+    sql: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=2000)]
+    params: Annotated[list[str | int | float], Field(max_length=20)] = []
+    intent: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=60)]
 
 
 class CorpusReviewRequest(BaseModel):
@@ -859,6 +868,75 @@ def create_app(
     ) -> dict[str, object]:
         events = required_learning(current_runtime()).list_events(limit=limit)
         return {"success": True, "data": {"events": events, "returned": len(events)}}
+
+    @application.post("/api/corpus/entries")
+    def submit_corpus_entry(
+        payload: CorpusSubmissionRequest,
+        principal: ManageMutation,
+    ) -> dict[str, object]:
+        """Accept a hand-written example, subject to the same gates as a learned one.
+
+        手動提供不是繞過驗證的後門：SQL 先過安全守門，再實際執行取得真實結果，之後與
+        自動抓取的候選走同一條審核路徑（洩漏、去重、SQL 守門、問句語意、SQL 語意、
+        重跑結果比對、檢索回歸）。放寬的只有「誰可以核准」，不是「內容要不要驗」。
+        """
+
+        service = current_runtime()
+        learning = required_learning(service)
+        params = tuple(payload.params)
+
+        decision = service.pipeline.sql_guard.validate(payload.sql, params)
+        if not decision.allowed:
+            raise HTTPException(
+                status_code=400,
+                detail=f"SQL 未通過安全守門（{decision.code}）：{decision.reason}",
+            )
+        try:
+            columns, rows = service.pipeline.run_sql(payload.sql, params)
+        except Exception as error:
+            raise HTTPException(
+                status_code=400,
+                detail=f"SQL 無法執行，因此無法確認結果：{type(error).__name__}",
+            ) from error
+        if not rows:
+            # 空結果無法證明這組問答是對的，而且審核時的重跑比對會拿它跟空結果比，
+            # 等於沒有檢查。寧可在這裡擋下來說明原因。
+            raise HTTPException(
+                status_code=400,
+                detail="這組 SQL 查不到任何資料，無法作為語料範例。",
+            )
+
+        try:
+            entry = learning.submit(
+                question=payload.question,
+                sql=payload.sql,
+                params=params,
+                intent=payload.intent,
+                source="manual",
+                columns=columns,
+                rows=rows,
+                tables=decision.tables,
+                pipeline=service.pipeline,
+                proposed_by=principal.username,
+            )
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail=str(error)) from error
+
+        if entry.get("status") == "rejected":
+            # submit 會立刻跑一次關卡。被當場駁回時回 200 會讓前端顯示「已送出」，
+            # 使用者要再去候選清單才發現它已經死了。直接說明原因。
+            raise HTTPException(
+                status_code=400,
+                detail=f"候選未通過驗證關卡：{entry.get('reason')}",
+            )
+
+        with suppress(DataManagementError, HTTPException, OSError, ValueError, AttributeError):
+            required_data_manager().record_audit(
+                "corpus_candidate_submitted",
+                actor=principal.username,
+                details={"candidate_id": entry.get("id"), "source": "manual"},
+            )
+        return {"success": True, "data": entry}
 
     @application.post("/api/corpus/entries/{candidate_id}/review")
     def review_corpus_entry(

@@ -283,6 +283,25 @@
                 <article class="metric-card compact"><div><p>語料異動事件</p><strong id="corpusEventCount">—</strong></div></article>
               </div>
 
+              <section class="surface management-card" aria-labelledby="corpusSubmitTitle">
+                <div class="content-heading"><div><p class="eyebrow">MANUAL EXAMPLE</p><h3 id="corpusSubmitTitle">手動補充語料</h3></div></div>
+                <p class="training-policy">手動補充與自動收集的候選走同一套驗證：SQL 安全守門、問句與 SQL 語意關卡、實際重跑並比對結果、檢索回歸。字串條件必須用 <code>?</code> 參數，不能直接寫進 SQL。</p>
+                <form id="corpusSubmitForm" class="corpus-submit-form" novalidate>
+                  <label for="corpusSubmitQuestion">問句</label>
+                  <input type="text" id="corpusSubmitQuestion" maxlength="500" required placeholder="台中發電廠有哪些機組與裝置容量">
+                  <label for="corpusSubmitIntent">意圖</label>
+                  <input type="text" id="corpusSubmitIntent" maxlength="60" required placeholder="plant_unit_lookup">
+                  <label for="corpusSubmitSql">SQL</label>
+                  <textarea id="corpusSubmitSql" rows="3" maxlength="2000" required placeholder='SELECT "電廠", "機組名" FROM v_unit WHERE "電廠" = ? LIMIT 20'></textarea>
+                  <label for="corpusSubmitParams">參數（每行一個，依序對應 SQL 裡的 ?）</label>
+                  <textarea id="corpusSubmitParams" rows="2" placeholder="台中發電廠"></textarea>
+                  <div class="form-actions">
+                    <button type="submit" id="corpusSubmitButton" class="primary">送出候選</button>
+                  </div>
+                  <p class="review-feedback" id="corpusSubmitFeedback" role="status" hidden></p>
+                </form>
+              </section>
+
               <section class="surface corpus-browser management-card" aria-labelledby="corpusListTitle">
                 <div class="content-heading"><div><p class="eyebrow">CORPUS REVIEW</p><h3 id="corpusListTitle">語料內容與來源</h3></div><span class="result-count" id="corpusResultCount">—</span></div>
                 <div class="filter-bar">

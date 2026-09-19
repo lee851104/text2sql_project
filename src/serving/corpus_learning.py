@@ -636,7 +636,7 @@ class CorpusLearningService:
             clean_sql = deidentify(sql).strip()
             clean_params = tuple(_json_value(value) for value in params)
             clean_intent = deidentify(intent)
-            clean_source = source if source in {"router", "llm"} else "unknown"
+            clean_source = source if source in {"router", "llm", "manual"} else "unknown"
             clean_tables = sorted({deidentify(str(table)) for table in tables})
             clean_provenance = _json_value(
                 data_provenance
@@ -1022,10 +1022,24 @@ class CorpusLearningService:
             if entry["status"] != "pending_review":
                 raise ValueError("candidate_not_pending_review")
             proposed_by = entry.get("proposed_by")
-            if approve and proposed_by and proposed_by == reviewer and not self.allow_self_approval:
+            manual = entry.get("source") == "manual"
+            blocked = (
+                approve
+                and bool(proposed_by)
+                and proposed_by == reviewer
+                and not manual
+                and not self.allow_self_approval
+            )
+            if blocked:
                 # 匿名查詢記為 None：那不是一個身分，兩個不同的訪客都會長一樣，拿來
                 # 比對只會擋到不相干的人，也擋不住真的想繞的人（登出、問、再登入）。
                 # 因此這條規則只在「提出的人有帳號」時成立，這是它已知的邊界。
+                #
+                # 手動提供的候選不套這條。四眼補的是「沒有其他檢查」的缺口：資料變更
+                # 沒有內容層級的自動驗證，人是唯一的內容檢查；語料晉升則要通過六道
+                # 關卡（洩漏、去重、SQL 守門、問句語意、SQL 語意、重跑結果比對、
+                # 檢索回歸），而且手動提供是明示的提案動作，不像自動抓取那樣可以
+                # 偽裝成一般查詢。
                 self._append_event(
                     "candidate_self_approval_refused",
                     candidate_id=candidate_id,
