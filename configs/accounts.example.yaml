@@ -18,11 +18,28 @@
 #
 # plant_name 選填。填了就會在啟動時與資料庫比對，編號與名稱對不起來就拒絕啟動。
 # 建議填，這是防止「電廠編號漂移導致帳號換了一座廠」的第二道檢查。
+#
+# can_review 預設 false。只有 true 的帳號可以核准資料變更與語料晉升；提案人仍不能
+# 核准自己的提案，所以**至少要兩個**，否則唯一的審核者一旦提案就沒有人能核准，
+# 他請假時也沒有人能發布。名冊完全沒有審核者時會拒絕載入。
+# 綁定電廠的帳號不可以有審核權：審核是全廠範圍的職責。
 
 accounts:
-  - username: admin
+  # 提案：上傳與移除資料、補充語料，但不能自己讓它上線。
+  - username: maintainer
     password: "pbkdf2_sha256$600000$REPLACE_WITH_SALT_HEX$REPLACE_WITH_DIGEST_HEX"  # pre-merge-check: allow-secret
     scope: all
+
+  # 審核：兩個，這樣其中一個提案時另一個還能核准。
+  - username: security
+    password: "pbkdf2_sha256$600000$REPLACE_WITH_SALT_HEX$REPLACE_WITH_DIGEST_HEX"  # pre-merge-check: allow-secret
+    scope: all
+    can_review: true
+
+  - username: integration
+    password: "pbkdf2_sha256$600000$REPLACE_WITH_SALT_HEX$REPLACE_WITH_DIGEST_HEX"  # pre-merge-check: allow-secret
+    scope: all
+    can_review: true
 
   - username: linkou
     password: "pbkdf2_sha256$600000$REPLACE_WITH_SALT_HEX$REPLACE_WITH_DIGEST_HEX"  # pre-merge-check: allow-secret

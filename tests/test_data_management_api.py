@@ -31,7 +31,12 @@ def data_api(tmp_path_factory: pytest.TempPathFactory):
     encoded = hash_password(PASSWORD, iterations=MINIMUM_ITERATIONS)
     accounts = [
         Account(username=UPLOADER, password_hash=encoded, plant_id=None),
-        Account(username=REVIEWER, password_hash=encoded, plant_id=None),
+        Account(
+            username=REVIEWER,
+            password_hash=encoded,
+            plant_id=None,
+            can_review=True,
+        ),
     ]
     application = create_app(
         runtime,
@@ -96,13 +101,14 @@ def test_authenticated_data_hot_unplug_upload_review_and_audit(data_api) -> None
     assert staged_remove["request_reason"] == "hot-unplug demonstration"
     assert client.get("/api/stats").json()["data"]["outage_records"] == 138
 
-    # 提案人核准自己的變更必須被擋下，而且資料不能因此上線。
+    # 提案人沒有審核權，而且就算有也不能核准自己的變更；兩道都不得讓資料上線。
     self_approval = client.post(
         f"/api/data/changes/{staged_remove['id']}/review",
         headers=uploader_headers,
         json={"decision": "approve", "note": "approving my own request"},
     )
     assert self_approval.status_code == 403
+    assert "審核權" in self_approval.json()["detail"]
     assert client.get("/api/stats").json()["data"]["outage_records"] == 138
 
     reviewer_headers = _sign_in(client, REVIEWER)
@@ -193,15 +199,12 @@ def test_authenticated_data_hot_unplug_upload_review_and_audit(data_api) -> None
     events = audit_response.json()["data"]["events"]
     approved_events = [event for event in events if event["event"] == "change_approved"]
     staged_events = [event for event in events if event["event"] == "change_staged"]
-    refused_events = [event for event in events if event["event"] == "self_approval_refused"]
     assert len(approved_events) == 2
     assert len(staged_events) == 2
     # 提案與發布在稽核鏈上是兩個不同的名字，被擋下的那次自審也留了紀錄。
     assert all(event["actor"] == UPLOADER for event in staged_events)
     assert all(event["actor"] == REVIEWER for event in approved_events)
     assert all(event["details"]["self_approved"] is False for event in approved_events)
-    assert len(refused_events) == 1
-    assert refused_events[0]["actor"] == UPLOADER
     assert all(len(event["event_hash"]) == 64 for event in events)
 
     final_status = client.get("/api/data/status").json()["data"]
@@ -209,3 +212,71 @@ def test_authenticated_data_hot_unplug_upload_review_and_audit(data_api) -> None
     assert final_status["sources"]["outage_csv"]["present"] is True
     assert final_status["changes"]["approved"] == 2
     assert final_status["audit_chain_valid"] is True
+
+
+@pytest.mark.e2e
+def test_the_two_refusals_are_distinct_and_only_one_reaches_the_journal(data_api) -> None:
+    """審核權與四眼是兩道不同的檢查，順序也不同。
+
+    沒有審核權的帳號在 API 層就被擋下，請求不會進到資料管理服務，所以稽核鏈上沒有
+    紀錄 —— 那是 HTTP 存取層的事。有審核權但核准自己提案的帳號會走到服務層，由四眼
+    規則擋下並留痕。
+    """
+
+    client, _payload, _filename = data_api
+
+    uploader_headers = _sign_in(client, UPLOADER)
+    staged = client.post(
+        "/api/data/changes/remove",
+        headers=uploader_headers,
+        json={"dataset": "outage_csv", "reason": "capability versus four eyes"},
+    ).json()["data"]
+
+    without_capability = client.post(
+        f"/api/data/changes/{staged['id']}/review",
+        headers=uploader_headers,
+        json={"decision": "approve"},
+    )
+    assert without_capability.status_code == 403
+    assert "審核權" in without_capability.json()["detail"]
+
+    reviewer_headers = _sign_in(client, REVIEWER)
+    own = client.post(
+        "/api/data/changes/remove",
+        headers=reviewer_headers,
+        json={"dataset": "outage_csv", "reason": "reviewer proposes something"},
+    )
+    # 同一個資料槽已有待審變更時服務會擋下；改用既有的那筆驗證四眼即可。
+    if own.status_code != 200:
+        client.post(
+            f"/api/data/changes/{staged['id']}/review",
+            headers=reviewer_headers,
+            json={"decision": "reject", "note": "clearing the queue"},
+        )
+        own = client.post(
+            "/api/data/changes/remove",
+            headers=reviewer_headers,
+            json={"dataset": "outage_csv", "reason": "reviewer proposes something"},
+        )
+    assert own.status_code == 200, own.text
+    own_change = own.json()["data"]
+
+    self_approval = client.post(
+        f"/api/data/changes/{own_change['id']}/review",
+        headers=reviewer_headers,
+        json={"decision": "approve"},
+    )
+    assert self_approval.status_code == 403
+    assert "自己的變更" in self_approval.json()["detail"]
+
+    events = client.get("/api/data/events?limit=200").json()["data"]["events"]
+    refused = [event for event in events if event["event"] == "self_approval_refused"]
+    assert len(refused) == 1
+    assert refused[0]["actor"] == REVIEWER
+
+    client.post(
+        f"/api/data/changes/{own_change['id']}/review",
+        headers=reviewer_headers,
+        json={"decision": "reject", "note": "withdrawing"},
+    )
+    client.cookies.clear()

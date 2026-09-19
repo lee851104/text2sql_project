@@ -444,3 +444,84 @@ def test_unknown_or_extra_arguments_are_refused(arguments: list[str]) -> None:
 
 def test_help_is_not_an_error() -> None:
     assert _main(["--help"]) == 0
+
+
+# ── 審核權 ────────────────────────────────────────────────────────────────
+
+
+def test_a_valid_roster_with_a_reviewer_parses() -> None:
+    payload = {
+        "accounts": [
+            {"username": "maintainer", "password": _hash(), "scope": "all"},
+            {"username": "security", "password": _hash(), "scope": "all", "can_review": True},
+        ]
+    }
+
+    accounts = parse_roster(payload)
+
+    assert [account.can_review for account in accounts] == [False, True]
+
+
+def test_a_roster_with_nobody_able_to_review_is_refused() -> None:
+    """沒有人能核准時，變更會卡在 pending_review，而且要按下核准才發現。"""
+
+    payload = {"accounts": [{"username": "solo", "password": _hash(), "scope": "all"}]}
+
+    with pytest.raises(AccountRosterError, match="至少需要一個 can_review"):
+        parse_roster(payload)
+
+
+def test_a_plant_account_cannot_be_given_review_rights() -> None:
+    payload = {
+        "accounts": [
+            {"username": "security", "password": _hash(), "scope": "all", "can_review": True},
+            {"username": "linkou", "password": _hash(), "scope": 15, "can_review": True},
+        ]
+    }
+
+    with pytest.raises(AccountRosterError, match="不能有審核權"):
+        parse_roster(payload)
+
+
+def test_can_review_must_be_a_boolean() -> None:
+    payload = {
+        "accounts": [{"username": "a", "password": _hash(), "scope": "all", "can_review": "yes"}]
+    }
+
+    with pytest.raises(AccountRosterError, match="can_review 必須是"):
+        parse_roster(payload)
+
+
+def test_the_inventory_warns_when_only_one_account_can_review() -> None:
+    accounts = [
+        _roster_account("maintainer", plant_id=None),
+        _roster_account("security", plant_id=None, can_review=True),
+    ]
+
+    report, code = render_roster(
+        roster_path=Path("configs/accounts.yaml"),
+        database=Path("power.db"),
+        accounts=accounts,
+        plant_names={},
+    )
+
+    assert code == 0
+    assert "可審核帳號：1" in report
+    assert "建議至少兩個" in report
+
+
+def test_the_inventory_does_not_warn_with_two_reviewers() -> None:
+    accounts = [
+        _roster_account("security", plant_id=None, can_review=True),
+        _roster_account("integration", plant_id=None, can_review=True),
+    ]
+
+    report, _code = render_roster(
+        roster_path=Path("configs/accounts.yaml"),
+        database=Path("power.db"),
+        accounts=accounts,
+        plant_names={},
+    )
+
+    assert "可審核帳號：2" in report
+    assert "建議至少兩個" not in report
