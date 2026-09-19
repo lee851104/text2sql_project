@@ -332,7 +332,7 @@ def main(argv: list[str] | None = None) -> int:
     print(
         f"離線評測 {report['status']}：意圖 {report['intent']['golden']['accuracy']:.1%}，"
         f"執行 {report['execution']['accuracy']:.1%}，"
-        f"語意陷阡 {report['safety']['semantic_traps']['accuracy']:.1%}。"
+        f"語意陷阱 {report['safety']['semantic_traps']['accuracy']:.1%}。"
     )
     return int(report["status"] != "pass")
 

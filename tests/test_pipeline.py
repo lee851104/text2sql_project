@@ -89,3 +89,31 @@ def test_authentication_error_is_not_retried_and_is_actionable() -> None:
     }
     assert llm.calls == 1
     assert "sk-secret" not in str(response.to_dict())
+
+
+def test_a_near_miss_asks_back_instead_of_failing_with_nothing() -> None:
+    """規則接不住、LLM 也產不出來時，反問最接近的問法。
+
+    使用者原本只會看到「SQL 在重試上限內未能通過驗證與執行」，那對他沒有任何幫助。
+    """
+
+    llm = FakeLLM(["DROP TABLE v_peak"] * 3)
+    response = make_pipeline(llm, lambda _sql, _params: ([], [])).query("燃料別有哪幾種")
+
+    assert not response.success
+    assert response.error_code == "DATA_SCOPE_NEAR_MATCH"
+    assert response.severity == "clarify"
+    assert "燃料別有哪些" in response.suggestions
+
+
+def test_a_wrong_topic_guess_is_not_offered() -> None:
+    """「電廠總共有幾間」最接近的是「總共有幾台機組」—— 主題是錯的。
+
+    低於門檻就閉嘴。猜錯的代價是使用者以為那就是他問的，而畫面上不會有任何異狀。
+    """
+
+    llm = FakeLLM(["DROP TABLE v_peak"] * 3)
+    response = make_pipeline(llm, lambda _sql, _params: ([], [])).query("電廠總共有幾間")
+
+    assert response.error_code == "GENERATION_FAILED"
+    assert not response.suggestions

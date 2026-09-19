@@ -14,7 +14,7 @@ from text2sql.entities import Entities, extract_entities
 from text2sql.llm import GeneratedQuery, LLMProtocol, parse_generated_query
 from text2sql.prompt import build_prompt
 from text2sql.retriever import TfidfRetriever
-from text2sql.router import route
+from text2sql.router import route, suggest_scope_question
 from text2sql.scope_guard import ScopeError, ScopeGuard
 from text2sql.semantic_guard import SemanticDecision
 from text2sql.sql_guard import SqlGuard, SqlGuardResult
@@ -281,6 +281,21 @@ class Text2SQLPipeline:
                     "disclosures": disclosures,
                     "trace": trace,
                 },
+            )
+
+        # 最後一步：與其只回「未能通過驗證與執行」，不如問一句。這一層放在這裡而不是
+        # 放在意圖分類，是因為相似度本身分不開 —— 會被它偷走的題目，到這裡早就被更具
+        # 體的規則接走了。線上模式同理：LLM 答得出來就走不到這裡。
+        suggestion = suggest_scope_question(question)
+        if suggestion is not None:
+            return PipelineResponse(
+                False,
+                data={"trace": trace},
+                error_code="DATA_SCOPE_NEAR_MATCH",
+                error="這句我沒有把握。你是不是想問下面這個？",
+                severity="clarify",
+                suggestions=(suggestion,),
+                evidence={"attempts": attempts, "last_error": prior_error},
             )
 
         return PipelineResponse(
