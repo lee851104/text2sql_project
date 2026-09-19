@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -12,8 +13,10 @@ from serving.accounts import (
     MINIMUM_ITERATIONS,
     Account,
     AccountRosterError,
+    _main,
     hash_password,
     parse_roster,
+    render_roster,
     resolve_plant_names,
     verify_password,
 )
@@ -184,13 +187,20 @@ def scoped_client(tmp_path_factory: pytest.TempPathFactory):
         yield client
 
 
-def _login(client: TestClient, username: str) -> None:
+def _login(client: TestClient, username: str) -> dict[str, str]:
+    """Sign in and return the headers a mutation needs."""
+
     response = client.post(
         "/api/admin/session",
         headers={"Origin": ORIGIN, "Sec-Fetch-Site": "same-origin"},
         json={"username": username, "password": PASSWORD},
     )
     assert response.status_code == 200, response.text
+    return {
+        "Origin": ORIGIN,
+        "Sec-Fetch-Site": "same-origin",
+        "X-PowerQuery-CSRF": response.json()["data"]["csrf_token"],
+    }
 
 
 def _logout(client: TestClient) -> None:
@@ -265,3 +275,172 @@ def test_a_plant_account_cannot_reach_the_unscoped_raw_files(scoped_client: Test
 
     assert raw.status_code == 403
     assert auto.status_code == 403
+
+
+@pytest.mark.integration
+def test_a_plant_account_has_no_management_rights(scoped_client: TestClient) -> None:
+    """電廠帳號是資料使用者，不是系統管理者。
+
+    範圍只收窄「看得到哪些列」是不夠的：管理端點會繞過 `ScopeGuard`，其中
+    `/api/data/files/{dataset}` 直接送出所有電廠的原始來源檔。
+    """
+
+    headers = _login(scoped_client, PLANT_ACCOUNT)
+
+    reads = [
+        "/api/data/status",
+        "/api/data/files",
+        "/api/data/files/units_csv",
+        "/api/data/changes",
+        "/api/data/events",
+        "/api/corpus/entries",
+        "/api/corpus/events",
+        "/api/runtime/llm",
+        "/api/training-status",
+    ]
+    for path in reads:
+        assert scoped_client.get(path).status_code == 403, path
+
+    assert (
+        scoped_client.post(
+            "/api/data/changes/remove",
+            headers=headers,
+            json={"dataset": "outage_csv", "reason": "should never reach the service"},
+        ).status_code
+        == 403
+    )
+    assert (
+        scoped_client.put("/api/runtime/llm", headers=headers, json={"mode": "offline"}).status_code
+        == 403
+    )
+    assert (
+        scoped_client.post(
+            "/api/corpus/entries/anything/review",
+            headers=headers,
+            json={"decision": "approve"},
+        ).status_code
+        == 403
+    )
+    _logout(scoped_client)
+
+
+@pytest.mark.integration
+def test_a_plant_account_can_still_end_its_own_session(scoped_client: TestClient) -> None:
+    """收窄管理權限不能把登出一起擋掉。"""
+
+    headers = _login(scoped_client, PLANT_ACCOUNT)
+
+    response = scoped_client.delete("/api/admin/session", headers=headers)
+
+    assert response.status_code == 200
+    assert response.json()["data"]["authenticated"] is False
+    _logout(scoped_client)
+
+
+@pytest.mark.integration
+def test_an_all_scope_account_keeps_its_management_rights(scoped_client: TestClient) -> None:
+    _login(scoped_client, ALL_ACCOUNT)
+
+    assert scoped_client.get("/api/data/status").status_code == 200
+    assert scoped_client.get("/api/corpus/entries").status_code == 200
+    _logout(scoped_client)
+
+
+# ── 名冊盤點指令 ──────────────────────────────────────────────────────────
+
+
+def _roster_account(username: str, **kwargs: object) -> Account:
+    return Account(username=username, password_hash=_hash(), **kwargs)
+
+
+def test_inventory_reports_every_broken_binding_not_just_the_first() -> None:
+    """盤點是診斷工具：一次看完整份名冊，不能在第一個問題就停。"""
+
+    accounts = [
+        _roster_account("admin", plant_id=None),
+        _roster_account("bad-id", plant_id=999),
+        _roster_account("moved", plant_id=15, expected_plant_name="台中發電廠"),
+    ]
+
+    report, code = render_roster(
+        roster_path=Path("configs/accounts.yaml"),
+        database=Path("power.db"),
+        accounts=accounts,
+        plant_names={15: BOUND_PLANT},
+    )
+
+    assert code == 1
+    assert "bad-id" in report and "不在 dim_plant_scope" in report
+    assert "moved" in report and "對不起來" in report
+    assert "有 2 個帳號的綁定對不上資料庫" in report
+
+
+def test_inventory_is_clean_when_every_binding_holds() -> None:
+    accounts = [
+        _roster_account("admin", plant_id=None),
+        _roster_account("linkou", plant_id=15, expected_plant_name=BOUND_PLANT),
+    ]
+
+    report, code = render_roster(
+        roster_path=Path("configs/accounts.yaml"),
+        database=Path("power.db"),
+        accounts=accounts,
+        plant_names={15: BOUND_PLANT},
+    )
+
+    assert code == 0
+    assert "所有綁定都對得上資料庫。" in report
+    assert "✗" not in report
+
+
+def test_a_missing_roster_is_reported_as_a_supported_mode() -> None:
+    report, code = render_roster(
+        roster_path=Path("configs/accounts.yaml"),
+        database=Path("power.db"),
+        accounts=None,
+        plant_names=None,
+    )
+
+    assert code == 0
+    assert "名冊不存在" in report
+
+
+def test_an_unreadable_database_reports_unverified_rather_than_ok() -> None:
+    """未驗不等於通過：驗不了綁定時離開碼必須非零。"""
+
+    accounts = [_roster_account("linkou", plant_id=15, expected_plant_name=BOUND_PLANT)]
+
+    report, code = render_roster(
+        roster_path=Path("configs/accounts.yaml"),
+        database=Path("missing.db"),
+        accounts=accounts,
+        plant_names=None,
+    )
+
+    assert code == 1
+    assert "無法驗證綁定" in report
+    assert "未驗證" in report
+    assert "ok" not in report
+
+
+def test_the_inventory_never_prints_password_material() -> None:
+    accounts = [_roster_account("linkou", plant_id=15, expected_plant_name=BOUND_PLANT)]
+
+    report, _code = render_roster(
+        roster_path=Path("configs/accounts.yaml"),
+        database=Path("power.db"),
+        accounts=accounts,
+        plant_names={15: BOUND_PLANT},
+    )
+
+    assert "pbkdf2" not in report
+    assert accounts[0].password_hash not in report
+
+
+@pytest.mark.parametrize("arguments", [["nonsense"], ["list", "extra"]])
+def test_unknown_or_extra_arguments_are_refused(arguments: list[str]) -> None:
+    assert _main(arguments) == 2
+
+
+def test_help_is_not_an_error() -> None:
+    assert _main(["--help"]) == 0

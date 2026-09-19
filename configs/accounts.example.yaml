@@ -6,7 +6,11 @@
 #
 # 產生密碼雜湊（密碼由 stdin 讀入，不會出現在命令列或 shell 歷史）：
 #
-#   echo -n 'your-password' | uv run python -m serving.accounts
+#   echo -n 'your-password' | uv run python -m serving.accounts hash
+#
+# 盤點名冊（唯讀，印出每個帳號的範圍與綁定是否仍對得上資料庫）：
+#
+#   uv run python -m serving.accounts list
 #
 # scope：
 #   all          看得到全部電廠的資料

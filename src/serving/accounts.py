@@ -17,7 +17,8 @@ from __future__ import annotations
 import hashlib
 import hmac
 import secrets
-from collections.abc import Sequence
+import sqlite3
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -169,8 +170,60 @@ def load_roster(path: Path) -> tuple[Account, ...]:
     return parse_roster(payload)
 
 
+@dataclass(frozen=True, slots=True)
+class AccountBinding:
+    """One account's resolved plant, or the reason it could not be resolved."""
+
+    account: Account
+    plant_name: str | None
+    problem: str | None
+
+    @property
+    def is_valid(self) -> bool:
+        return self.problem is None
+
+
+def describe_bindings(
+    accounts: Sequence[Account], plant_names: Mapping[int, str]
+) -> tuple[AccountBinding, ...]:
+    """Resolve every account's binding, reporting problems instead of raising on the first.
+
+    這是綁定規則的唯一定義處。`resolve_plant_names` 是它的從嚴版本（一有問題就失敗），
+    盤點指令則需要看完整份名冊，所以兩者共用同一套判斷，不各寫一份。
+    """
+
+    bindings: list[AccountBinding] = []
+    for account in accounts:
+        if account.sees_every_plant:
+            bindings.append(AccountBinding(account, None, None))
+            continue
+        actual = plant_names.get(account.plant_id or 0)
+        if actual is None:
+            bindings.append(
+                AccountBinding(
+                    account,
+                    None,
+                    f"綁定的 plant_id={account.plant_id} 不在 dim_plant_scope 名冊中。",
+                )
+            )
+            continue
+        if account.expected_plant_name is not None and account.expected_plant_name != actual:
+            bindings.append(
+                AccountBinding(
+                    account,
+                    actual,
+                    f"綁定的 plant_id={account.plant_id} 目前是「{actual}」，"
+                    f"名冊記的是「{account.expected_plant_name}」。"
+                    "編號與名稱對不起來時不啟動，以免帳號換了一座電廠。",
+                )
+            )
+            continue
+        bindings.append(AccountBinding(account, actual, None))
+    return tuple(bindings)
+
+
 def resolve_plant_names(
-    accounts: Sequence[Account], plant_names: dict[int, str]
+    accounts: Sequence[Account], plant_names: Mapping[int, str]
 ) -> dict[str, str | None]:
     """Bind each account to a plant name, refusing any binding that no longer holds.
 
@@ -179,34 +232,120 @@ def resolve_plant_names(
     """
 
     resolved: dict[str, str | None] = {}
-    for account in accounts:
-        if account.sees_every_plant:
-            resolved[account.username] = None
-            continue
-        actual = plant_names.get(account.plant_id or 0)
-        if actual is None:
-            raise AccountRosterError(
-                f"帳號「{account.username}」綁定的 plant_id={account.plant_id} "
-                "不在 dim_plant_scope 名冊中。"
-            )
-        if account.expected_plant_name is not None and account.expected_plant_name != actual:
-            raise AccountRosterError(
-                f"帳號「{account.username}」綁定的 plant_id={account.plant_id} 目前是"
-                f"「{actual}」，名冊記的是「{account.expected_plant_name}」。"
-                "編號與名稱對不起來時不啟動，以免帳號換了一座電廠。"
-            )
-        resolved[account.username] = actual
+    for binding in describe_bindings(accounts, plant_names):
+        if binding.problem is not None:
+            raise AccountRosterError(f"帳號「{binding.account.username}」{binding.problem}")
+        resolved[binding.account.username] = binding.plant_name
     return resolved
 
 
-def _main() -> int:
-    """Print a roster password line for a password read from stdin."""
+USAGE = """用法：
+  python -m serving.accounts hash   由 stdin 讀密碼，印出名冊用的雜湊（預設子指令）
+  python -m serving.accounts list   盤點名冊：每個帳號的範圍與綁定是否仍對得上資料庫
 
+範例：
+  echo -n 'your-password' | python -m serving.accounts hash
+"""
+
+
+def render_roster(
+    *,
+    roster_path: Path,
+    database: Path,
+    accounts: Sequence[Account] | None,
+    plant_names: Mapping[int, str] | None,
+) -> tuple[str, int]:
+    """Render the roster inventory and the exit code that reports its health.
+
+    ``accounts`` 為 None 代表沒有名冊檔（服務沿用單一管理員帳號，這是支援的部署方式，
+    不是錯誤）。``plant_names`` 為 None 代表讀不到資料庫，因此無法驗證綁定 —— 這時回
+    非零離開碼：**未驗不等於通過**，與專案合併門檻的判定原則一致。
+    """
+
+    lines = [f"帳號名冊：{roster_path}"]
+    if accounts is None:
+        lines.append("狀態　　：名冊不存在；服務會沿用環境變數的單一管理員帳號，範圍為全廠。")
+        return "\n".join(lines) + "\n", 0
+
+    lines.append(f"資料庫　：{database}")
+    lines.append(f"帳號數　：{len(accounts)}")
+    if plant_names is None:
+        lines.append("狀態　　：讀不到資料庫，無法驗證綁定。以下只列出名冊內容。")
+        lines.append("")
+        for account in accounts:
+            lines.append(f"- {account.username}")
+            if account.sees_every_plant:
+                lines.append("    範圍：全部電廠")
+            else:
+                lines.append(f"    範圍：plant_id={account.plant_id}")
+                lines.append("    綁定：? 未驗證")
+        return "\n".join(lines) + "\n", 1
+
+    lines.append("")
+    problems = 0
+    for binding in describe_bindings(accounts, plant_names):
+        lines.append(f"- {binding.account.username}")
+        if binding.account.sees_every_plant:
+            lines.append("    範圍：全部電廠")
+            continue
+        scope = f"plant_id={binding.account.plant_id}"
+        if binding.plant_name is not None:
+            scope += f"（{binding.plant_name}）"
+        lines.append(f"    範圍：{scope}")
+        if binding.is_valid:
+            lines.append("    綁定：ok")
+        else:
+            problems += 1
+            lines.append(f"    綁定：✗ {binding.problem}")
+
+    lines.append("")
+    if problems:
+        lines.append(f"有 {problems} 個帳號的綁定對不上資料庫；服務會在解析時拒絕這些帳號。")
+    else:
+        lines.append("所有綁定都對得上資料庫。")
+    return "\n".join(lines) + "\n", 1 if problems else 0
+
+
+def _list_command() -> int:
+    import sys
+
+    from ingest.validate import PROJECT_ROOT, resolve_configured_paths
+    from text2sql.scope_guard import ScopeCatalog
+
+    roster_path = PROJECT_ROOT / "configs" / "accounts.yaml"
+    database = resolve_configured_paths(PROJECT_ROOT)["database"].resolve()
+
+    accounts: Sequence[Account] | None = None
+    if roster_path.exists():
+        try:
+            accounts = load_roster(roster_path)
+        except AccountRosterError as error:
+            sys.stderr.write(f"{error}\n")
+            return 2
+
+    plant_names: Mapping[int, str] | None = None
+    if accounts is not None and database.exists():
+        try:
+            plant_names = ScopeCatalog.from_database(database).plant_names_by_id()
+        except sqlite3.Error:
+            plant_names = None
+
+    report, code = render_roster(
+        roster_path=roster_path,
+        database=database,
+        accounts=accounts,
+        plant_names=plant_names,
+    )
+    sys.stdout.write(report)
+    return code
+
+
+def _hash_command() -> int:
     import sys
 
     password = sys.stdin.read().rstrip("\r\n")
     if not password:
-        sys.stderr.write("請由 stdin 提供密碼，例如：echo -n 'pw' | python -m serving.accounts\n")
+        sys.stderr.write("請由 stdin 提供密碼。\n" + USAGE)
         return 2
     try:
         print(hash_password(password))
@@ -214,6 +353,25 @@ def _main() -> int:
         sys.stderr.write(f"{error}\n")
         return 1
     return 0
+
+
+def _main(argv: Sequence[str] | None = None) -> int:
+    import sys
+
+    arguments = list(sys.argv[1:] if argv is None else argv)
+    if any(item in {"-h", "--help", "help"} for item in arguments):
+        sys.stderr.write(USAGE)
+        return 0
+    if len(arguments) > 1:
+        sys.stderr.write(USAGE)
+        return 2
+    command = arguments[0] if arguments else "hash"
+    if command == "list":
+        return _list_command()
+    if command == "hash":
+        return _hash_command()
+    sys.stderr.write(f"未知的子指令：{command}\n" + USAGE)
+    return 2
 
 
 if __name__ == "__main__":  # pragma: no cover - thin CLI wrapper
