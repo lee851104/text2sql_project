@@ -2,6 +2,27 @@
 
 > 這份檔案在每個可驗證、可回退的儲存點更新。回退前需保留使用者原有的未提交變更。
 
+## CP-026 — 授權範圍未涵蓋的檢視改為拒絕
+
+- 時間：2026-09-19 16:10 +08:00
+- 狀態：已完成
+- 問題：`ScopeGuard.apply` 原本寫成「不在 `SCOPE_KEYS` 的資料表就原封不動回傳」，這是 fail-open。`SHARED_VIEWS` 雖然列了三張不受管的檢視，但全專案只有定義那一行、沒有任何地方讀它，等於註解而不是機制。目前 6 張檢視剛好被兩個集合蓋滿是巧合；只要新增一張帶電廠欄位的檢視並加進 `sql_guard.ALLOWED_COLUMNS`，電廠帳號就會讀到它的全部列，沒有錯誤訊息、測試也不會紅。
+- 對照：建庫層（`build_db.py`）早就是 fail-closed —— 新的每日欄位沒指定 `access_scope` 就中止建庫。查詢層少了同一道。這次把兩層對齊。
+- 處理：
+  - `SHARED_VIEWS` 從宣告變成機制：改寫時先放行不受管檢視，兩個集合都查不到就丟 `UnclassifiedViewError`（繼承 `ScopeRewriteError`，沿用既有的 `SCOPE_DENIED` 拒絕路徑）。
+  - `_allowed_values` 移除 fallthrough。原本任何非 `v_unit`／`v_peak` 的檢視都會拿到 `outage_ids`，等於用錯的欄位值當授權範圍；改為明確判斷 `v_outage`，其餘丟錯。
+  - 只影響電廠帳號路徑；`plant=None`（全權限）維持原樣不改寫。
+- 新增測試（5 筆）：
+  - `test_every_queryable_view_has_an_authorisation_classification`：`ALLOWED_COLUMNS` 的鍵必須與 `SCOPE_KEYS ∪ SHARED_VIEWS` 完全相等。這是涵蓋性不變式，涵蓋**未來新增**的檢視，不需資料庫，每一層測試都會跑。
+  - `test_a_view_cannot_be_both_managed_and_shared`：兩個集合互斥。
+  - `test_database_views_match_the_authorisation_classification`：`power.db` 實際的 6 張 `v_*` 與分類表相符。
+  - `test_unclassified_view_is_refused_instead_of_passed_through`：未分類檢視必須拒絕。
+  - `test_managed_view_without_a_value_rule_is_refused`：列進 `SCOPE_KEYS` 卻沒有可見列規則時必須拒絕。
+- 反向驗證：把 `scope_guard.py` 還原成修正前版本（僅補上例外類別以便匯入）後重跑，後兩筆行為測試以 **DID NOT RAISE** 失敗，確認修正前確實是靜默放行、不是本來就會擋。前三筆涵蓋性測試在修正前後都綠 —— 它們是給未來的迴歸護欄，不是今天的抓蟲工具，這點不混為一談。
+- 驗收：`ruff format --check .`、`ruff check .` 通過；`pytest -q` **299 passed**（修改前基準 294，新增 5 筆，無回歸）。
+- 未處理（留待後續儲存點）：帳號名冊與 `plant` 綁定尚未建立，因此 `/api/query` 仍以全權限範圍執行，本次修正保護的是接上帳號之後的路徑；`/api/raw/*` 與 `query_scope="raw"` 仍完全不經 `ScopeGuard`，電廠帳號的處置另案處理。
+- 回退方式：回退 `fix: refuse views that carry no authorisation classification` 這個 commit。授權對照表、建庫流程與全權限查詢路徑都不受影響。
+
 ## CP-025 — 發電成本資料源納入可重現下載
 
 - 時間：2026-09-19 11:02 +08:00
