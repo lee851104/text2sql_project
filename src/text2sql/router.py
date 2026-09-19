@@ -755,4 +755,36 @@ def route(
                 params,
             )
 
+    # 最後一段。走到這裡表示沒有任何意圖 handler 認領這句話，所以這兩條規則**不可能**
+    # 從既有 handler 手上搶題目 —— 安全性靠順序，不靠比對寫得多精準。
+    #
+    # 這兩種形狀的守門判斷本來就是對的（都是 disclose），缺的只是 SQL。而 disclose 的
+    # 結論是掛在成功答案上的附註，產不出 SQL，揭露就跟著消失，使用者只看到
+    # GENERATION_FAILED。補上 SQL，那句限制才送得到人眼前。
+    if plants:
+        plant = resolve_plant(question, plants)
+        if plant.value:
+            audit_words = ("缺口", "對帳", "實測", "是否完整", "與出力", "裝置容量")
+            if "容量" in question and any(word in question for word in audit_words):
+                # 對應容量與實測最大值並排，容量缺口就直接看得出來（大潭對應 498 萬瓩、
+                # 實測最大 710 萬瓩 —— 差額就是機組主檔漏收的部分）。
+                return RoutedQuery(
+                    intent,
+                    'SELECT "機組欄位", "對應裝置容量_萬瓩", '
+                    'MAX("尖峰出力_萬瓩") AS "實測最大_萬瓩" FROM v_peak '
+                    'WHERE "電廠" = ? GROUP BY "機組欄位", "對應裝置容量_萬瓩" '
+                    'ORDER BY "機組欄位" LIMIT 100',
+                    (plant.value,),
+                )
+            if any(word in question for word in ("總出力", "總計", "全廠", "完整", "尖峰功率")):
+                clause, params = _range_clause(bounded_range)
+                # 由新到舊：被 LIMIT 截掉的應該是最舊的那幾天，不是最近的。
+                return RoutedQuery(
+                    intent,
+                    'SELECT "日期", SUM("尖峰出力_萬瓩") AS "電廠總出力_萬瓩" FROM v_peak '
+                    f'WHERE "電廠" = ?{clause} GROUP BY "日期" '
+                    'ORDER BY "日期" DESC LIMIT 200',
+                    (plant.value, *params),
+                )
+
     return RoutedQuery(intent)
