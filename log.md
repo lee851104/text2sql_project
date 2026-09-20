@@ -2,6 +2,56 @@
 
 > 這份檔案在每個可驗證、可回退的儲存點更新。回退前需保留使用者原有的未提交變更。
 
+## CP-057 — 兩道假防線：403 擋不住的原始檔，與黑名單漏掉的 randomblob
+
+- 時間：2026-09-20 22:53 +08:00
+- 狀態：已完成
+- 起點：使用者帶來兩則「高優先」發現（原始資料端點繞過查詢權限、SQL 守門只限列數不限單筆大小），問需不需要改。兩則都實測驗證屬實。
+
+### randomblob：超時那道攔不到
+
+`SqlGuard` 放行 `SELECT randomblob(1000000000) FROM v_unit LIMIT 1`。實際執行**成功配出 1,000,000,000 bytes，耗時 2.99 秒** —— 比 `db.py` 的 5 秒上限還快，所以既有的超時保護擋不到。`zeroblob`、`hex(randomblob(...))` 一樣。
+
+根因不是「沒限制結果大小」，是**同一個 guard 裡資料表與欄位用白名單，函式卻用黑名單**：
+
+```python
+DANGEROUS_FUNCTIONS = {"load_extension", "readfile", "writefile"}   # 只有三個
+```
+
+補上 `randomblob` 還會漏下一個。改成白名單，但**不能照名字列**——實測 `find_all(exp.Func)` 抓到的不只真函式，`And`／`Or` 也是 `Func` 的子類，照名字做白名單會讓 `WHERE a = ? AND b = ?` 被自己的守門擋下來。
+
+分界量出來了：sqlglot 認得的函式有專屬節點（`Count`／`Avg`／`Substring`／`Hex`／`GroupConcat`），**不認得的才落成 `Anonymous`，而危險的那些全在後者**——`randomblob`、`zeroblob`、`load_extension`、`readfile`、`writefile`、`printf`、`quote`、`sqlite_version`。掃過專案現有 102 段 SQL（語料、題庫、router 手寫），用到的函式全是 sqlglot 認得的，所以白名單目前是空集合。
+
+第二道設在連線上：`setlimit(SQLITE_LIMIT_LENGTH, 1_000_000)`。SQLite 的預設是 10^9，等於一次查詢就能要走 1 GB；設了之後超過上限直接回 `string or blob too big`，**記憶體從頭到尾沒有配出去**，而不是拿到結果才檢查。
+
+### 原始檔端點：那個 403 擋不住任何人
+
+`/api/query` 用 403 擋電廠帳號查原始檔，註解寫著「原始檔查詢不經 ScopeGuard；開放給電廠帳號等於留一條繞過授權的路」。但 `/api/raw/resources/{id}/rows` 連登入都不用——同一個人換個網址就拿到同樣的東西。寫入端 `/api/raw/rebuild` 本來就要 `ManageMutation`，只有讀取這邊漏掉。
+
+第一次判斷時我把這件事定性為「不是資料外洩，raw 是 data.gov.tw 的公開資料」。**使用者指出前提不同**：這個專題模擬的是拿到公司機密資料在做，資料不該外洩。前提一改，結論跟著改——這不只是防線好看不好看的問題。
+
+補的時候沒有發明新機制，套的是專案已經有的 `ManageRead`（登入＋全廠帳號）。它的註解講的正是同一件事：「管理端點不經 `ScopeGuard`，其中 `/api/data/files/{dataset}` 會直接送出所有電廠的原始來源檔，等於繞過整套授權。」原始檔端點和它是同一類。
+
+通往原始檔的路有三條，全部要堵：
+
+| 路徑 | 先前 | 現在 |
+|---|---|---|
+| `GET /api/raw/status`、`/resources`、`/resources/{id}/rows` | 完全無權限 | `ManageRead` |
+| `POST /api/query` + `query_scope=raw` | 匿名可用（`anonymous_scope=all` 時） | 一律要登入且全廠 |
+| `POST /api/query` + `query_scope=auto` 的 fallback | 匿名可用 | 無權限時不退回 |
+
+`auto` 那條刻意不回 401 而是安靜地不退回：auto 的語意是「盡量答」，匿名訪客該拿到語意檢視自己的結果或失敗訊息，不該因為選了 auto 就被要求登入。
+
+順帶修正一個描述上的偏差：原始說法是「與公開服務文件所寫的『查詢需要登入』不一致」，但 `PUBLIC_OFFLINE_SERVING.md` 給的理由是成本不是機密——「匿名可查等於任何訪客都在燒管理員輸入的那把 key」。原始檔端點讀本地檔案、不呼叫 LLM，不燒 key，那條理由不適用。真正站得住的是電廠帳號那條。
+
+### 驗收
+
+- `ruff format --check .`（110 files）、`ruff check .` 通過；`pytest -q` **592 passed, 1 skipped**（CP-056 後為 578，本次新增 14 筆；skip 是 port 8765 被執行中的服務占用）。
+- 攻擊題庫 15 → 16 筆，新增 `attack-16` RESOURCE_EXHAUSTION（`randomblob(1000000000)`），納入 CI 的 `attack_blocking_100pct` 驗收；`tests/test_no_leakage.py` 與 `tests/test_sql_guard.py` 的筆數斷言同步。
+- 新測試釘住的是行為不是實作：原始檔三個端點對匿名回 401、對電廠帳號回 403；`query_scope=raw` 兩者同樣擋下；`auto` 對匿名不帶出 `fallback_from`；六種日常查詢（含 `AND`／`OR`／`COUNT`／`AVG`／`SUBSTR`／`ROUND`）仍然放行。
+- 文件同步：`docs/SERVING.md` 的安全邊界補上原始檔端點的權限與 `auto` 的行為。
+- 回退方式：回退 `fix: close two gates that were only decorative` 這個 commit。回退後 `randomblob` 會再次通過守門，原始檔端點會再次匿名可讀。
+
 ## CP-056 — 原始資料與對齊產物匯出成一份可重現的試算表
 
 - 時間：2026-09-20 21:37 +08:00

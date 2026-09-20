@@ -39,7 +39,7 @@ def test_corpus_and_benchmarks_meet_minimum_sample_sizes() -> None:
     assert Counter(item["in_corpus"] for item in evaluation)[True] >= 20
     assert Counter(item["in_corpus"] for item in evaluation)[False] >= 20
     assert min(Counter(item["expect"]["code"] for item in traps).values()) >= 5
-    assert len(attacks) == 15
+    assert len(attacks) == 16
 
 
 def test_all_corpus_sql_targets_semantic_views_with_a_limit() -> None:

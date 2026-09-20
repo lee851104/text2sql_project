@@ -74,7 +74,19 @@ ALLOWED_COLUMNS = {
         "決算類型",
     },
 }
-DANGEROUS_FUNCTIONS = {"load_extension", "readfile", "writefile"}
+# sqlglot 解析時，它認得的函式會有專屬節點（`Count`、`Avg`、`Substring`…），
+# 只有它不認得的才落成 `Anonymous` —— 而 SQLite 那些危險的專有函式全在後者：
+# `randomblob`、`zeroblob`、`load_extension`、`readfile`、`writefile`、`printf`。
+# 這條界線就是白名單的分界：不認得的一律擋，要放行得逐一寫進來。
+#
+# 原本這裡是三個名字的黑名單（load_extension／readfile／writefile），漏掉了
+# `randomblob(1000000000)` —— 它能在 2.99 秒內配出 1 GB，比 db.py 的 5 秒上限還快，
+# 超時那道攔不到。黑名單補上 randomblob 還會漏下一個，所以改成白名單，跟這個檔案
+# 對資料表與欄位的做法一致。
+#
+# 專案現有的 102 段 SQL（語料、題庫、router 手寫）用到的函式全都是 sqlglot 認得的，
+# 所以這份白名單目前是空的；真的需要某個 SQLite 專有函式時再具名加入。
+ALLOWED_UNKNOWN_FUNCTIONS: frozenset[str] = frozenset()
 FORBIDDEN_KEYWORDS = re.compile(
     r"\b(?:INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|REPLACE|ATTACH|DETACH|PRAGMA|VACUUM|REINDEX)\b",
     re.IGNORECASE,
@@ -90,9 +102,20 @@ class SqlGuardResult:
 
 
 class SqlGuard:
-    def __init__(self, *, max_rows: int = 200, allowed_columns: dict[str, set[str]] | None = None):
+    def __init__(
+        self,
+        *,
+        max_rows: int = 200,
+        allowed_columns: dict[str, set[str]] | None = None,
+        allowed_unknown_functions: frozenset[str] | None = None,
+    ):
         self.max_rows = max_rows
         self.allowed_columns = allowed_columns or ALLOWED_COLUMNS
+        self.allowed_unknown_functions = (
+            ALLOWED_UNKNOWN_FUNCTIONS
+            if allowed_unknown_functions is None
+            else allowed_unknown_functions
+        )
 
     @staticmethod
     def _reject(code: str, reason: str) -> SqlGuardResult:
@@ -122,12 +145,9 @@ class SqlGuard:
         if invalid_tables:
             return self._reject("SQL_TABLE_NOT_ALLOWED", f"不允許的資料表：{invalid_tables}")
 
-        for function in tree.find_all(exp.Func):
-            function_name = (
-                function.name if isinstance(function, exp.Anonymous) else function.sql_name()
-            )
-            if function_name.casefold() in DANGEROUS_FUNCTIONS:
-                return self._reject("SQL_FUNCTION_NOT_ALLOWED", "查詢使用了不允許的函式。")
+        for function in tree.find_all(exp.Anonymous):
+            if function.name.casefold() not in self.allowed_unknown_functions:
+                return self._reject("SQL_FUNCTION_NOT_ALLOWED", f"不允許的函式：{function.name}")
 
         aliases = {item.alias for item in tree.expressions if item.alias}
         allowed = set().union(*(self.allowed_columns[table] for table in tables)) | aliases

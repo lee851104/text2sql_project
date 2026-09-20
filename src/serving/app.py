@@ -1173,8 +1173,14 @@ def create_app(
             ],
         }
 
+    # 原始檔端點給的是整份來源檔，不經 ScopeGuard —— 和 `/api/data/files/{dataset}` 同一類，
+    # 所以套同一道 `ManageRead`（要登入，且必須是全廠帳號）。
+    #
+    # 先前這三個讀取端點完全沒有權限，於是 `/api/query` 那句「電廠帳號不能查原始開放資料檔」
+    # 的 403 擋不住任何人：同一個人換個網址就拿到同樣的東西，連登入都不用。
+    # 寫入端 `/api/raw/rebuild` 本來就要 `ManageMutation`，只有讀取這邊漏掉。
     @application.get("/api/raw/status")
-    def raw_status() -> dict[str, object]:
+    def raw_status(_principal: ManageRead) -> dict[str, object]:
         try:
             return {"success": True, "data": application.state.raw_data_service.status()}
         except RawDataError as error:
@@ -1182,6 +1188,7 @@ def create_app(
 
     @application.get("/api/raw/resources")
     def raw_resources(
+        _principal: ManageRead,
         search: str | None = Query(default=None, max_length=200),
         format_name: str | None = Query(default=None, alias="format", max_length=10),
         limit: int = Query(default=100, ge=1, le=500),
@@ -1199,6 +1206,7 @@ def create_app(
     @application.get("/api/raw/resources/{resource_id}/rows")
     def raw_resource_rows(
         resource_id: str,
+        _principal: ManageRead,
         search: str | None = Query(default=None, max_length=200),
         member: str | None = Query(default=None, max_length=500),
         limit: int = Query(default=50, ge=1, le=200),
@@ -1261,6 +1269,12 @@ def create_app(
                 status_code=403,
                 detail="電廠帳號只能查詢受授權管制的語意檢視，不能查詢原始開放資料檔。",
             )
+        # 語意檢視經過 SqlGuard 與 ScopeGuard，原始檔兩道都不經過，給的是整份來源檔，
+        # 所以它比 trusted 查詢更嚴：不看 anonymous_scope，一律要登入且是全廠帳號，
+        # 與 `/api/raw/*` 的 ManageRead 對齊。少了這道，匿名訪客改個 query_scope 就繞過去。
+        raw_allowed = principal is not None and not plant_account
+        if payload.query_scope == "raw" and not raw_allowed:
+            raise HTTPException(status_code=401, detail="原始開放資料檔的查詢需要先登入。")
         if payload.query_scope == "raw":
             try:
                 return application.state.raw_data_service.query(payload.question)
@@ -1302,7 +1316,9 @@ def create_app(
                     actor=principal.username if principal is not None else "anonymous",
                     details={"plant": plant, "error": response.get("error")},
                 )
-        if not response["success"] and payload.query_scope == "auto":
+        # auto 的語意是「盡量答」，所以沒有原始檔權限時安靜地不退回，而不是回 401 ——
+        # 匿名訪客該拿到 trusted 的結果或它的失敗訊息，不該因為選了 auto 就被要求登入。
+        if not response["success"] and payload.query_scope == "auto" and raw_allowed:
             try:
                 fallback = application.state.raw_data_service.query(payload.question)
             except RawDataError:
