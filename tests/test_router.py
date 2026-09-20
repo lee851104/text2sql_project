@@ -233,3 +233,49 @@ def test_a_fuel_question_about_units_stays_with_its_own_handler() -> None:
 
     assert classify_intent("天然氣機組共有幾台？") == "fuel_stats"
     assert classify_intent("水力機組總裝置容量") == "fuel_stats"
+
+
+SAME_DAY_QUESTIONS = (
+    "2026-07-20台中#1的尖峰出力",
+    "2026/7/20台中#1的尖峰出力",
+    "2026.7.20台中#1的尖峰出力",
+    "2026 07 20台中#1的尖峰出力",
+    "20260720台中#1的尖峰出力",
+    "2026年7月20日台中#1的尖峰出力",
+    "115年7月20日台中#1的尖峰出力",
+    "115/7/20台中#1的尖峰出力",
+    "115-07-20台中#1的尖峰出力",
+    "115 7 20台中#1的尖峰出力",
+    "1150720台中#1的尖峰出力",
+)
+
+
+def test_every_way_of_writing_one_day_routes_to_the_same_query() -> None:
+    """同一天的各種寫法要走到同一個意圖、同一句 SQL、同一組參數。
+
+    日期判斷原本散在 `extract_date_range` 與 `classify_intent` 兩處。CP-053 只補了前
+    者，於是出現一個很難發現的半殘狀態：`115/7/20…` 的日期解析對了
+    （explicit_date=2026-07-20），意圖卻判成 other，整句掉到 LLM。
+    """
+
+    outcomes = set()
+    for question in SAME_DAY_QUESTIONS:
+        routed = route(
+            question,
+            extract_entities(question),
+            peak_columns={"台中#1"},
+            plants=set(PLANTS),
+            data_range=("2025-01-01", "2026-07-31"),
+        )
+        assert routed.intent == "unit_day", question
+        assert routed.sql, question
+        outcomes.add((routed.intent, routed.sql, routed.params))
+    assert len(outcomes) == 1, f"寫法不同卻產生 {len(outcomes)} 種查詢"
+
+
+def test_the_intent_uses_the_entities_it_is_given() -> None:
+    """傳進來的 entities 就是判斷依據 —— 不要在 classify_intent 裡再解析一次。"""
+
+    question = "115/7/20台中#1的尖峰出力"
+    assert classify_intent(question) == "unit_day"
+    assert classify_intent(question, extract_entities(question)) == "unit_day"
