@@ -188,3 +188,48 @@ def test_outage_questions_are_not_asked_back() -> None:
 
     for question in ("哪一些機組目前維修中", "列出日期有效的歲修", "依日期區間找歲修排程"):
         assert _clarify(question) is None, question
+
+
+def test_fuel_qualified_plant_lists_are_not_the_same_answer() -> None:
+    """使用者回報的症狀：火力與水力回同一份清單。這條直接釘住兩者不得相同。"""
+
+    thermal = _route("火力電廠有哪些")
+    hydro = _route("水力電廠有哪些")
+    assert thermal.sql and hydro.sql
+    assert (thermal.sql, thermal.params) != (hydro.sql, hydro.params)
+    assert set(thermal.params) == {"天然氣", "煤", "輕柴油", "重油"}
+    assert set(hydro.params) == {"水"}
+    for routed in (thermal, hydro):
+        assert SqlGuard().validate(routed.sql, routed.params).allowed
+
+
+@pytest.mark.parametrize(
+    "question",
+    (
+        "燃煤電廠有哪些",
+        "天然氣電廠有哪些",
+        "有哪些水力發電廠",
+        "列出火力電廠清單",
+        "重油電廠有幾座",
+    ),
+)
+def test_a_fuel_qualified_plant_list_is_answered_offline(question: str) -> None:
+    routed = _route(question)
+    assert routed.sql, question
+    assert "v_unit" in routed.sql
+    assert routed.params
+    assert SqlGuard().validate(routed.sql, routed.params).allowed
+
+
+@pytest.mark.parametrize("question", ("核能電廠有哪些", "風力電廠有哪些", "太陽能電廠有哪些"))
+def test_a_fuel_the_master_data_does_not_have_gets_no_sql(question: str) -> None:
+    """核能機組不在機組主檔。回一張空表看起來像「沒有核能電廠」，那是另一種騙人。"""
+
+    assert _route(question).sql is None
+
+
+def test_a_fuel_question_about_units_stays_with_its_own_handler() -> None:
+    """「天然氣機組共有幾台」問的是機組，不是電廠清單 —— 不得被新規則搶走。"""
+
+    assert classify_intent("天然氣機組共有幾台？") == "fuel_stats"
+    assert classify_intent("水力機組總裝置容量") == "fuel_stats"

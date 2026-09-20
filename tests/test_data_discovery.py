@@ -14,6 +14,7 @@ from text2sql.router import (
     classify_intent,
     data_scope_topic,
     nearest_scope_topic,
+    suggest_scope_question,
 )
 from text2sql.semantic_guard import META_QUESTION_PATTERNS, SemanticGuard
 
@@ -189,13 +190,64 @@ def test_rule_order_is_what_protects_the_stolen_questions(question: str, intent:
     assert classify_intent(question) == intent
 
 
-def test_the_near_match_would_steal_them_if_it_ran_first() -> None:
-    """證明上一條守的是順序，不是比對的精準度。搬動規則順序時這裡會提醒你。"""
+def test_the_near_match_no_longer_leans_on_rule_order_alone() -> None:
+    """這兩題以前只靠「近似比對排在最後」保護，比對本身會把它們當成範圍問句。
 
-    assert nearest_scope_topic("大觀發電廠有哪些設備") == "plants"
-    assert nearest_scope_topic("碧海在資料期間的峰值日期") == "period"
+    現在多出來的字必須全部是贅字，比對自己就擋得住。順序仍是第一道保護，這條守的是
+    第二道：萬一有人把規則往前搬，答案也不會突然變成一份沒有篩選的清單。
+    """
+
+    assert nearest_scope_topic("大觀發電廠有哪些設備") is None
+    assert nearest_scope_topic("碧海在資料期間的峰值日期") is None
+
+
+# 使用者回報「火力電廠有哪些」與「水力電廠有哪些」答案一樣。查下去不只燃料：地區、
+# 電廠名、年份全部被子序列比對吞掉，16 種限定詞乘 6 種問法共 96 種組合都回同一份清單。
+SWALLOWED_QUALIFIERS = (
+    "火力",
+    "水力",
+    "燃煤",
+    "燃氣",
+    "天然氣",
+    "核能",
+    "風力",
+    "太陽能",
+    "地熱",
+    "抽蓄",
+    "台中",
+    "北部",
+    "離島",
+    "2025年",
+    "去年",
+    "民營",
+)
+SWALLOWED_FORMS = ("電廠有哪些", "有哪些電廠", "電廠清單", "有哪些燃料", "資料期間", "有幾台機組")
+
+
+@pytest.mark.parametrize("qualifier", SWALLOWED_QUALIFIERS)
+def test_a_qualifier_is_never_swallowed_into_a_scope_question(qualifier: str) -> None:
+    """帶限定詞就是在問一個更窄的問題。回一份沒篩選的清單是錯答案，而且看不出來。"""
+
+    for form in SWALLOWED_FORMS:
+        question = qualifier + form
+        assert nearest_scope_topic(question) is None, question
+        assert data_scope_topic(question) is None, question
 
 
 def test_an_unrelated_question_does_not_near_match() -> None:
     assert nearest_scope_topic("2026年7月備轉容量率最低是哪一天") is None
     assert nearest_scope_topic("容量缺口欄位有哪些") is None
+
+
+def test_a_suggestion_never_drops_the_qualifier() -> None:
+    """建議把限定詞弄丟的話，答案就完全不同，而使用者看不出來。"""
+
+    for question in ("核能電廠有哪些", "風力電廠有哪些", "台中有幾台機組"):
+        assert suggest_scope_question(question) is None, question
+
+
+def test_a_rephrased_scope_question_still_gets_a_suggestion() -> None:
+    """只是換句話說的不受影響 —— 擋掉的是限定詞，不是換個講法。"""
+
+    assert suggest_scope_question("燃料別有哪幾種") == "燃料別有哪些"
+    assert suggest_scope_question("電廠有哪幾座") == "電廠有哪些"
