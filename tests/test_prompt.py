@@ -84,3 +84,27 @@ def test_a_retry_keeps_the_whole_context() -> None:
     payload = _payload(prior_sql="SELECT 1", prior_error="boom")
     assert payload["ddl"] and payload["rules"]
     assert len(payload["examples"]) == len(HITS)
+
+
+def test_closed_set_columns_travel_with_their_values() -> None:
+    """ddl 只有欄位名時，模型不知道「燃料」裡裝的是「煤」還是「燃煤」。"""
+
+    payload = _payload(column_values={"v_unit.燃料": ["水", "重油", "天然氣", "輕柴油", "煤"]})
+
+    assert payload["column_values"] == {"v_unit.燃料": ["水", "重油", "天然氣", "輕柴油", "煤"]}
+    assert "封閉集合" in str(payload["column_values_note"])
+
+
+def test_column_values_sit_next_to_the_ddl_not_in_the_rules() -> None:
+    """值是 schema 的一部分，位置要緊鄰 ddl —— 丟進 rules 會被例子隔開。"""
+
+    keys = list(_payload(column_values={"v_unit.燃料": ["煤"]}))
+
+    assert keys.index("ddl") < keys.index("column_values") < keys.index("rules")
+
+
+def test_a_prompt_without_column_values_is_unchanged() -> None:
+    """沒有值可給的時候，整份 prompt 要和先前一模一樣。"""
+
+    assert "column_values" not in _payload()
+    assert "column_values" not in _payload(column_values={})

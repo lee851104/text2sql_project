@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from threading import RLock
@@ -65,6 +65,7 @@ class Text2SQLPipeline:
         data_range: tuple[str, str],
         peak_columns: set[str],
         plants: set[str] | None = None,
+        column_values: Mapping[str, Sequence[str]] | None = None,
         semantic_guard: SemanticGuardProtocol | None = None,
         scope_guard: ScopeGuard | None = None,
         max_attempts: int = 3,
@@ -90,6 +91,8 @@ class Text2SQLPipeline:
         self.data_range = data_range
         self.peak_columns = peak_columns
         self.plants = plants or set()
+        # 封閉集合欄位的值。空的時候 prompt 就少這一段，行為與先前相同。
+        self.column_values = {key: list(values) for key, values in (column_values or {}).items()}
         self.semantic_guard = semantic_guard or AllowAllSemanticGuard()
         self.scope_guard = scope_guard
         self.max_attempts = max_attempts
@@ -205,6 +208,7 @@ class Text2SQLPipeline:
                     corpus=corpus,
                     examples=retrieved,
                     data_range=self.data_range,
+                    column_values=self.column_values,
                     prior_error=prior_error,
                     prior_sql=prior_sql,
                 )

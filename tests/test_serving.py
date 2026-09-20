@@ -412,3 +412,34 @@ def test_failed_query_has_downloadable_safe_diagnostic_log(client: TestClient) -
 def test_missing_database_is_reported_as_unavailable(tmp_path: Path) -> None:
     with pytest.raises(FileNotFoundError):
         build_runtime(database=tmp_path / "missing.db", root=PROJECT_ROOT)
+
+
+@pytest.mark.parametrize(
+    ("message", "leaks_through"),
+    [
+        # 設定檔講得清楚的兩類，要原樣說給管理員聽 —— 遮掉的話，「你沒設 key」與
+        # 「provider 名字打錯」都變成同一句沒有指向性的通用錯誤。
+        ("線上模式需要 API key；請在記憶體設定或使用 GMI_API_KEY。", True),
+        ("線上模式需要 API key；請在記憶體設定或使用 OPENAI_API_KEY。", True),
+        ("不支援的線上 provider：gemini；可用的是 ['gmi', 'openai']。", True),
+        ("請先執行 `uv sync --extra online`。", True),
+        # 其餘一律遮蔽，內部細節不能外流。
+        ("Connection refused to 10.0.0.5:5432", False),
+        ("adapter rejected credential sk-live-abcdef", False),
+        ("KeyError: 'internal_state'", False),
+    ],
+)
+def test_only_configuration_level_runtime_errors_reach_the_caller(
+    message: str, leaks_through: bool
+) -> None:
+    """訊息帶上 provider 的環境變數名之後，整句比對會漏掉 —— 改前綴比對，但別放寬其餘的。"""
+
+    from serving.app import GENERIC_RUNTIME_ERROR, _safe_runtime_error
+
+    result = _safe_runtime_error(RuntimeError(message))
+
+    if leaks_through:
+        assert result == message
+    else:
+        assert result == GENERIC_RUNTIME_ERROR
+        assert message not in result
