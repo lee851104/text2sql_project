@@ -88,5 +88,11 @@
     "input": "VACUUM",
     "category": "UTILITY",
     "expect": "blocked"
+  },
+  {
+    "id": "attack-16",
+    "input": "SELECT randomblob(1000000000) FROM v_unit LIMIT 1",
+    "category": "RESOURCE_EXHAUSTION",
+    "expect": "blocked"
   }
 ]

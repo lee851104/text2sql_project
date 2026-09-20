@@ -1,4 +1,4 @@
-"""Read-only, time-bounded SQLite execution adapter."""
+"""Read-only, time- and size-bounded SQLite execution adapter."""
 
 from __future__ import annotations
 
@@ -6,9 +6,30 @@ import sqlite3
 from pathlib import Path
 from time import monotonic
 
+# 單一字串／blob 的位元組上限。SQLite 自己的預設是 10^9，等於一次查詢就能要走 1 GB。
+# 實測 `randomblob(1000000000)` 配滿 1 GB 只要 2.99 秒 —— 比下面的 5 秒上限還快，
+# 所以超時那道攔不到，得有一道管大小的。
+#
+# 設在連線上而不是拿到結果後才檢查：超過上限時 SQLite 直接回 "string or blob too big"，
+# 記憶體從頭到尾沒有配出去。1 MB 對這份資料是 1000 倍以上的餘裕 —— 這裡的欄位是電廠名、
+# 機組名、日期與數值，最長的 group_concat 結果也只有幾 KB。
+MAX_VALUE_BYTES = 1_000_000
+
 
 class QueryTimeoutError(TimeoutError):
     """Raised when SQLite exceeds the configured execution deadline."""
+
+
+class QueryResultTooLargeError(ValueError):
+    """Raised when a single value exceeds the configured byte ceiling."""
+
+
+def _limit_value_size(connection: sqlite3.Connection, max_bytes: int) -> None:
+    """Cap the size of any single string/blob this connection will materialise."""
+
+    if not hasattr(connection, "setlimit"):
+        return
+    connection.setlimit(sqlite3.SQLITE_LIMIT_LENGTH, max_bytes)
 
 
 def _reject_double_quoted_strings(connection: sqlite3.Connection) -> None:
@@ -35,11 +56,20 @@ def _reject_double_quoted_strings(connection: sqlite3.Connection) -> None:
 
 
 class ReadOnlySQLite:
-    def __init__(self, database: Path, *, timeout_seconds: float = 5.0):
+    def __init__(
+        self,
+        database: Path,
+        *,
+        timeout_seconds: float = 5.0,
+        max_value_bytes: int = MAX_VALUE_BYTES,
+    ):
         if timeout_seconds <= 0:
             raise ValueError("timeout_seconds 必須大於 0")
+        if max_value_bytes <= 0:
+            raise ValueError("max_value_bytes 必須大於 0")
         self.database = database.resolve()
         self.timeout_seconds = timeout_seconds
+        self.max_value_bytes = max_value_bytes
 
     def execute(
         self, sql: str, params: tuple[object, ...]
@@ -60,10 +90,15 @@ class ReadOnlySQLite:
             with sqlite3.connect(uri, uri=True) as connection:
                 connection.execute("PRAGMA query_only = ON")
                 _reject_double_quoted_strings(connection)
+                _limit_value_size(connection, self.max_value_bytes)
                 connection.set_progress_handler(within_deadline, 1_000)
                 cursor = connection.execute(sql, params)
                 columns = [item[0] for item in cursor.description or ()]
                 rows = [tuple(row) for row in cursor.fetchall()]
+        except sqlite3.DataError as error:
+            raise QueryResultTooLargeError(
+                f"單一欄位值超過 {self.max_value_bytes:,} 位元組上限。"
+            ) from error
         except sqlite3.OperationalError as error:
             if timed_out:
                 raise QueryTimeoutError(

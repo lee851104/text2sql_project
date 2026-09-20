@@ -8,10 +8,43 @@ import pytest
 from fastapi.testclient import TestClient
 
 from serving import raw_data as raw_data_module
+from serving.accounts import MINIMUM_ITERATIONS, Account, hash_password
+from serving.admin_auth import AdminAuthManager
 from serving.app import create_app
 from serving.raw_data import RawDataError, RawDataService
 
 ORIGIN = "http://testserver"
+PASSWORD = "raw-scope-test-password"
+ALL_ACCOUNT = "supervisor"
+PLANT_ACCOUNT = "linkou"
+
+
+def _accounts() -> list[Account]:
+    password_hash = hash_password(PASSWORD, iterations=MINIMUM_ITERATIONS)
+    return [
+        Account(username=ALL_ACCOUNT, password_hash=password_hash, plant_id=None),
+        Account(username=PLANT_ACCOUNT, password_hash=password_hash, plant_id=15),
+    ]
+
+
+def _app_with_accounts(raw_service: object):
+    """原始檔端點要登入，所以這個檔案的 app 一律帶名冊：全廠一個、電廠一個。"""
+
+    accounts = _accounts()
+    return create_app(
+        raw_data_service=raw_service,
+        auth_manager=AdminAuthManager.from_roster(accounts, environ={}),
+        accounts=accounts,
+    )
+
+
+def _login(client: TestClient, username: str = ALL_ACCOUNT) -> None:
+    response = client.post(
+        "/api/admin/session",
+        headers={"Origin": ORIGIN, "Sec-Fetch-Site": "same-origin"},
+        json={"username": username, "password": PASSWORD},
+    )
+    assert response.status_code == 200, response.text
 
 
 def _snapshot(tmp_path: Path) -> Path:
@@ -211,15 +244,26 @@ def test_auto_scope_falls_back_to_a_direct_raw_row_match(tmp_path: Path) -> None
     class Learning:
         database = runtime.database
 
-    application = create_app(raw_data_service=raw_service)
+    application = _app_with_accounts(raw_service)
     application.state.runtime_manager = Manager()
     application.state.learning_service = Learning()
     application.state.learning_pipelines.add(runtime.pipeline)
     with TestClient(application, base_url=ORIGIN) as client:
+        anonymous = client.post(
+            "/api/query",
+            json={"question": "西莒發電廠地址", "query_scope": "auto"},
+        )
+        _login(client)
         response = client.post(
             "/api/query",
             json={"question": "西莒發電廠地址", "query_scope": "auto"},
         )
+
+    # auto 是「盡量答」，不是「換條路拿原始檔」：沒有權限時安靜地不退回，
+    # 拿到的是 trusted 自己的失敗，而不是 401，也不是原始檔的內容。
+    assert anonymous.status_code == 200
+    assert anonymous.json()["success"] is False
+    assert "fallback_from" not in anonymous.json().get("data", {})
 
     assert response.status_code == 200
     assert response.json()["success"] is True
@@ -254,9 +298,10 @@ class _FakeRawDataService:
         raise AssertionError("anonymous request must not rebuild the catalog")
 
 
-def test_raw_api_is_public_read_only_and_query_scope_routes_to_raw_service() -> None:
-    application = create_app(raw_data_service=_FakeRawDataService())
+def test_raw_api_serves_an_all_plant_login_and_query_scope_routes_to_raw_service() -> None:
+    application = _app_with_accounts(_FakeRawDataService())
     with TestClient(application, base_url=ORIGIN) as client:
+        _login(client)
         assert client.get("/api/raw/status").json()["data"]["total_resources"] == 204
         assert client.get("/api/raw/resources").status_code == 200
         assert client.get("/api/raw/resources/6064-01/rows").status_code == 200
@@ -265,14 +310,46 @@ def test_raw_api_is_public_read_only_and_query_scope_routes_to_raw_service() -> 
             "/api/query",
             json={"question": "查詢售電統計", "query_scope": "raw"},
         )
-        rebuild = client.post(
-            "/api/raw/rebuild",
-            headers={"Origin": ORIGIN, "Sec-Fetch-Site": "same-origin"},
-        )
 
     assert query.status_code == 200
     assert query.json()["data"]["query_scope"] == "raw"
-    assert rebuild.status_code == 401
+
+
+def test_raw_read_endpoints_refuse_anonymous_and_plant_accounts() -> None:
+    """原始檔不經 ScopeGuard，所以讀取端點要和 `/api/query` 的 403 同一個標準。
+
+    先前這三個端點完全沒有權限，`/api/query` 那句「電廠帳號不能查原始開放資料檔」
+    因此擋不住任何人 —— 同一個人換個網址就拿到整份來源檔，連登入都不用。
+    """
+
+    paths = ("/api/raw/status", "/api/raw/resources", "/api/raw/resources/6064-01/rows")
+    application = _app_with_accounts(_FakeRawDataService())
+    with TestClient(application, base_url=ORIGIN) as client:
+        for path in paths:
+            assert client.get(path).status_code == 401, path
+        assert (
+            client.post(
+                "/api/query", json={"question": "查詢售電統計", "query_scope": "raw"}
+            ).status_code
+            == 401
+        )
+        assert (
+            client.post(
+                "/api/raw/rebuild",
+                headers={"Origin": ORIGIN, "Sec-Fetch-Site": "same-origin"},
+            ).status_code
+            == 401
+        )
+
+        _login(client, PLANT_ACCOUNT)
+        for path in paths:
+            assert client.get(path).status_code == 403, path
+        assert (
+            client.post(
+                "/api/query", json={"question": "查詢售電統計", "query_scope": "raw"}
+            ).status_code
+            == 403
+        )
 
 
 def test_failed_raw_query_creates_a_safe_downloadable_diagnostic_id() -> None:
@@ -289,10 +366,11 @@ def test_failed_raw_query_creates_a_safe_downloadable_diagnostic_id() -> None:
             self.calls.append(values)
             return "raw-diagnostic-id"
 
-    application = create_app(raw_data_service=FailingRawDataService())
+    application = _app_with_accounts(FailingRawDataService())
     log = RecordingLog()
     application.state.query_error_log = log
     with TestClient(application, base_url=ORIGIN) as client:
+        _login(client)
         response = client.post(
             "/api/query",
             json={"question": "讀取損壞的原始檔", "query_scope": "raw"},

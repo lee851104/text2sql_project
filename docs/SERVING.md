@@ -181,6 +181,7 @@ API key 可在啟動前由 `OPENAI_API_KEY` 提供，模型可由 `OPENAI_MODEL`
 ## 介面與安全邊界
 
 - 首頁／靜態資源、`/docs`、`/openapi.json`、`GET /api/health`、`GET /api/stats`、`GET /api/examples` 與 `POST /api/query` 保持公開；`GET`／`POST /api/admin/session` 用於查詢狀態與登入，其餘 runtime、語料及資料管理端點需要登入。
+- 原始開放資料檔比語意檢視更嚴：`GET /api/raw/status`、`/api/raw/resources`、`/api/raw/resources/{id}/rows` 與 `POST /api/query` 的 `query_scope=raw` 都需要登入，且必須是全廠帳號（電廠帳號一律 403）。原因是原始檔不經 `SqlGuard` 與 `ScopeGuard`，給的是整份來源檔 —— 與 `/api/data/files/{dataset}` 同一類。`query_scope=auto` 在沒有這個權限時不會退回原始檔，而是回傳語意檢視自己的失敗結果。
 - `/docs` 以 nonce CSP、固定版號與 SRI 載入 Swagger UI；第一次使用互動檢視器需要連至 jsDelivr。主工作台內建文件不需要該 CDN。
 - 後端只允許受限的 `line`、`bar`、`scatter` 圖表；前端載入不到 Plotly 時退回原生 SVG。
 - 瀏覽器取消按鈕只停止等待與顯示，不中止已在後端執行的查詢。
