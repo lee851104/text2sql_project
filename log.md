@@ -2,6 +2,45 @@
 
 > 這份檔案在每個可驗證、可回退的儲存點更新。回退前需保留使用者原有的未提交變更。
 
+## CP-052 — prompt 補上教材那兩個細節
+
+- 時間：2026-09-20 15:56 +08:00
+- 狀態：已完成
+- 起點：使用者要求對照教材 `minisql/prompt.py` 的架構精神。逐項比過之後，骨架完全一致，兩個細節沒跟上。
+
+### 對照結果
+
+| 教材的架構精神 | 本專案（對照前） |
+|---|---|
+| 五區塊順序：角色任務 → DDL → 業務規則 → 參考範例 → 使用者問題 | ✅ 一致（`task`+`output` → `ddl` → `rules` → `examples` → `question`） |
+| 重要的放最前或最後（lost in the middle） | ✅ 任務在最前、問題在最後 |
+| 規定輸出格式，下游好解析 | ✅ 更硬：`output` 欄位＋Structured Outputs 的 JSON Schema `strict` |
+| 明確界定「哪裡是資料、哪裡是指令」 | 部分：用 JSON 結構隔離（`question` 是獨立欄位），沒有教材那句明文 |
+| 重試要保留完整脈絡，別把參考書收走 | ✅ 每次重試都用完整 corpus 重建 |
+| **參考範例：最像的放最後，離問題最近** | ❌ 相反 |
+| **重試時附上「你剛才產生的 SQL」** | ❌ 缺 |
+
+### 一、範例改成由不像到最像
+
+- `retriever` 是分數高→低排序，`build_prompt` 直接照用，所以最像的那一則離 `question` 最遠。改成 `sorted(examples, key=lambda item: item.score)`，最接近本題的緊鄰問題。
+- 排序本身沒有意義除非講出來，所以另附 `examples_note`：「由不像到最像排序，最後一則最接近本題，請優先模仿它。」
+- **效應規模要誠實**：整份 prompt 現在約 2.3 KB，lost in the middle 在這個長度下影響有限。改它的理由是成本一行、而 `examples` 是這份 prompt 裡唯一會隨語料長大的區塊。
+- 實測：檢索回 0.321／0.256，prompt 裡的順序變成 0.256 → 0.321。
+
+### 二、重試時把上次的 SQL 一起還給模型
+
+- 原本只附 `previous_attempt_error`。而守門的錯誤碼是**我們自己定義的分類**，不像資料庫錯誤那樣指名道姓 —— 模型收到 `SQL_MISSING_TABLE: 查詢必須從語意檢視讀取資料。` 並不知道自己上次查了哪張表。
+- 新增 `previous_attempt_sql`，在 SQL 守門拒絕與執行失敗兩處記下 `generated.sql`。實測第二次 prompt：`previous_attempt_sql = SELECT * FROM sqlite_master`、`previous_attempt_error = SQL_TABLE_NOT_ALLOWED: 不允許的資料表：['sqlite_master']`，而 `ddl`／`rules`／`examples` 全部保留。
+- LLM 輸出解析不了時 `prior_sql` 設回 `None` —— 手上沒有這一輪的 SQL，不能把上一輪的舊 SQL 冒充成這一輪的。
+
+### 踩到的事：測試前提是錯的
+
+原本想用「這不是 JSON 也不是 SQL{{{」測「解析失敗不帶 SQL」，測試紅了才發現 **`parse_generated_query` 對非 JSON 是刻意寬容的** —— 它把整段字串當成純 SQL 回傳（教材說的「模型很愛講話」），那條路由 SqlGuard 擋，而且**應該**把原文還給模型看，它才知道自己輸出了什麼。真正解析不了的是 schema 對不起來，例如 `{"sql": 123}`。測試改成這個，另外補一筆專門釘住「愛講話的回答要原文還回去」。
+
+- 新增測試（9 筆）：新檔 `tests/test_prompt.py` 6（最像的緊鄰問題、prompt 講明排序意義、五區塊順序、第一次不帶失敗區塊、重試同時給 SQL 與錯誤、重試保留完整脈絡）；`tests/test_pipeline.py` 3（重試看得到自己上次寫的 SQL、schema 對不起來時不冒充舊 SQL、愛講話的回答原文還回去）。
+- 驗收：`ruff format --check .`、`ruff check .` 通過；`pytest -q` **525 passed, 1 skipped**（CP-051 後為 516 passed，新增 9 筆）；離線評測六項驗收條件全 True。
+- 回退方式：回退 `feat: put the closest example next to the question` 這個 commit。回退後最像的範例會回到離問題最遠的位置，重試也不再附上次的 SQL。
+
 ## CP-051 — 檢索加下限，0 分的範例不再進 prompt
 
 - 時間：2026-09-20 16:05 +08:00

@@ -19,6 +19,17 @@
 7. SQL 層語意守門。
 8. 透過注入的 `run_sql` 唯讀執行，失敗才進入下一次重生。
 
+## Prompt 組裝
+
+區塊順序是 `task` → `output` → `data_range` → `ddl` → `rules` → `examples_note` → `examples` → `question`，重試時再追加 `previous_attempt_sql` 與 `previous_attempt_error`。整份是單行緊湊 JSON，`question` 因此是獨立欄位而不是拼進文字裡 —— 結構本身就界定了「哪裡是資料、哪裡是指令」。但軟性防線只是軟性的，**硬防線一律在 `SqlGuard`**。
+
+兩個刻意的安排：
+
+- **參考範例由不像到最像排序**，最接近本題的那一則緊鄰 `question`。模型對長文中段的注意力最弱，而 `examples` 是這份 prompt 裡唯一會隨語料長大的區塊。排序本身沒有意義除非講出來，所以另附 `examples_note`。
+- **重試時把上次產生的 SQL 一起還給模型**。守門的錯誤碼是本專案自己定義的分類，不像資料庫錯誤那樣指名道姓 —— 只給 `SQL_MISSING_TABLE: 查詢必須從語意檢視讀取資料。` 的話，模型並不知道自己上次查了哪張表。`ddl`／`rules`／`examples` 一律保留：模型第一次寫錯，不該連參考書一起被收走。解析不了的回答沒有可還的 SQL，那時只附錯誤。
+
+`parse_generated_query` 對**非 JSON 的回答刻意寬容**：整段字串當成純 SQL 回傳（模型很愛在 SQL 前後講話），由 `SqlGuard` 擋下，並把原文還給模型看。真正解析不了的是 schema 對不起來，例如 `sql` 不是字串。
+
 ## 答不出來的時候
 
 規則沒接、模型也生不出能過守門的 SQL 時，依序再試三件事，全部落空才回報失敗：

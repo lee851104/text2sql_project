@@ -233,3 +233,57 @@ def test_a_pipeline_without_floors_keeps_every_example() -> None:
     step = next(item for item in response.data["trace"] if item["stage"] == "retrieve")
     assert step["dropped"] == 0
     assert len(step["example_ids"]) == pipeline.top_k
+
+
+def test_a_retry_shows_the_model_what_it_wrote_last_time() -> None:
+    """守門的錯誤碼是我們自己定義的分類，不像資料庫錯誤那樣指名道姓。"""
+
+    rejected = json.dumps({"sql": "SELECT * FROM sqlite_master", "params": []}, ensure_ascii=False)
+    accepted = json.dumps(
+        {"sql": 'SELECT "日期" FROM v_system LIMIT 1', "params": []}, ensure_ascii=False
+    )
+    llm = FakeLLM([rejected, accepted])
+    response = make_pipeline(llm, lambda _sql, _params: (["日期"], [("2026-07-31",)])).query(
+        "列出所有資料可用日期"
+    )
+    assert response.success
+    assert len(llm.calls) == 2
+    retry = json.loads(llm.calls[1])
+    assert retry["previous_attempt_sql"] == "SELECT * FROM sqlite_master"
+    assert "sqlite_master" in retry["previous_attempt_error"]
+
+
+def test_a_malformed_answer_leaves_no_sql_to_hand_back() -> None:
+    """解析就失敗的時候手上沒有 SQL，不能把上一輪的舊 SQL 冒充成這一輪的。
+
+    注意「非 JSON」不算解析失敗 —— `parse_generated_query` 刻意把它當成純 SQL 字串
+    （模型很愛在 SQL 前後講話），那條路有 SqlGuard 擋，而且應該把原文還給模型看。
+    真正解析不了的是 schema 對不起來，例如 sql 不是字串。
+    """
+
+    accepted = json.dumps(
+        {"sql": 'SELECT "日期" FROM v_system LIMIT 1', "params": []}, ensure_ascii=False
+    )
+    llm = FakeLLM(['{"sql": 123, "params": []}', accepted])
+    response = make_pipeline(llm, lambda _sql, _params: (["日期"], [("2026-07-31",)])).query(
+        "列出所有資料可用日期"
+    )
+    assert response.success
+    retry = json.loads(llm.calls[1])
+    assert "previous_attempt_sql" not in retry
+    assert retry["previous_attempt_error"] == "LLM_OUTPUT_ERROR: ValueError"
+
+
+def test_a_chatty_answer_is_handed_back_verbatim() -> None:
+    """模型在 SQL 外面講話時，被擋下的原文要還給它看，它才知道自己輸出了什麼。"""
+
+    accepted = json.dumps(
+        {"sql": 'SELECT "日期" FROM v_system LIMIT 1', "params": []}, ensure_ascii=False
+    )
+    llm = FakeLLM(["好的，以下是查詢：SELECT * FROM sqlite_master 希望有幫助！", accepted])
+    response = make_pipeline(llm, lambda _sql, _params: (["日期"], [("2026-07-31",)])).query(
+        "列出所有資料可用日期"
+    )
+    assert response.success
+    retry = json.loads(llm.calls[1])
+    assert "希望有幫助" in retry["previous_attempt_sql"]
