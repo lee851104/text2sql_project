@@ -42,14 +42,34 @@ class TfidfRetriever:
         right_norm = math.sqrt(sum(value * value for value in right.values()))
         return numerator / (left_norm * right_norm) if left_norm and right_norm else 0.0
 
-    def retrieve(self, question: str, *, top_k: int = 5) -> list[RetrievedExample]:
+    def retrieve(
+        self,
+        question: str,
+        *,
+        top_k: int = 5,
+        min_score: float = 0.0,
+        relative_score: float = 0.0,
+    ) -> list[RetrievedExample]:
+        """Rank examples, optionally dropping the ones that are only noise.
+
+        ``min_score`` 砍掉與問句幾乎沒有共同字元的範例，``relative_score`` 砍掉比第一名
+        差太多的（分數尺度隨問句長度變動，固定門檻一個人撐不住）。兩個預設值都是 0，
+        也就是**不篩** —— 評測與範圍問句建議靠 top-1 分數自己判斷，不能被這裡改掉。
+        """
+
         if not self.examples:
             return []
         query = self._vector(
             Counter(character_ngrams(question, minimum=self.minimum, maximum=self.maximum))
         )
-        ranked = [
-            RetrievedExample(self._cosine(query, self._vector(counts)), example)
-            for counts, example in zip(self.term_counts, self.examples, strict=True)
-        ]
-        return sorted(ranked, key=lambda item: (-item.score, item.example["id"]))[:top_k]
+        ranked = sorted(
+            (
+                RetrievedExample(self._cosine(query, self._vector(counts)), example)
+                for counts, example in zip(self.term_counts, self.examples, strict=True)
+            ),
+            key=lambda item: (-item.score, item.example["id"]),
+        )[:top_k]
+        if not ranked:
+            return []
+        floor = max(min_score, ranked[0].score * relative_score)
+        return [item for item in ranked if item.score >= floor]

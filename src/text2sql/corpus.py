@@ -10,7 +10,31 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
+import yaml
+
 from ingest.validate import PROJECT_ROOT
+
+DEFAULT_NGRAM_RANGE = (2, 4)
+
+
+def ngram_range(root: Path = PROJECT_ROOT) -> tuple[int, int]:
+    """索引要用的字元 n-gram 範圍，與檢索共用 ``configs/retriever.yaml``。
+
+    兩邊必須是同一組數字。索引若用函式簽章的預設值、檢索用設定檔的值，設定一改就會
+    對不起來 —— 而 ``CorpusLearningService`` 正是拿 ``build_index()`` 的輸出去比對
+    index.json，於是每次都判定「不同步」然後重寫一份同樣對不起來的索引。
+
+    讀不到或設定壞掉時退回 ``DEFAULT_NGRAM_RANGE``：索引寧可用已知的預設值，也不要
+    因為設定檔缺一行就整個建不起來。
+    """
+
+    try:
+        payload = yaml.safe_load((root / "configs/retriever.yaml").read_text(encoding="utf-8"))
+        ngram = payload["character_ngram"]
+        minimum, maximum = int(ngram["min"]), int(ngram["max"])
+    except (OSError, TypeError, KeyError, ValueError, yaml.YAMLError):
+        return DEFAULT_NGRAM_RANGE
+    return (minimum, maximum) if 1 <= minimum <= maximum else DEFAULT_NGRAM_RANGE
 
 
 def normalize_question(value: str) -> str:
@@ -57,19 +81,22 @@ def corpus_checksum(corpus: dict[str, Any]) -> str:
     return hashlib.sha256(payload.encode()).hexdigest()
 
 
-def build_index(corpus: dict[str, Any]) -> dict[str, Any]:
+def build_index(corpus: dict[str, Any], *, ngram: tuple[int, int] | None = None) -> dict[str, Any]:
+    minimum, maximum = ngram if ngram is not None else ngram_range()
     documents = [
         {
             "id": example["id"],
             "question": example["question"],
             "normalized": normalize_question(example["question"]),
-            "ngrams": character_ngrams(example["question"]),
+            "ngrams": character_ngrams(example["question"], minimum=minimum, maximum=maximum),
         }
         for example in corpus["examples"]
     ]
     return {
         "corpus_version": corpus["version"],
         "corpus_checksum": corpus_checksum(corpus),
+        # 把切法記進索引本身。少了這兩個數字，事後看著一份索引也說不出它是用幾個字切的。
+        "character_ngram": {"min": minimum, "max": maximum},
         "document_count": len(documents),
         "documents": documents,
     }
@@ -85,9 +112,11 @@ def benchmark_questions(paths: Iterable[Path]) -> set[str]:
     return questions
 
 
-def write_index(corpus_path: Path, index_path: Path) -> dict[str, Any]:
+def write_index(
+    corpus_path: Path, index_path: Path, *, ngram: tuple[int, int] | None = None
+) -> dict[str, Any]:
     corpus = load_corpus(corpus_path)
-    index = build_index(corpus)
+    index = build_index(corpus, ngram=ngram)
     index_path.parent.mkdir(parents=True, exist_ok=True)
     index_path.write_text(json.dumps(index, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return index
@@ -99,8 +128,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--index", type=Path, default=PROJECT_ROOT / "corpus/index.json")
     args = parser.parse_args(argv)
     index = write_index(args.corpus, args.index)
+    ngram = index["character_ngram"]
     print(
         f"已建立語料索引：{index['document_count']} 份文件，"
+        f"字元 {ngram['min']}～{ngram['max']} gram，"
         f"checksum={index['corpus_checksum'][:12]}"
     )
     return 0

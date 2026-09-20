@@ -67,6 +67,8 @@
 - `runtime`：本次實際使用的 `mode`、`provider`、`model`。
 - `learning`：本次結果的語料觀察狀態；語料寫入失敗不會把已完成的查詢改成失敗。
 
+`trace` 每一步固定有 `stage` 與 `elapsed_ms`，另依階段附 `attempt`、`code`、`record_count`。`retrieve` 階段附 `example_ids` 與 `dropped` —— 後者是被檢索門檻砍掉的範例數（設定見 `configs/retriever.yaml` 的 `min_score`／`relative_score`）。`dropped` 等於 `top_k` 表示這一題沒有任何夠接近的範例，prompt 只剩 schema 與領域規則；那比塞一堆 0 分範例好，但要看得見它發生了。
+
 `chart_spec.kind` 只能是 `line`、`bar`、`scatter` 或 `null`；`data` 與 `layout` 是 Plotly 可接受的受限子集，x/y 數列直接由 SQL rows 投影，不允許 JavaScript formatter 或其他可執行內容。前端再次套用白名單後才交給 Plotly；載入不到 Plotly CDN 時會以相同 x/y 資料退回原生 SVG。
 
 業務層拒答範例：

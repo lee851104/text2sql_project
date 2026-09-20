@@ -6,7 +6,13 @@ from pathlib import Path
 import pytest
 
 import text2sql.corpus_builder as corpus_builder
-from text2sql.corpus import load_corpus, normalize_question
+from text2sql.corpus import (
+    DEFAULT_NGRAM_RANGE,
+    build_index,
+    load_corpus,
+    ngram_range,
+    normalize_question,
+)
 from text2sql.corpus_builder import (
     CorpusCandidate,
     deidentify,
@@ -241,3 +247,56 @@ def test_benchmark_question_is_rejected(tmp_path: Path) -> None:
     )
 
     assert result.rejected == ({"id": "candidate-1", "reason": "benchmark_leakage"},)
+
+
+def _retriever_config(root: Path, body: str) -> Path:
+    (root / "configs").mkdir(parents=True, exist_ok=True)
+    path = root / "configs/retriever.yaml"
+    path.write_text(body, encoding="utf-8")
+    return path
+
+
+def test_the_index_uses_the_same_ngram_setting_as_retrieval(tmp_path: Path) -> None:
+    """索引與檢索必須讀同一份設定，否則設定一改就永遠判定「索引不同步」。"""
+
+    _retriever_config(tmp_path, "top_k: 5\ncharacter_ngram:\n  min: 3\n  max: 3\n")
+    assert ngram_range(tmp_path) == (3, 3)
+
+
+@pytest.mark.parametrize(
+    "body",
+    (
+        "top_k: 5\ncharacter_ngram:\n  min: 4\n  max: 2\n",
+        "top_k: 5\n",
+        "character_ngram:\n  min: 0\n  max: 3\n",
+        "這不是: [yaml\n",
+    ),
+)
+def test_a_broken_retriever_setting_falls_back_instead_of_failing(
+    tmp_path: Path, body: str
+) -> None:
+    """設定壞掉時索引寧可用已知的預設值，也不要整個建不起來。"""
+
+    _retriever_config(tmp_path, body)
+    assert ngram_range(tmp_path) == DEFAULT_NGRAM_RANGE
+
+
+def test_a_missing_retriever_setting_falls_back(tmp_path: Path) -> None:
+    assert ngram_range(tmp_path / "nowhere") == DEFAULT_NGRAM_RANGE
+
+
+def test_the_index_records_how_it_was_cut(tmp_path: Path) -> None:
+    """少了這兩個數字，事後看著一份索引也說不出它是用幾個字切的。"""
+
+    corpus_path = tmp_path / "corpus.json"
+    _write_corpus(corpus_path)
+    corpus = load_corpus(corpus_path)
+
+    three = build_index(corpus, ngram=(3, 3))
+    wide = build_index(corpus, ngram=(2, 4))
+
+    assert three["character_ngram"] == {"min": 3, "max": 3}
+    assert wide["character_ngram"] == {"min": 2, "max": 4}
+    assert {len(gram) for gram in three["documents"][0]["ngrams"]} == {3}
+    assert {len(gram) for gram in wide["documents"][0]["ngrams"]} == {2, 3, 4}
+    assert three["documents"] != wide["documents"], "設定不同就該切出不同的索引"
