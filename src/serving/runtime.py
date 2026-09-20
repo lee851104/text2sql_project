@@ -41,6 +41,10 @@ class ServiceRuntime:
     model: str = "gpt-5.4-mini"
     source: RuntimeSource = "offline"
     provider: str = "openai"
+    # 這個 runtime 的憑證來自哪個環境變數。跟著 runtime 走而不是每次重讀設定，
+    # 是因為 RuntimeManager 要靠它偵測 key 被換掉或移除 —— 認錯變數名的話，
+    # 設了 GMI_API_KEY 的人會因為 OPENAI_API_KEY 是空的而被清掉線上 runtime。
+    api_key_env: str = "OPENAI_API_KEY"
     requested_mode: RuntimeMode = "auto"
     credential_fingerprint: bytes | None = field(default=None, repr=False)
 
@@ -107,14 +111,31 @@ def _clean_api_key(api_key: str | None) -> str | None:
     return api_key.strip() or None
 
 
-def _credential(api_key: str | None) -> tuple[str | None, RuntimeSource]:
+def _credential(api_key: str | None, api_key_env: str) -> tuple[str | None, RuntimeSource]:
     explicit = _clean_api_key(api_key)
     if explicit:
         return explicit, "memory"
-    environment = os.getenv("OPENAI_API_KEY", "").strip()
+    environment = os.getenv(api_key_env, "").strip()
     if environment:
         return environment, "environment"
     return None, "offline"
+
+
+def _provider_settings(llm_config: dict[str, Any], provider: str) -> dict[str, Any]:
+    """Merge the chosen provider's block over the top-level defaults.
+
+    `providers` 整段缺席時回到頂層設定，讓舊的 llm.yaml 照樣跑得起來；
+    但 `providers` 存在而指定的 provider 不在裡面，就是設定打錯了，直接失敗 ——
+    默默退回 openai 會讓人以為自己在打 GMI，帳單和結果都對不上。
+    """
+
+    providers = llm_config.get("providers")
+    if not isinstance(providers, dict):
+        return dict(llm_config)
+    block = providers.get(provider)
+    if not isinstance(block, dict):
+        raise ValueError(f"不支援的線上 provider：{provider}；可用的是 {sorted(providers)}。")
+    return {**llm_config, **block}
 
 
 def build_runtime(
@@ -146,27 +167,37 @@ def build_runtime(
     semantic_guard = SemanticGuard.from_database(database, peak_columns=peak_columns)
     scope_guard = _optional_scope_guard(database)
 
-    key, key_source = _credential(api_key)
+    # provider 決定去哪裡拿 key、拿哪個環境變數，所以要先解析它才問得出憑證。
+    provider = str(llm_config.get("provider", "openai"))
+    settings = _provider_settings(llm_config, provider)
+    api_key_env = str(settings.get("api_key_env", "OPENAI_API_KEY"))
+
+    key, key_source = _credential(api_key, api_key_env)
     active_mode: ActiveRuntimeMode = (
         "online" if requested_mode == "online" or (requested_mode == "auto" and key) else "offline"
     )
     if active_mode == "online" and key is None:
-        raise RuntimeError("線上模式需要 API key；請在記憶體設定或使用 OPENAI_API_KEY。")
+        raise RuntimeError(f"線上模式需要 API key；請在記憶體設定或使用 {api_key_env}。")
     selected_model = _clean_model(
         model,
-        llm_config,
+        settings,
         use_environment=requested_mode != "offline",
     )
 
-    provider = str(llm_config.get("provider", "openai"))
-    if active_mode == "online" and provider != "openai":
-        raise ValueError(f"不支援的線上 provider：{provider}")
     request_timeout = float(llm_config.get("request_timeout_seconds", 30))
+    temperature = settings.get("temperature")
     llm = (
         OpenAILLM(
             model=selected_model,
             api_key=key,
             timeout_seconds=request_timeout,
+            base_url=(str(settings["base_url"]) if settings.get("base_url") else None),
+            api=str(settings.get("api", "responses")),
+            structured_output=bool(settings.get("structured_output", True)),
+            temperature=(None if temperature is None else float(temperature)),
+            api_key_env=api_key_env,
+            model_env=str(settings.get("model_env", "OPENAI_MODEL")),
+            default_model=str(settings.get("default_model", "gpt-5.4-mini")),
         )
         if active_mode == "online"
         else DisabledLLM()
@@ -203,6 +234,7 @@ def build_runtime(
         model=selected_model,
         source=source,
         provider=provider,
+        api_key_env=api_key_env,
         requested_mode=requested_mode,
         credential_fingerprint=(
             hashlib.sha256(key.encode("utf-8")).digest()
@@ -227,6 +259,7 @@ class RuntimeManager:
         "_online_signature",
         "_provider",
         "_root",
+        "_api_key_env",
     )
 
     def __init__(
@@ -258,6 +291,7 @@ class RuntimeManager:
             self._root = runtime.root.resolve()
             self._model = runtime.model.strip()
             self._provider = runtime.provider
+            self._api_key_env = runtime.api_key_env
             self._default_mode = _normalise_mode(default_mode or runtime.requested_mode)
             self._offline_runtime = runtime if runtime.mode == "offline" else None
             self._online_runtime = runtime if runtime.mode == "online" else None
@@ -283,6 +317,7 @@ class RuntimeManager:
         self._root = initial.root
         self._model = initial.model
         self._provider = initial.provider
+        self._api_key_env = initial.api_key_env
         self._default_mode = selected_default
         self._offline_runtime = initial if initial.mode == "offline" else None
         self._online_runtime = initial if initial.mode == "online" else None
@@ -308,7 +343,7 @@ class RuntimeManager:
     def _current_credential(self) -> tuple[str | None, RuntimeSource]:
         if self._api_key:
             return self._api_key, "memory"
-        return _credential(None)
+        return _credential(None, self._api_key_env)
 
     def _drop_stale_online_runtime(self) -> None:
         """Release cached clients as soon as their credential is no longer current."""

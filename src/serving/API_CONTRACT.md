@@ -7,8 +7,21 @@
 `RuntimeManager` 支援三種模式：
 
 - `offline`：只使用可重現的規則路由與唯讀 SQLite，不呼叫遠端模型。這不是安裝在本機的生成式模型；未涵蓋的長尾問句會明確拒答。
-- `online`：規則路由未涵蓋時可使用 OpenAI Responses API；必須有記憶體內 API key 或程序環境變數 `OPENAI_API_KEY`。
+- `online`：規則路由未涵蓋時呼叫線上模型；必須有記憶體內 API key，或該 provider 對應的環境變數。
 - `auto`：有可用 API key 時選用線上 runtime，否則退回離線規則模式。
+
+### 線上 provider
+
+打哪一家由 `configs/llm.yaml` 的 `provider` 決定，每家在 `providers` 底下各有一段設定。目前內建兩家：
+
+| provider | 端點 | 環境變數 | 說明 |
+|---|---|---|---|
+| `openai` | `/v1/responses` | `OPENAI_API_KEY`／`OPENAI_MODEL` | OpenAI 自家的 Responses API |
+| `gmi` | `/v1/chat/completions` | `GMI_API_KEY`／`GMI_MODEL` | GMI Cloud，base_url `https://api.gmi-serving.com/v1` |
+
+`api` 欄位決定打哪個端點：`responses` 是 OpenAI 自家的，`chat_completions` 是業界相容的那個 —— 第三方講「OpenAI 相容」指的幾乎都是後者，所以只換 `base_url` 而不換端點會直接失敗。`structured_output: false` 給不支援 `strict` json_schema 的服務用，關掉後輸出格式改由 prompt 要求與寬容解析負責，安全仍由 `SqlGuard` 把關。`temperature: null` 表示不送該參數（OpenAI 的 reasoning 模型不接受它）。
+
+`provider` 填了 `providers` 裡沒有的名字時，建立 runtime 會直接失敗，不會默默退回預設的那一家。
 
 ### `GET /api/runtime/llm`
 

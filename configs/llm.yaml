@@ -1,7 +1,45 @@
+# 線上生成要打哪一家。值必須是 providers 底下的一個鍵，填別的會在建 runtime 時就失敗，
+# 不會默默退回某個預設 —— 打錯 provider 名字而服務照常啟動是最難查的那種錯。
 provider: openai
-model_env: OPENAI_MODEL
-default_model: gpt-5.4-mini
-temperature: 0
+
 max_attempts: 3
 request_timeout_seconds: 30
 
+# 頂層這兩個是 providers 沒寫時的退路，維持舊設定檔也能運作。
+model_env: OPENAI_MODEL
+default_model: gpt-5.4-mini
+
+# 每家一段。四個欄位決定怎麼打：
+#
+#   api        responses 是 OpenAI 自家的 /v1/responses；chat_completions 是業界相容
+#              的那個。第三方講「OpenAI 相容」指的幾乎都是後者，所以只換 base_url
+#              而不換端點會直接 404。
+#   base_url   留空表示用 SDK 自己的預設（也就是 OpenAI 官方）。
+#   structured_output
+#              對方吃不吃 strict 的 json_schema。關掉之後輸出格式只剩 prompt 裡的要求，
+#              靠 parse_generated_query 的寬容解析接住；生出來的東西一樣要過 SqlGuard，
+#              所以放寬的是格式保證，不是安全。
+#   temperature
+#              null 表示不送這個參數。OpenAI 的 reasoning 模型不吃它，而 Llama 這類
+#              模型的預設不是 0 —— 同一個問句每次生出不同 SQL，評測會失去意義。
+providers:
+  openai:
+    api: responses
+    base_url: null
+    api_key_env: OPENAI_API_KEY
+    model_env: OPENAI_MODEL
+    default_model: gpt-5.4-mini
+    structured_output: true
+    temperature: null
+
+  gmi:
+    api: chat_completions
+    base_url: https://api.gmi-serving.com/v1
+    api_key_env: GMI_API_KEY
+    model_env: GMI_MODEL
+    # 換模型從 GMI 的 model catalog 挑，或用 GMI_MODEL 環境變數覆蓋。
+    default_model: meta-llama/Llama-3.3-70B-Instruct
+    # GMI 文件沒有明寫支不支援 strict json_schema。接上去第一次呼叫若回 400，
+    # 把這裡改成 false 再試 —— 那是格式保證的退路，不是安全的退路。
+    structured_output: true
+    temperature: 0
