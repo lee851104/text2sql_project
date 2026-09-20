@@ -6,7 +6,7 @@ import json
 import os
 from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Any, Protocol
 
 
 class LLMUnavailableError(RuntimeError):
@@ -91,56 +91,119 @@ class DisabledLLM:
         raise LLMUnavailableError("線上 LLM 未啟用；請設定 OPENAI_API_KEY 後重試。")
 
 
+QUERY_SCHEMA_NAME = "text2sql_query"
+QUERY_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "sql": {"type": "string"},
+        "params": {
+            "type": "array",
+            "items": {
+                "anyOf": [
+                    {"type": "string"},
+                    {"type": "number"},
+                    {"type": "boolean"},
+                    {"type": "null"},
+                ]
+            },
+        },
+    },
+    "required": ["sql", "params"],
+    "additionalProperties": False,
+}
+
+# `responses` 是 OpenAI 自家的 /v1/responses；`chat_completions` 是業界相容的那個。
+# 「OpenAI 相容」的第三方服務指的幾乎都是後者 —— GMI 的文件示範就是 chat.completions，
+# 所以只換 base_url 而不換端點會直接 404。
+SUPPORTED_APIS = frozenset({"responses", "chat_completions"})
+
+
 class OpenAILLM:
+    """Adapter for any OpenAI-compatible endpoint, not just OpenAI's own.
+
+    一個類別涵蓋兩家的原因是它們共用同一個 SDK 與同一份 JSON Schema，差別只在三處：
+    打哪個端點（`api`）、打去哪裡（`base_url`）、以及對方吃不吃 structured outputs。
+    把這三件事變成參數，比複製一份轉接層再各自長歪要好維護。
+
+    `structured_output=False` 是給不支援 `strict` json_schema 的服務用的退路 ——
+    這時輸出格式只剩 prompt 裡的要求，靠 `parse_generated_query` 的寬容解析接住，
+    而生出來的東西一樣要過 `SqlGuard`，所以放寬的是格式保證，不是安全。
+    """
+
     def __init__(
         self,
         *,
         model: str | None = None,
         api_key: str | None = None,
         timeout_seconds: float = 30.0,
+        base_url: str | None = None,
+        api: str = "responses",
+        structured_output: bool = True,
+        temperature: float | None = None,
+        api_key_env: str = "OPENAI_API_KEY",
+        model_env: str = "OPENAI_MODEL",
+        default_model: str = "gpt-5.4-mini",
     ):
-        key = api_key or os.getenv("OPENAI_API_KEY")
+        key = api_key or os.getenv(api_key_env)
         if not key:
-            raise RuntimeError("缺少 OPENAI_API_KEY；線上查詢不會自動改用 FakeLLM。")
+            raise RuntimeError(f"缺少 {api_key_env}；線上查詢不會自動改用 FakeLLM。")
         if timeout_seconds <= 0:
             raise ValueError("timeout_seconds 必須大於 0。")
+        if api not in SUPPORTED_APIS:
+            raise ValueError(f"不支援的 api：{api}；可用的是 {sorted(SUPPORTED_APIS)}。")
         try:
             from openai import OpenAI
         except ImportError as error:
             raise RuntimeError("請先執行 `uv sync --extra online`。") from error
-        self.client = OpenAI(api_key=key, timeout=timeout_seconds, max_retries=0)
-        self.model = model or os.getenv("OPENAI_MODEL", "gpt-5.4-mini")
+        options: dict[str, Any] = {
+            "api_key": key,
+            "timeout": timeout_seconds,
+            "max_retries": 0,
+        }
+        # 沒指定就不傳，讓 SDK 用它自己的預設；傳一個 None 進去會蓋掉預設。
+        if base_url:
+            options["base_url"] = base_url
+        self.client = OpenAI(**options)
+        self.model = model or os.getenv(model_env, default_model)
+        self.api = api
+        self.structured_output = structured_output
+        self.temperature = temperature
 
     def generate(self, prompt: str) -> str:
-        response = self.client.responses.create(
-            model=self.model,
-            input=prompt,
-            text={
+        if self.api == "chat_completions":
+            return self._generate_chat_completions(prompt)
+        return self._generate_responses(prompt)
+
+    def _generate_responses(self, prompt: str) -> str:
+        options: dict[str, Any] = {"model": self.model, "input": prompt, "store": False}
+        if self.structured_output:
+            options["text"] = {
                 "format": {
                     "type": "json_schema",
-                    "name": "text2sql_query",
+                    "name": QUERY_SCHEMA_NAME,
                     "strict": True,
-                    "schema": {
-                        "type": "object",
-                        "properties": {
-                            "sql": {"type": "string"},
-                            "params": {
-                                "type": "array",
-                                "items": {
-                                    "anyOf": [
-                                        {"type": "string"},
-                                        {"type": "number"},
-                                        {"type": "boolean"},
-                                        {"type": "null"},
-                                    ]
-                                },
-                            },
-                        },
-                        "required": ["sql", "params"],
-                        "additionalProperties": False,
-                    },
+                    "schema": QUERY_SCHEMA,
                 }
-            },
-            store=False,
-        )
-        return response.output_text
+            }
+        if self.temperature is not None:
+            options["temperature"] = self.temperature
+        return self.client.responses.create(**options).output_text
+
+    def _generate_chat_completions(self, prompt: str) -> str:
+        options: dict[str, Any] = {
+            "model": self.model,
+            "messages": [{"role": "user", "content": prompt}],
+        }
+        if self.structured_output:
+            options["response_format"] = {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": QUERY_SCHEMA_NAME,
+                    "strict": True,
+                    "schema": QUERY_SCHEMA,
+                },
+            }
+        if self.temperature is not None:
+            options["temperature"] = self.temperature
+        response = self.client.chat.completions.create(**options)
+        return response.choices[0].message.content or ""

@@ -8,12 +8,14 @@ import yaml
 from ingest.build_db import build_database
 from ingest.validate import PROJECT_ROOT
 from serving import runtime as runtime_module
-from serving.runtime import RuntimeManager, build_runtime
+from serving.runtime import RuntimeManager, _provider_settings, build_runtime
 from text2sql.llm import DisabledLLM
 
 
 class StubOpenAILLM:
     calls: list[tuple[str | None, str | None, float]] = []
+    # provider 設定（base_url／api／temperature…）原樣收下，供 provider 相關的測試檢查。
+    options: list[dict[str, object]] = []
 
     def __init__(
         self,
@@ -21,8 +23,10 @@ class StubOpenAILLM:
         model: str | None = None,
         api_key: str | None = None,
         timeout_seconds: float = 30.0,
+        **provider_options: object,
     ):
         self.calls.append((model, api_key, timeout_seconds))
+        self.options.append(provider_options)
 
     def generate(self, prompt: str) -> str:
         raise AssertionError(f"not expected in runtime tests: {prompt}")
@@ -390,3 +394,85 @@ def test_the_runtime_takes_the_retrieval_floors_from_config() -> None:
     assert pipeline.min_score == float(config["min_score"])
     assert pipeline.relative_score == float(config["relative_score"])
     assert pipeline.min_score > 0.0, "設定檔給了門檻，管線卻沒吃到"
+
+
+# ── provider 設定：兩家都留，靠設定切換 ──────────────────────────────────
+
+
+def test_provider_block_overrides_the_top_level_defaults() -> None:
+    config = {
+        "provider": "gmi",
+        "model_env": "OPENAI_MODEL",
+        "default_model": "gpt-5.4-mini",
+        "request_timeout_seconds": 30,
+        "providers": {
+            "gmi": {
+                "api": "chat_completions",
+                "base_url": "https://api.gmi-serving.com/v1",
+                "model_env": "GMI_MODEL",
+                "default_model": "llama",
+            }
+        },
+    }
+
+    settings = _provider_settings(config, "gmi")
+
+    assert settings["default_model"] == "llama", "provider 的值要蓋過頂層"
+    assert settings["base_url"] == "https://api.gmi-serving.com/v1"
+    assert settings["request_timeout_seconds"] == 30, "沒覆寫的頂層設定要保留"
+
+
+def test_unknown_provider_fails_instead_of_quietly_falling_back() -> None:
+    """打錯 provider 名字要當場失敗。
+
+    默默退回 openai 的話，使用者會以為自己在打 GMI —— 帳單、模型與結果三邊都對不上，
+    而且從服務狀態上完全看不出來。
+    """
+
+    with pytest.raises(ValueError, match="不支援的線上 provider"):
+        _provider_settings({"providers": {"openai": {}, "gmi": {}}}, "gemini")
+
+
+def test_config_without_a_providers_block_still_builds() -> None:
+    """舊版 llm.yaml（沒有 providers 這段）要照樣跑得起來。"""
+
+    config = {"model_env": "OPENAI_MODEL", "default_model": "gpt-5.4-mini"}
+
+    assert _provider_settings(config, "openai") == config
+
+
+def test_shipped_config_describes_both_providers_completely() -> None:
+    """設定檔本身也要被釘住：少一個欄位就會在接上去的那一刻才爆。"""
+
+    config = yaml.safe_load((PROJECT_ROOT / "configs/llm.yaml").read_text(encoding="utf-8"))
+
+    openai = _provider_settings(config, "openai")
+    assert openai["api"] == "responses"
+    assert openai["base_url"] is None, "官方端點要走 SDK 預設，不能寫死"
+    assert openai["api_key_env"] == "OPENAI_API_KEY"
+    assert openai["temperature"] is None, "reasoning 模型不吃 temperature"
+
+    gmi = _provider_settings(config, "gmi")
+    assert gmi["api"] == "chat_completions"
+    assert gmi["base_url"] == "https://api.gmi-serving.com/v1"
+    assert gmi["api_key_env"] == "GMI_API_KEY"
+    assert gmi["model_env"] == "GMI_MODEL"
+    assert gmi["temperature"] == 0, "Llama 類模型預設不是 0，SQL 生成會不穩定"
+
+
+def test_runtime_passes_the_provider_settings_to_the_adapter(
+    database: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """設定要真的傳到轉接層，而不是只存在 yaml 裡。"""
+
+    monkeypatch.setenv("OPENAI_API_KEY", "environment-secret")
+    monkeypatch.setattr(runtime_module, "OpenAILLM", StubOpenAILLM)
+    StubOpenAILLM.options.clear()
+
+    service = build_runtime(database=database, mode="online")
+
+    assert service.api_key_env == "OPENAI_API_KEY"
+    sent = StubOpenAILLM.options[-1]
+    assert sent["api"] == "responses"
+    assert sent["base_url"] is None
+    assert sent["api_key_env"] == "OPENAI_API_KEY"

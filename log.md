@@ -2,6 +2,70 @@
 
 > 這份檔案在每個可驗證、可回退的儲存點更新。回退前需保留使用者原有的未提交變更。
 
+## CP-059 — 線上 provider 變成設定：OpenAI 與 GMI 兩家都留
+
+- 時間：2026-09-21 00:12 +08:00
+- 狀態：已完成（尚未以真實 GMI key 打通，見末節）
+- 起點：使用者要接 GMI 的 API key，問「是不是放環境變數就好」。選擇是兩家都留、用設定切換。
+
+### 光放 key 不會通
+
+查 GMI 官方文件（docs.gmicloud.ai 的 Quick Start）拿到的事實：
+
+```python
+client = OpenAI(base_url="https://api.gmi-serving.com/v1", api_key=...)
+client.chat.completions.create(model="meta-llama/Llama-3.3-70B-Instruct", ...)
+```
+
+對照專案，有三個地方寫死了 OpenAI：
+
+| | 先前 | GMI 需要 |
+|---|---|---|
+| base_url | 沒傳，SDK 預設打 OpenAI | `https://api.gmi-serving.com/v1` |
+| 端點 | `client.responses.create` | `client.chat.completions.create` |
+| provider | `runtime.py` 寫死 `!= "openai"` 就 raise | 要能切換 |
+
+第二列是最大的坑：`responses` 是 OpenAI **自家**的端點，不在「OpenAI 相容」的範圍內 —— 第三方講相容指的幾乎都是 `chat/completions`。只換 base_url 而不換端點，打過去是 404。
+
+### 設計：一個 provider 一段設定
+
+`configs/llm.yaml` 從平鋪改成 `providers` 底下一家一段，四個欄位決定怎麼打：`api`（responses／chat_completions）、`base_url`、`structured_output`、`temperature`。頂層保留 `model_env`／`default_model` 當退路，所以沒有 `providers` 段的舊設定檔照樣跑得起來。
+
+`OpenAILLM` 一個類別涵蓋兩家，因為它們共用同一個 SDK 與同一份 JSON Schema，差別只在那三處；複製一份轉接層再各自長歪更難維護。
+
+三個判斷值得記：
+
+- **`base_url` 沒指定就不送這個鍵**，不是送 `None` —— 送 None 會蓋掉 SDK 自己的預設。既有測試斷言 `client_options` 精確相等，這樣寫也讓 OpenAI 那條路一個位元都沒變。
+- **`temperature: null` 表示不送**。原本 `configs/llm.yaml` 有 `temperature: 0`，但**程式碼從來沒有讀它** —— 接 GMI 才變成實質問題：OpenAI 的 reasoning 模型不吃這個參數，而 Llama 類模型的預設不是 0，同一個問句每次生出不同 SQL，評測會失去意義。所以它變成 per-provider：openai 是 null，gmi 是 0。
+- **`api_key_env` 跟著 `ServiceRuntime` 走**，不是每次重讀設定。`RuntimeManager` 靠它偵測 key 被換掉或移除；認錯變數名的話，設了 `GMI_API_KEY` 的人會因為 `OPENAI_API_KEY` 是空的而被清掉線上 runtime。
+
+`provider` 填了 `providers` 裡沒有的名字，建 runtime 時直接失敗。默默退回 openai 會讓人以為自己在打 GMI —— 帳單、模型與結果三邊都對不上，而且從服務狀態上完全看不出來。
+
+### 乾跑驗證
+
+不需要真 key、不發網路請求，把設定→轉接層這條路串起來跑一次：
+
+```
+provider: openai        base_url 不送（用 SDK 預設）  端點 responses         temperature 不送
+provider: gmi           base_url api.gmi-serving.com  端點 chat.completions  temperature 0.0
+```
+
+兩家的結構化輸出都有送，模型名分別是 `gpt-5.4-mini` 與 `meta-llama/Llama-3.3-70B-Instruct`。
+
+### 驗收
+
+- `ruff format --check .`（110 files）、`ruff check .` 通過；`pytest -q` **610 passed, 1 skipped**（CP-058 後為 599，本次新增 11 筆；skip 是 port 8765 被執行中的服務占用）。
+- 新測試分兩層：轉接層 6 筆（chat_completions 送 base_url 與相容端點且不帶 responses 的欄位、沒指定 base_url 就完全不送、structured_output 可關、temperature 未設就不送、未知 api 在建構時就失敗、api_key_env 可依 provider 指定）；runtime 層 5 筆（provider 區塊蓋過頂層、未知 provider 當場失敗而非退回、沒有 providers 段的舊設定仍可建、**實際設定檔的兩家描述完整**、provider 設定確實傳到轉接層）。
+- 文件同步：`src/serving/API_CONTRACT.md` 補上線上 provider 對照表與三個欄位的意義；`.env.example` 加 `GMI_API_KEY`／`GMI_MODEL` 並寫明「設了另一家的 key 不會生效」。
+- 回退方式：回退 `feat: make the online provider a configuration, not a hard-coded vendor` 這個 commit。回退後 `configs/llm.yaml` 的 `providers` 段會失效，線上模式回到只能打 OpenAI。
+
+### 尚未驗證的一段
+
+**沒有用真實的 GMI key 打通過**，因為 key 在使用者手上。乾跑證明的是「送出去的請求長對了」，證明不了對方會不會收。接上去之後要確認兩件事：
+
+1. `structured_output: true` 會不會被 GMI 拒絕（400）。GMI 文件沒有明寫支不支援 `strict` 的 json_schema。若被拒，把該欄位改成 `false` —— 那時輸出格式只剩 prompt 的要求，靠 `parse_generated_query` 的寬容解析接住，生出來的東西一樣要過 `SqlGuard`，放寬的是格式保證不是安全。
+2. `max_attempts: 3` 對 LLM 路徑仍是合理預設而非量出來的數字（CP-052 的 ablation 只證明了規則路徑首次即成功、重試 1/2/3 次無差異，LLM 對照標記為 `not_run_without_online_llm`）。接上 API 後這是第一件該用自己的評測資料重量的事。
+
 ## CP-058 — XML 搜尋在過濾前就停了，以及我自己弄紅的 CI
 
 - 時間：2026-09-20 23:15 +08:00
