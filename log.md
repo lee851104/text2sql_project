@@ -2,6 +2,42 @@
 
 > 這份檔案在每個可驗證、可回退的儲存點更新。回退前需保留使用者原有的未提交變更。
 
+## CP-050 — 索引與檢索讀同一份 n-gram 設定
+
+- 時間：2026-09-20 12:41 +08:00
+- 狀態：已完成
+- 起點：使用者問「現在切分是用字元還是詞元」「三個字切一塊的 TF-IDF 有沒有用到」。查證時發現設定有兩個來源。
+
+### 查到的事實（先回答問題）
+
+- 切分單位是**字元**，沒有任何分詞器。`normalize_question()` 先去掉所有非 `[0-9a-z一-鿿]` 的字元並轉小寫（「台中#1」→「台中1」），再取連續子串。
+- TF-IDF ＋ 餘弦相似度都有，公式是 smooth idf：`log((1+N)/(1+df)) + 1`。
+- **n-gram 範圍不是教材的固定 3，是 2～4**（`configs/retriever.yaml`）。同一句話 3-gram 切出 16 個特徵、2-4 gram 切出 47 個；47 則語料的去重詞彙量 416 對 1188，約 2.9 倍。
+- 這裡沒有 RAG 意義上的 chunking：檢索單位是「一則問答範例」，n-gram 是特徵抽取，不是被檢索的對象。
+
+### 問題：設定有兩個來源
+
+- 檢索端讀設定檔（`runtime.py` → `Text2SQLPipeline(ngram_min=…, ngram_max=…)` → `TfidfRetriever`）。
+- 索引端沒讀：`build_index()` 呼叫 `character_ngrams(example["question"])`，吃的是函式簽章預設 `(2, 4)`。
+- 目前兩邊數字剛好相同，所以看不出來。但**把 yaml 改成 3／3 就會分岔**，而且後果不只是索引內容不一致 —— `CorpusLearningService._repair_index()` 與 `status()` 都是拿 `build_index(corpus)` 的輸出去比對 `corpus/index.json`，切法不同就會**永遠判定「索引不同步」，然後重寫一份同樣對不起來的索引**。
+
+### 處理
+
+- 新增 `ngram_range(root)`：讀 `configs/retriever.yaml` 的 `character_ngram`，索引與檢索從此同一個來源。
+- `build_index()` / `write_index()` 接受 `ngram=` 參數，預設走 `ngram_range()`。三個呼叫端（CLI、`corpus_learning`、`corpus_builder`）因此自動一致，不必把參數一路傳進去 —— 那兩處拿不到 pipeline。
+- **設定壞掉時退回 `(2, 4)`**，不讓索引整個建不起來。實測四種壞法都安全落地：`min > max`、缺 `character_ngram`、`min: 0`、yaml 本身語法錯誤，另外設定檔不存在也一樣。
+- **切法記進索引**：`corpus/index.json` 新增 `character_ngram` 欄位。少了這兩個數字，事後看著一份索引也說不出它是用幾個字切的。索引已重建（47 份文件，checksum 不變，只多了這個欄位）。
+- CLI 輸出也帶上切法：`已建立語料索引：47 份文件，字元 2～4 gram，checksum=c736c2e7fe47`。
+
+### 踩到的事
+
+寫測試時把 yaml 內容用 `
+` 寫在非 raw 字串裡，轉義在寫檔那一層就變成真換行，測試檔當場語法錯誤（`unterminated string literal`）。改用 raw 字串。**要寫進檔案的字串裡含轉義序列時，一律用 raw 字串。**
+
+- 新增測試（7 筆，`tests/test_corpus_builder.py`）：設定讀得到（3／3）；四種壞設定與檔案不存在都退回預設；索引記錄切法，且 `(3,3)` 與 `(2,4)` 切出來的索引內容不得相同。
+- 驗收：`ruff format --check .`、`ruff check .` 通過；`pytest -q` **509 passed, 1 skipped**（CP-049 後為 502 passed，新增 7 筆）；離線評測六項驗收條件全 True。
+- 回退方式：回退 `fix: read the n-gram range from one place` 這個 commit。回退後 `corpus/index.json` 會少 `character_ngram` 欄位，且改設定檔會讓索引與檢索分岔。
+
 ## CP-049 — 火力和水力拿到同一份電廠清單
 
 - 時間：2026-09-20 11:47 +08:00

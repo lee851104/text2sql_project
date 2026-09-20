@@ -1,6 +1,10 @@
 {
   "corpus_version": "corpus-v1",
   "corpus_checksum": "c736c2e7fe47e50b75b77bb9957f6a092f3d2aa0dad765e15d6436c2498acb23",
+  "character_ngram": {
+    "min": 2,
+    "max": 4
+  },
   "document_count": 47,
   "documents": [
     {

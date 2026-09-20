@@ -9,7 +9,7 @@
 1. 實體與日期抽取。
 2. 問句層語意守門。
 3. 規則意圖路由；無可直接執行查詢才進入 RAG。
-4. 字元 n-gram TF-IDF 檢索，組合 schema、領域規則、近似範例與動態資料期間。
+4. 字元 n-gram TF-IDF 檢索（餘弦相似度），組合 schema、領域規則、近似範例與動態資料期間。切分單位是**字元**不是詞，不依賴任何分詞器；比對前先以 `normalize_question()` 去掉標點與空白並轉小寫。n-gram 範圍由 `configs/retriever.yaml` 的 `character_ngram` 決定（目前 2～4），**索引與檢索讀同一份設定**：`build_index()` 也走 `ngram_range()`，否則設定一改，語料學習服務就會拿不同切法的索引去比對，永遠判定「索引不同步」。切法本身記在 `corpus/index.json` 的 `character_ngram` 欄位，事後才看得出那份索引是用幾個字切的。
 5. LLM 回傳 `{sql, params}`；最多按 `max_attempts` 重生。
 6. 所有 SQL，包含手寫 router SQL，一律經過 AST 安全守門。
 7. SQL 層語意守門。
