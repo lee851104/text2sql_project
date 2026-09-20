@@ -160,6 +160,27 @@ def extract_date_range(
     return None, None
 
 
+# 同一句話的不同寫法。實測「資料庫有甚麼內容」完全答不出來，而「資料庫有什麼內容」
+# 會正確澄清 —— 差別只在一個異體字。使用者自己就交替用這兩種寫法，比對規則沒有理由
+# 因此分岔。這裡只收**只差字形、語意完全相同**的字，不碰「那些／哪些」這種會改變意思的。
+QUESTION_VARIANTS = {
+    "甚麼": "什麼",
+    "什么": "什麼",
+    "甚么": "什麼",
+    "爲": "為",
+    "裏": "裡",
+}
+
+
+def compact_question(question: str) -> str:
+    """去掉空白並統一異體字，供各種比對規則使用。"""
+
+    compact = re.sub(r"\s+", "", question)
+    for variant, standard in QUESTION_VARIANTS.items():
+        compact = compact.replace(variant, standard)
+    return compact
+
+
 def extract_top_n(question: str) -> int | None:
     question = question.translate(FULLWIDTH_DIGITS)
     match = re.search(rf"前\s*({NUMBER_TOKEN})", question)

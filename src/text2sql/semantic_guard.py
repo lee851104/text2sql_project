@@ -13,7 +13,7 @@ from sqlglot import exp, parse_one
 from sqlglot.errors import ParseError
 
 from text2sql.aliases import resolve_peak_column
-from text2sql.entities import Entities
+from text2sql.entities import Entities, compact_question
 from text2sql.llm import GeneratedQuery
 
 # 後設問句：問的是「這個系統／資料庫有什麼」，而不是資料本身。這類沒有對應的 SQL，
@@ -31,6 +31,27 @@ META_QUESTION_PATTERNS: tuple[str, ...] = (
     "怎麼用",
     "資料庫有什麼",
     "支援哪些查詢",
+    "有哪些內容",
+    "有什麼內容",
+    "資料庫內容",
+    "資料範圍",
+)
+
+# 問的是服務自己：模式、模型、金鑰。這些答案都在 /api/health，不在任何 view 裡。
+# 比對前會轉小寫，所以名單一律寫小寫；資料欄位裡沒有任何 api／模型字樣，不會誤攔。
+SYSTEM_STATUS_PATTERNS: tuple[str, ...] = (
+    "接api",
+    "串接api",
+    "api嗎",
+    "api key",
+    "線上模式還是離線",
+    "離線模式還是線上",
+    "現在是什麼模式",
+    "目前是什麼模式",
+    "哪個模型",
+    "什麼模型",
+    "有沒有金鑰",
+    "有設定金鑰",
 )
 
 
@@ -122,7 +143,20 @@ class SemanticGuard:
         return bool(simplified and simplified in question)
 
     def check_question(self, question: str, entities: Entities) -> SemanticDecision:
-        compact = re.sub(r"\s+", "", question)
+        compact = compact_question(question)
+
+        if any(pattern in compact.lower() for pattern in SYSTEM_STATUS_PATTERNS):
+            # 「目前有接 API 嗎」問的是服務自己，不是資料。答案在 /api/health，硬產
+            # SQL 只會重試三次然後回一句在講 SQL 的錯誤 —— 而使用者根本沒問 SQL。
+            return self._decision(
+                "clarify",
+                "SYSTEM_STATUS_QUESTION",
+                "這個問題問的是服務本身，不用查詢資料。目前的模式、模型與資料版本"
+                "顯示在頁面頂端，也可以呼叫 /api/health。",
+                "資料涵蓋到什麼時候",
+                "有哪些電廠",
+                evidence={"see": "/api/health"},
+            )
 
         if any(pattern in compact for pattern in META_QUESTION_PATTERNS):
             # 「這裡有什麼資料」的答案是 schema 層級的說明，不是資料列。硬產 SQL 只能去

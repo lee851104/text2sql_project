@@ -272,3 +272,63 @@ class TestRenewableScopeDisclosure:
         )
         decision = renewable_guard.check_sql("查詢", query, extract_entities("2026年7月5日"))
         assert decision.severity == "pass"
+
+
+@pytest.mark.parametrize(
+    "question",
+    (
+        "資料庫有甚麼內容",
+        "資料庫有什麼內容",
+        "資料庫裡有哪些內容",
+        "這個資料庫有甚么資料",
+        "有甚麼資料",
+        "可以查甚麼",
+    ),
+)
+def test_a_scope_question_is_clarified_whichever_variant_is_typed(
+    semantic_guard: SemanticGuard, question: str
+) -> None:
+    """「甚麼」與「什麼」是同一句話。實測只差這一個字，一句澄清、一句回 SQL 錯誤。"""
+
+    decision = semantic_guard.check_question(question, extract_entities(question))
+    assert decision.code == "DATA_SCOPE_QUESTION"
+    assert decision.severity == "clarify"
+
+
+@pytest.mark.parametrize(
+    "question",
+    (
+        "目前有接API嗎",
+        "你有接 api 嗎",
+        "現在是線上模式還是離線模式",
+        "你用的是哪個模型",
+        "有設定金鑰嗎",
+    ),
+)
+def test_a_question_about_the_service_itself_is_not_sent_to_sql(
+    semantic_guard: SemanticGuard, question: str
+) -> None:
+    """問的是服務自己，答案在 /api/health，不在任何 view 裡。"""
+
+    decision = semantic_guard.check_question(question, extract_entities(question))
+    assert decision.code == "SYSTEM_STATUS_QUESTION"
+    assert decision.severity == "clarify"
+    assert decision.evidence["see"] == "/api/health"
+
+
+def test_the_new_patterns_do_not_take_any_benchmark_question(
+    semantic_guard: SemanticGuard,
+) -> None:
+    """新規則不得攔走題庫裡任何一題 —— 包含攻擊題，那些必須照原本的方式被擋。"""
+
+    taken = []
+    for name in ("golden_questions", "eval_questions", "trap_questions", "attack_questions"):
+        path = ROOT / "benchmarks" / f"{name}.json"
+        for item in json.loads(path.read_text(encoding="utf-8")):
+            question = item.get("question") or item.get("input")
+            if not question:
+                continue
+            decision = semantic_guard.check_question(question, extract_entities(question))
+            if decision.code == "SYSTEM_STATUS_QUESTION":
+                taken.append(question)
+    assert taken == []

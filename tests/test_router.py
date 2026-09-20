@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 from text2sql.entities import extract_entities
-from text2sql.router import classify_intent, route
+from text2sql.router import classify_intent, missing_parameter_clarification, route
 from text2sql.sql_guard import SqlGuard
 
 ROOT = Path(__file__).parents[1]
@@ -115,3 +115,76 @@ def test_the_fallback_does_not_take_questions_an_existing_handler_already_answer
     assert len(before) > 150, "題庫抓太少，這條回歸沒有意義"
     for question, (intent, _sql) in before.items():
         assert classify_intent(question) == intent, question
+
+
+CLARIFY_COLUMNS = frozenset({"林口#1", "林口#2", "台中#1", "台中#2"})
+CLARIFY_PLANTS = frozenset({"台中發電廠", "大觀發電廠"})
+
+MISSING_PARAMETER_CASES = (
+    ("我想知道林口一號某天的尖峰值", "date"),
+    ("某天機組尖峰功率排行榜", "date"),
+    ("同一天各機組功率由高到低", "date"),
+    ("找單一機組一段時間的極值", "unit"),
+    ("查一台機組有值的日期數", "unit"),
+    ("指定日期查一台機組功率", "unit"),
+    ("依電廠查機組主檔", "plant"),
+    ("系統指標的期間極值", "metric"),
+    ("比較兩台機組同日輸出", "units"),
+    ("指定兩台機組期間表現", "units"),
+)
+
+
+def _clarify(question: str):
+    return missing_parameter_clarification(
+        question,
+        extract_entities(question),
+        peak_columns=set(CLARIFY_COLUMNS),
+        plants=set(CLARIFY_PLANTS),
+        data_range=("2025-01-01", "2026-07-31"),
+    )
+
+
+@pytest.mark.parametrize(("question", "missing"), MISSING_PARAMETER_CASES)
+def test_a_question_missing_its_key_parameter_says_which_one(question: str, missing: str) -> None:
+    clarification = _clarify(question)
+    assert clarification is not None, question
+    assert clarification.missing == missing
+    assert clarification.reason and clarification.suggestion
+
+
+def test_every_suggestion_can_itself_be_answered() -> None:
+    """建議的問法自己要答得出來，否則只是把人推進下一個死路。"""
+
+    suggestions = {_clarify(question).suggestion for question, _ in MISSING_PARAMETER_CASES}
+    assert len(suggestions) >= 5, "建議太集中就驗不到什麼"
+    for suggestion in sorted(suggestions):
+        routed = route(
+            suggestion,
+            extract_entities(suggestion),
+            peak_columns=set(CLARIFY_COLUMNS),
+            plants=set(CLARIFY_PLANTS),
+            data_range=("2025-01-01", "2026-07-31"),
+        )
+        assert routed.sql, suggestion
+        assert SqlGuard().validate(routed.sql, routed.params).allowed, suggestion
+
+
+def test_a_question_with_every_parameter_is_never_asked_back() -> None:
+    """參數齊全的題目不得被反問攔走 —— 這一層只補缺口，不搶題。"""
+
+    for question in (
+        "2026年7月31日台中#1的出力",
+        "台中#1在2025年的最高出力",
+        "比較台中#1和台中#2的平均出力",
+        "2026年7月31日機組尖峰出力排行",
+        "大觀發電廠有哪些機組",
+        "2025年系統尖峰負載最高是多少",
+    ):
+        assert _clarify(question) is None, question
+
+
+def test_outage_questions_are_not_asked_back() -> None:
+    """「哪一些機組目前維修中」要的是清單，反問「請指定機組」是錯的引導。"""
+
+    for question in ("哪一些機組目前維修中", "列出日期有效的歲修", "依日期區間找歲修排程"):
+        assert _clarify(question) is None, question

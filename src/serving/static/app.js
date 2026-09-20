@@ -567,7 +567,10 @@
 
   function renderError(payload) {
     var card = element("article", "message error-card");
-    var severity = payload.severity === "clarify" ? "需要補充條件" : payload.severity === "refuse" ? "這個問題不能直接計算" : "查詢未完成";
+    // 後設問句也是 clarify，但缺的不是條件而是「這題不該用查詢回答」。標題掛「需要補充
+    // 條件」會讓問「目前有接 API 嗎」的人以為自己問法不完整。
+    var meta = payload.error_code === "DATA_SCOPE_QUESTION" || payload.error_code === "SYSTEM_STATUS_QUESTION";
+    var severity = payload.severity === "clarify" ? (meta ? "這個問題不用查詢回答" : "需要補充條件") : payload.severity === "refuse" ? "這個問題不能直接計算" : "查詢未完成";
     card.appendChild(element("h3", "", severity));
     card.appendChild(element("p", "", payload.error || "系統目前無法完成查詢。"));
     if (payload.error_code) card.appendChild(element("div", "meta", "錯誤碼：" + payload.error_code));

@@ -8,7 +8,7 @@ from functools import lru_cache
 
 from align.naming import chinese_number
 from text2sql.aliases import resolve_peak_column, resolve_peak_columns, resolve_plant
-from text2sql.entities import Entities
+from text2sql.entities import Entities, compact_question
 from text2sql.retriever import TfidfRetriever
 
 
@@ -71,7 +71,7 @@ def data_scope_topic(question: str) -> str | None:
     東西，應該交給既有意圖處理。
     """
 
-    compact = re.sub(r"\s+", "", question).strip(_SCOPE_TRAILING)
+    compact = compact_question(question).strip(_SCOPE_TRAILING)
     for topic, accepted in DATA_SCOPE_QUESTIONS.items():
         if compact in accepted:
             return topic
@@ -98,7 +98,7 @@ def nearest_scope_topic(question: str) -> str | None:
     同一句話命中多個主題時回 ``None``：分不出要問什麼就不要猜。
     """
 
-    compact = re.sub(r"\s+", "", question).strip(_SCOPE_TRAILING)
+    compact = compact_question(question).strip(_SCOPE_TRAILING)
     topics = {
         topic
         for topic, accepted in DATA_SCOPE_QUESTIONS.items()
@@ -135,13 +135,112 @@ def suggest_scope_question(question: str) -> str | None:
     所以給得出一個夠接近的問法就是淨賺。給不出來就維持原樣，不硬湊。
     """
 
-    compact = re.sub(r"\s+", "", question).strip(_SCOPE_TRAILING)
+    compact = compact_question(question).strip(_SCOPE_TRAILING)
     if not compact:
         return None
     best = _scope_retriever().retrieve(compact, top_k=1)
     if not best or best[0].score < SCOPE_SUGGESTION_THRESHOLD:
         return None
     return str(best[0].example["question"])
+
+
+@dataclass(frozen=True)
+class MissingParameter:
+    """意圖明確、但問句少了執行查詢非有不可的那個條件。"""
+
+    missing: str
+    reason: str
+    suggestion: str
+
+
+def _example_date(data_range: tuple[str, str] | None) -> str:
+    """建議問法裡的日期取資料實際涵蓋的最後一天，不要寫死一個查無資料的日期。"""
+
+    end = data_range[1] if data_range else "2026-07-31"
+    year, month, day = end.split("-")
+    return f"{year}年{int(month)}月{int(day)}日"
+
+
+def missing_parameter_clarification(
+    question: str,
+    entities: Entities,
+    *,
+    peak_columns: set[str],
+    plants: set[str],
+    data_range: tuple[str, str] | None = None,
+) -> MissingParameter | None:
+    """問句缺了哪個必要條件？答得出來的題目不會走到這裡。
+
+    ★ 為什麼是反問而不是交給模型猜
+      「某天機組尖峰功率排行榜」沒有說是哪一天。任何模型都推不出那個日期，能做的只有
+      挑一天，然後回一張看起來完全正常的表 —— 使用者不會發現那不是他要的那天。課程
+      第 7 章講的就是這件事：猜錯的代價是畫面上什麼異狀都沒有。
+
+    ★ 為什麼放在管線的最後一步
+      與 ``suggest_scope_question`` 同一層。走到這裡表示規則沒接、線上模型也沒生出
+      能過守門的 SQL，所以**不可能**從任何 handler 手上搶題目。安全靠順序，不靠把
+      判斷寫得多精準。
+    """
+
+    intent = classify_intent(question)
+    dated = entities.explicit_date is not None or entities.date_range is not None
+    unit = resolve_peak_column(question, peak_columns)
+    units = resolve_peak_columns(question, peak_columns)
+    named_unit = unit.value or (units[0] if units else None)
+    plant = resolve_plant(question, plants)
+    example_day = _example_date(data_range)
+
+    if intent == "comparison" and len(units) < 2:
+        return MissingParameter(
+            "units",
+            "比較需要兩個對象，這句只認得出"
+            + (f"「{named_unit}」一個。" if named_unit else "零個。"),
+            "比較台中#1和台中#2的平均出力",
+        )
+
+    if intent in {"unit_day", "unit_extreme", "zero_days"} and named_unit is None:
+        return MissingParameter(
+            "unit",
+            "這句沒有指名是哪一部機組。",
+            {
+                "unit_day": f"{example_day}台中#1的出力",
+                "unit_extreme": "台中#1在2025年的最高出力",
+                "zero_days": "台中#1在2025年尖峰出力等於零的天數",
+            }[intent],
+        )
+
+    if intent == "unit_day" and not dated:
+        return MissingParameter(
+            "date",
+            f"知道你要問「{named_unit}」，但沒有說是哪一天。",
+            f"{example_day}{named_unit}的出力",
+        )
+
+    if intent == "daily_ranking" and not dated:
+        return MissingParameter(
+            "date",
+            "排名要先指定是哪一天的排名。",
+            f"{example_day}機組尖峰出力排行",
+        )
+
+    if intent == "plant_units" and plant.value is None and not plant.ambiguous:
+        return MissingParameter(
+            "plant",
+            "這句沒有指名是哪一座電廠。",
+            "大觀發電廠有哪些機組",
+        )
+
+    if intent == "system_metric" and _system_metric(question) is None:
+        return MissingParameter(
+            "metric",
+            "沒有說是哪一個系統指標。",
+            "2025年系統尖峰負載最高是多少",
+        )
+
+    # outage 刻意不反問。實測那幾題是「哪一些機組目前維修中」「列出日期有效的歲修」——
+    # 要的是清單，不是某一部機組，反問「請指定機組」等於把人推往錯的方向。這類缺的是
+    # 規則而不是參數，誠實回答不會比較丟臉。
+    return None
 
 
 def classify_intent(question: str) -> str:
