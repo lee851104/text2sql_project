@@ -2,6 +2,50 @@
 
 > 這份檔案在每個可驗證、可回退的儲存點更新。回退前需保留使用者原有的未提交變更。
 
+## CP-056 — 原始資料與對齊產物匯出成一份可重現的試算表
+
+- 時間：2026-09-20 21:37 +08:00
+- 狀態：已完成
+- 起點：使用者要把原始資料與對齊產物「一個 csv 一個分頁」放進自己的 Google 試算表。
+
+### 為什麼交付方式是 xlsx 而不是直接寫入
+
+直接寫進那份試算表做不到：內建瀏覽器是隔離環境、沒有使用者的 Google 登入（開他的連結會被導到一份匿名空白表），Claude in Chrome 擴充當時沒有連線，而代為輸入密碼登入不做。改成產一份多分頁 xlsx，讓他在該試算表用「檔案 → 匯入 → 上傳 → 插入新工作表」一次匯入，對他只是一次操作。
+
+### 分頁範圍：來源副本不重複建頁
+
+- 原始資料 8 頁：7 個官方 CSV，加上 `units_generation.json` 攤平（`aaData` 一列一機組，`DateTime` 併成「快照時間」欄）。
+- 對齊產物 7 頁：3 個衍生（`crosswalk`、`daily_long`、`re_station_crosswalk`）+ 4 個人工補充（`plants`、`daily_plant_scope`、`outage_plant_map`、`re_sites_supplement`）。
+- `taipower_align` 那 8 個「來源副本」沒有建頁：`cmp` 驗過與 `data/raw` 逐字相同，只有 `outage.csv` 差一個 BOM 與行尾。重複建頁只會讓同一份內容在試算表裡有兩個真相。
+
+### 型別：失真 0 格，但顯示做不到兩全
+
+第一版比對 428,882 格，有 28,181 格字面和原檔不同，全部是同一個原因——xlsx 的數值不保留小數尾，`80.0` 存進去讀回來就是 `80`。
+
+逐欄量小數位分布後才看清問題不在轉換，**在台電原檔同一欄本來就混用位數**：`daily` 的「淨尖峰供電能力」577 列裡 61 列是整數、516 列一位小數；`daily_long` 的 `cap_a_萬瓩` 0／1／2 位都有。套任何固定格式都會讓另一批變錯。
+
+所以只對「整欄位數一致」的欄套 `number_format`——例如 `daily_long` 的尖峰出力 36,928 列全是一位小數，套 `0.0` 就完全還原字面。差異因此從 28,181 降到 13,475 格，剩下的是那些混用位數的欄，維持通用數值顯示。
+
+轉換規則本身是保守的：能無損還原成原字串的數字才轉數值，前導零、超過 15 位、帶 `%` 的（如 `66.730%`）一律留字串。逐格比對 428,889 格，**數值失真 0 格**，剩下 13,475 格只是顯示少一個小數尾。
+
+### 腳本進版控，產物不進
+
+- 產物是 `data/raw` 的重新打包，`.gitignore` 的 `data/`（規格 §9：raw／interim／processed 都不進版控）已經涵蓋。輸出路徑 `data/exports/`，`git check-ignore` 確認被忽略。專案至今零個二進位檔進版控，1.83 MB 的 blob 每次資料更新都是全新一份、git 無法 diff。
+- 腳本進 `scripts/`，跟 `demo_plant_scope.py` 同慣例：執行方式寫在 docstring，不動 `pyproject.toml` 與 `Makefile`。openpyxl 只有這支用得到，用 `uv run --with openpyxl` 帶入。缺來源檔時提示先跑 `make ingest`，不丟 traceback。
+- 這讓這張表和 `docs/lineage/01_資料來源.csv` 每一列的「可用指令重現＝是」對齊。
+
+### 更新這張表的兩個陷阱
+
+- 第二次匯入**不能**再選「插入新工作表」，會產生 `raw_units (1)`、`raw_units (2)` 越積越多；要選「取代試算表」，但那會清掉使用者自己加的分頁與公式。要在上面做分析的話，分析放另一份試算表用 `IMPORTRANGE` 拉，這份純當資料層。
+- 資料本身會讓「更新」不只是變新：`daily.csv` 是滾動視窗（只留去年與今年至上月），取代式更新會讓舊月份從試算表消失——歷史仍在 `data/archive/` 的內容尋址封存裡；`raw_units_generation` 是覆寫式快照，每次 ingest 整頁換掉，不累積，目前是 `2026-09-19T10:50:00`。
+
+### 驗收
+
+- `ruff format --check .`（110 files）、`ruff check .` 通過；`pytest -q` **578 passed, 1 skipped**（與 CP-055 相同，本次沒有新增測試；skip 是 port 8765 被執行中的服務占用）。
+- 腳本實跑產出 16 分頁，列數與 `docs/lineage/01_資料來源.csv`、`03_對齊產物.csv` 的記載一致：daily 577、daily_long 36,928、units 175、plants 34、re_generation 1,976。
+- 逐格比對 428,889 格對原始 CSV／JSON：數值失真 0 格。
+- 回退方式：回退 `feat: pack the raw and aligned data into one importable workbook` 這個 commit，刪掉 `scripts/export_sheets.py` 即可。沒有動到任何既有模組、依賴或建置設定，回退後只是少一個匯出指令。
+
 ## CP-055 — 「各種發電方式成本」答出來，並說清楚排掉了什麼
 
 - 時間：2026-09-20 18:09 +08:00
