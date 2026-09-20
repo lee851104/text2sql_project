@@ -14,6 +14,7 @@ from sqlglot.errors import ParseError
 
 from text2sql.aliases import resolve_peak_column
 from text2sql.entities import Entities, compact_question, unparsed_date
+from text2sql.generation_cost import aggregate_rows, wants_overview
 from text2sql.llm import GeneratedQuery
 
 # 後設問句：問的是「這個系統／資料庫有什麼」，而不是資料本身。這類沒有對應的 SQL，
@@ -191,6 +192,23 @@ class SemanticGuard:
             "自發電力小計",
             "購入電力小計",
         )
+        aggregates = aggregate_rows()
+        if "成本" in compact and aggregates and wants_overview(compact):
+            # 一覽式問句由 router 答出來，但**答案要帶著限制一起送到眼前**：排掉的那幾列
+            # 不是消失了，是換個問法才拿得到。這條回 disclose 而不是 clarify，所以不會
+            # 攔下查詢，只會掛在成功的答案上。
+            return self._decision(
+                "disclose",
+                "GENERATION_COST_AGGREGATES_EXCLUDED",
+                "已排除彙總列（"
+                + "、".join(aggregates)
+                + "）。它們與明細混在同一欄，並列會被當成並列的發電方式 ——"
+                "「火力發電」其實是燃煤、燃氣、燃油的彙總。要看彙總請指名去問。",
+                "2025年平均發購電成本是多少？",
+                "2025年火力發電成本是多少？",
+                evidence={"excluded": list(aggregates), "see": "configs/generation_cost.yaml"},
+            )
+
         if "成本" in compact and not any(name in compact for name in cost_types):
             year = entities.date_range.start[:4] if entities.date_range else "2025"
             return self._decision(

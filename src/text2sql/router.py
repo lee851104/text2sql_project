@@ -9,6 +9,7 @@ from functools import lru_cache
 from align.naming import chinese_number
 from text2sql.aliases import resolve_peak_column, resolve_peak_columns, resolve_plant
 from text2sql.entities import Entities, compact_question, extract_entities
+from text2sql.generation_cost import aggregate_rows, wants_overview
 from text2sql.retriever import TfidfRetriever
 
 
@@ -595,6 +596,30 @@ def route(
                 'SELECT "年度", "電力來源", "發電方式", "成本_元每度", "決算類型" '
                 'FROM v_generation_cost WHERE "發電方式" = ? ORDER BY "年度" DESC LIMIT 20',
                 (generation_type,),
+            )
+
+        # 一覽式問句（「各種發電方式成本」）。原本一律回「請指定發電方式」—— 但使用者問
+        # 「各種」就是要一覽，照那個建議他得問十二次。改成答出來，並排除彙總層：
+        # 「火力發電」與「燃煤／燃氣／燃油」並列會被當成四種並列的發電方式。
+        # 排除清單是 configs/generation_cost.yaml 的人工裁決，讀不到就退回原本的反問。
+        excluded = aggregate_rows()
+        if excluded and wants_overview(question):
+            placeholders = ", ".join("?" * len(excluded))
+            columns = '"年度", "電力來源", "發電方式", "成本_元每度", "決算類型"'
+            if year:
+                return RoutedQuery(
+                    intent,
+                    f"SELECT {columns} FROM v_generation_cost "
+                    f'WHERE "年度" = ? AND "發電方式" NOT IN ({placeholders}) '
+                    'ORDER BY "電力來源", "成本_元每度" DESC LIMIT 200',
+                    (year, *excluded),
+                )
+            return RoutedQuery(
+                intent,
+                f"SELECT {columns} FROM v_generation_cost "
+                f'WHERE "發電方式" NOT IN ({placeholders}) '
+                'ORDER BY "年度" DESC, "電力來源", "成本_元每度" DESC LIMIT 200',
+                excluded,
             )
 
     if intent == "renewable_generation":
