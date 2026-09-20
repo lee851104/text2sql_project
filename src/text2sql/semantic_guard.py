@@ -13,7 +13,7 @@ from sqlglot import exp, parse_one
 from sqlglot.errors import ParseError
 
 from text2sql.aliases import resolve_peak_column
-from text2sql.entities import Entities, compact_question
+from text2sql.entities import Entities, compact_question, unparsed_date
 from text2sql.llm import GeneratedQuery
 
 # 後設問句：問的是「這個系統／資料庫有什麼」，而不是資料本身。這類沒有對應的 SQL，
@@ -346,6 +346,21 @@ class SemanticGuard:
                 "機組名稱可對應多個資料欄位，不會自行猜測。",
                 "請說明要查具名燃煤機組，還是複循環彙總欄。",
                 evidence={"candidates": list(resolution.candidates)},
+            )
+
+        fragment = unparsed_date(question, entities)
+        if fragment is not None:
+            # 直接查下去不會報錯，只會回整段期間的答案 —— 那是最糟的失敗方式：
+            # 使用者問一天，拿到一整年，而且看不出來。
+            return self._decision(
+                "clarify",
+                "UNPARSED_DATE",
+                f"看不懂「{fragment}」這個日期寫法，所以沒有把它當成查詢條件。"
+                "直接查下去會回整段期間的答案，而那不是你問的。",
+                "2026-07-20台中#1的尖峰出力",
+                "2026年7月20日台中#1的尖峰出力",
+                "115年7月20日台中#1的尖峰出力",
+                evidence={"fragment": fragment, "available_range": list(self.data_range)},
             )
 
         if (
