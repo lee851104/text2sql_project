@@ -1,7 +1,9 @@
 from datetime import date
 
+import pytest
+
 from text2sql.aliases import resolve_peak_column, resolve_peak_columns, resolve_plant
-from text2sql.entities import DateRange, extract_entities
+from text2sql.entities import DateRange, extract_entities, unparsed_date
 
 
 def test_extracts_chinese_roc_and_relative_dates() -> None:
@@ -59,3 +61,79 @@ def test_two_distinct_units_in_one_question_are_not_an_ambiguity() -> None:
     assert not resolution.ambiguous
     assert resolution.value == "台中#1"
     assert resolve_peak_column("興達3機", columns).ambiguous, "真正的歧義仍要反問"
+
+
+# 同一天的各種寫法必須落在同一個值 —— 教材 db.py 開頭列的就是這件事（11405／114年05月
+# ／114/05／202505 都是同一個月）。實測本專案原本只認 12/19 種，其餘掉到「只認得年份」
+# 那條變成靜默查整年。
+SAME_DAY_FORMS = (
+    "2026-07-20",
+    "2026/07/20",
+    "2026/7/20",
+    "2026.7.20",
+    "2026 07 20",
+    "20260720",
+    "2026年7月20日",
+    "2026年07月20日",
+    "2026年七月二十日",
+    "115年7月20日",
+    "115/7/20",
+    "115-07-20",
+    "115.7.20",
+    "115 7 20",
+    "1150720",
+    "民國115年7月20日",
+    "２０２６年７月２０日",
+)
+
+
+@pytest.mark.parametrize("written", SAME_DAY_FORMS)
+def test_every_way_of_writing_one_day_lands_on_the_same_value(written: str) -> None:
+    entities = extract_entities(f"{written}台中#1的尖峰出力")
+    assert entities.explicit_date == "2026-07-20", written
+    assert entities.date_range == DateRange("2026-07-20", "2026-07-20"), written
+
+
+SAME_MONTH_FORMS = (
+    "2026年7月",
+    "2026-07",
+    "2026/07",
+    "2026.07",
+    "202607",
+    "115年7月",
+    "115/07",
+    "11507",
+)
+
+
+@pytest.mark.parametrize("written", SAME_MONTH_FORMS)
+def test_every_way_of_writing_one_month_lands_on_the_same_range(written: str) -> None:
+    entities = extract_entities(f"{written}台中#1平均出力")
+    assert entities.date_range == DateRange("2026-07-01", "2026-07-31"), written
+    assert entities.explicit_date is None, written
+
+
+def test_a_two_digit_year_is_not_guessed() -> None:
+    """「26/7/20」的 26 可能是年也可能是日。猜錯的代價是答案看起來完全正常。"""
+
+    entities = extract_entities("26/7/20台中#1的尖峰出力")
+    assert entities.explicit_date is None
+    assert entities.date_range is None
+    assert unparsed_date("26/7/20台中#1的尖峰出力", entities) == "26/7/20"
+
+
+def test_a_question_without_any_date_has_nothing_unparsed() -> None:
+    """沒提日期時退回完整期間是對的 —— 那條路不能被誤判成「看不懂」。"""
+
+    for question in ("台中#1最高出力", "大觀發電廠有哪些機組", "有哪些電廠"):
+        entities = extract_entities(question)
+        assert unparsed_date(question, entities) is None, question
+
+
+def test_the_unreadable_fragment_is_reported_whole() -> None:
+    """「2026年13月40日」回報成「看不懂 2026年」只會讓人去改對的那一半。"""
+
+    question = "2026年13月40日台中#1最高出力"
+    entities = extract_entities(question)
+    assert entities.date_range is None
+    assert unparsed_date(question, entities) == "2026年13月40日"

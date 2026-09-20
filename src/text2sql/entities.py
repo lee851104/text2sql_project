@@ -48,6 +48,13 @@ CHINESE_DIGITS = {
     "十": 10,
 }
 FULLWIDTH_DIGITS = str.maketrans("０１２３４５６７８９", "0123456789")
+# 日期分隔符。教材列的六種髒寫法裡就有 `114/05` —— 同一天的各種寫法必須落在同一個值。
+# 實測本專案原本只認「20xx 開頭配 - 或 /」，於是 `115/7/20`、`2026.7.20`、`2026-07`
+# 全部掉到最後一條「只認得年份」，變成**靜默查整年**：問一天拿到一年，畫面上沒有異狀。
+# 全形／與．一併收，因為中文輸入法很容易打出來（數字本身已由 FULLWIDTH_DIGITS 轉半形）。
+DATE_SEPARATOR = r"[-/.／．]"
+# 年份：西元四碼或民國三碼，由 _calendar_year() 統一換算。
+DATE_YEAR = r"20\d{2}|1\d{2}"
 NUMBER_TOKEN = r"[0-9零〇一二兩三四五六七八九十廿]+"
 
 
@@ -103,10 +110,19 @@ def extract_date_range(
     question = question.translate(FULLWIDTH_DIGITS)
     reference = reference_date or date.today()
 
-    iso = re.search(r"(20\d{2})[-/](\d{1,2})[-/](\d{1,2})", question)
-    compact = re.search(r"(?<!\d)(20\d{2})(\d{2})(\d{2})(?!\d)", question)
-    if match := (iso or compact):
-        return _day_range(*(int(part) for part in match.groups()))
+    separated = re.search(
+        rf"(?<!\d)({DATE_YEAR})\s*{DATE_SEPARATOR}\s*(\d{{1,2}})"
+        rf"\s*{DATE_SEPARATOR}\s*(\d{{1,2}})(?!\d)",
+        question,
+    )
+    # 空白分隔。原本只開放西元四碼，理由是「民國三碼配空白與一般數字難分辨」—— 那是
+    # 推測。實測四份題庫 185 題沒有任何誤判，而不收的代價很具體：「115 7 20」會被下面
+    # 「只認得年份」那條抓成民國 115 年整年，又是一次靜默擴大。
+    spaced = re.search(rf"(?<!\d)({DATE_YEAR})\s+(\d{{1,2}})\s+(\d{{1,2}})(?!\d)", question)
+    compact = re.search(r"(?<!\d)(20\d{2}|1\d{2})(\d{2})(\d{2})(?!\d)", question)
+    if match := (separated or spaced or compact):
+        year, month, day = match.groups()
+        return _day_range(_calendar_year(year), int(month), int(day))
 
     absolute_day = re.search(
         rf"(\d{{3,4}})\s*年\s*({NUMBER_TOKEN})\s*月\s*({NUMBER_TOKEN})\s*日", question
@@ -142,6 +158,19 @@ def extract_date_range(
         if month == 0:
             year, month = year - 1, 12
         return _month_range(year, month)
+
+    # 純數字的年月：`2026-07`、`115/07`、`202607`、`11507`。少了這段，它們會掉到下面
+    # 「只認得年份」那條，靜默擴大成整年。
+    numeric_month = re.search(
+        rf"(?<!\d)({DATE_YEAR})\s*{DATE_SEPARATOR}\s*(\d{{1,2}})(?!\d)", question
+    )
+    if numeric_month:
+        year, month = numeric_month.groups()
+        return _month_range(_calendar_year(year), int(month))
+    compact_month = re.search(r"(?<!\d)(20\d{2}|1\d{2})(\d{2})(?!\d)", question)
+    if compact_month:
+        year, month = compact_month.groups()
+        return _month_range(_calendar_year(year), int(month))
 
     explicit_year = re.search(r"(?<!\d)(20\d{2}|1\d{2})\s*年?", question)
     relation = re.search(r"(今年|去年)", question)
@@ -190,6 +219,36 @@ def extract_top_n(question: str) -> int | None:
             question,
         )
     return _number(match.group(1)) if match else None
+
+
+# 看起來在指定日期、卻解析不出來的片段。這件事必須與「根本沒提日期」分開：
+# 後者退回完整資料範圍是對的（「台中#1最高出力」問的就是全部期間），前者退回完整範圍
+# 就成了**靜默擴大** —— 實測「2026.7.20台中#1最高出力」會查 2026-01-01～2026-07-31
+# 並且照樣回答成功，使用者問一天卻拿到一整年，畫面上沒有任何異狀。
+# 由長到短：訊息要指到真正看不懂的那一段。「2026年13月40日」回報成「看不懂 2026年」
+# 只會讓人去改對的那一半。
+DATE_LIKE_PATTERNS: tuple[str, ...] = (
+    r"\d{1,4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日?",
+    r"\d{1,4}\s*年\s*\d{1,2}\s*月",
+    r"\d{1,2}\s*月\s*\d{1,2}\s*日?",
+    rf"\d{{1,4}}\s*{DATE_SEPARATOR}\s*\d{{1,2}}\s*{DATE_SEPARATOR}\s*\d{{1,2}}",
+    r"\d{1,4}\s+\d{1,2}\s+\d{1,2}",
+    r"\d{1,4}\s*年",
+    r"\d{1,2}\s*月",
+    r"\d{1,2}\s*日(?!期)",
+)
+
+
+def unparsed_date(question: str, entities: Entities) -> str | None:
+    """Return the date-looking fragment this question has but the parser could not read."""
+
+    if entities.explicit_date is not None or entities.date_range is not None:
+        return None
+    normalized = question.translate(FULLWIDTH_DIGITS)
+    for pattern in DATE_LIKE_PATTERNS:
+        if match := re.search(pattern, normalized):
+            return match.group(0).strip()
+    return None
 
 
 def extract_entities(question: str, *, reference_date: date | None = None) -> Entities:

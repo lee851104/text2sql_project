@@ -332,3 +332,41 @@ def test_the_new_patterns_do_not_take_any_benchmark_question(
             if decision.code == "SYSTEM_STATUS_QUESTION":
                 taken.append(question)
     assert taken == []
+
+
+@pytest.mark.parametrize(
+    "question",
+    (
+        "26/7/20台中#1最高出力",
+        "2026年13月40日台中#1最高出力",
+        "13月5日台中#1最高出力",
+    ),
+)
+def test_a_date_we_cannot_read_is_asked_about_not_ignored(
+    semantic_guard: SemanticGuard, question: str
+) -> None:
+    """忽略看不懂的日期不會報錯，只會回整段期間的答案 —— 使用者問一天卻拿到一整年。"""
+
+    decision = semantic_guard.check_question(question, extract_entities(question))
+    assert decision.code == "UNPARSED_DATE"
+    assert decision.severity == "clarify"
+    assert decision.suggestions, "要給得出正確格式長什麼樣"
+
+
+@pytest.mark.parametrize(
+    "question",
+    (
+        "台中#1最高出力",
+        "台中#1在2025年的最高出力",
+        "2026年7月20日台中#1的尖峰出力",
+        "115/7/20台中#1的尖峰出力",
+        "有哪些電廠",
+    ),
+)
+def test_a_readable_or_absent_date_is_left_alone(
+    semantic_guard: SemanticGuard, question: str
+) -> None:
+    """讀得懂的、以及根本沒提日期的，都不該被這條攔下。"""
+
+    decision = semantic_guard.check_question(question, extract_entities(question))
+    assert decision.code != "UNPARSED_DATE", question
