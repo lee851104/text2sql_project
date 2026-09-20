@@ -11,10 +11,10 @@ from typing import Any, Protocol
 
 from text2sql.corpus import load_corpus
 from text2sql.entities import Entities, extract_entities
-from text2sql.llm import GeneratedQuery, LLMProtocol, parse_generated_query
+from text2sql.llm import GeneratedQuery, LLMProtocol, is_unavailable, parse_generated_query
 from text2sql.prompt import build_prompt
 from text2sql.retriever import TfidfRetriever
-from text2sql.router import route, suggest_scope_question
+from text2sql.router import missing_parameter_clarification, route, suggest_scope_question
 from text2sql.scope_guard import ScopeError, ScopeGuard
 from text2sql.semantic_guard import SemanticDecision
 from text2sql.sql_guard import SqlGuard, SqlGuardResult
@@ -179,6 +179,7 @@ class Text2SQLPipeline:
             )
 
         prior_error: str | None = None
+        unavailable: str | None = None
         attempts = 1 if routed.sql else self.max_attempts
         for attempt in range(1, attempts + 1):
             source = "router" if routed.sql else "llm"
@@ -207,6 +208,12 @@ class Text2SQLPipeline:
                             severity="error",
                             evidence={"attempts": attempt, "last_error": prior_error},
                         )
+                    if is_unavailable(error):
+                        # 服務不通，拿同一個 prompt 再問兩次只會讓使用者多等兩輪逾時。
+                        # 但離線做得到的事還是要做完 —— 缺參數反問與近似問法建議都在
+                        # 迴圈後面，LLM 掛掉的時候它們正好是最有用的那一段。
+                        unavailable = str(error)
+                        break
                     continue
                 self._trace(trace, "generate", started, attempt=attempt)
 
@@ -286,6 +293,24 @@ class Text2SQLPipeline:
         # 最後一步：與其只回「未能通過驗證與執行」，不如問一句。這一層放在這裡而不是
         # 放在意圖分類，是因為相似度本身分不開 —— 會被它偷走的題目，到這裡早就被更具
         # 體的規則接走了。線上模式同理：LLM 答得出來就走不到這裡。
+        missing = missing_parameter_clarification(
+            question,
+            entities,
+            peak_columns=self.peak_columns,
+            plants=self.plants,
+            data_range=self.data_range,
+        )
+        if missing is not None:
+            return PipelineResponse(
+                False,
+                data={"trace": trace},
+                error_code="MISSING_PARAMETER",
+                error=missing.reason,
+                severity="clarify",
+                suggestions=(missing.suggestion,),
+                evidence={"missing": missing.missing, "attempts": attempts},
+            )
+
         suggestion = suggest_scope_question(question)
         if suggestion is not None:
             return PipelineResponse(
@@ -296,6 +321,17 @@ class Text2SQLPipeline:
                 severity="clarify",
                 suggestions=(suggestion,),
                 evidence={"attempts": attempts, "last_error": prior_error},
+            )
+
+        if unavailable is not None:
+            return PipelineResponse(
+                False,
+                data={"trace": trace},
+                error_code="LLM_UNAVAILABLE",
+                error="線上生成這次用不了，而這一題需要它才答得出來。"
+                "規則接得住的問題不受影響，可以先換一個具體一點的問法。",
+                severity="error",
+                evidence={"reason": unavailable, "attempts": attempt},
             )
 
         return PipelineResponse(

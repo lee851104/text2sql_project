@@ -8,7 +8,7 @@ from functools import lru_cache
 
 from align.naming import chinese_number
 from text2sql.aliases import resolve_peak_column, resolve_peak_columns, resolve_plant
-from text2sql.entities import Entities
+from text2sql.entities import Entities, compact_question
 from text2sql.retriever import TfidfRetriever
 
 
@@ -71,38 +71,98 @@ def data_scope_topic(question: str) -> str | None:
     東西，應該交給既有意圖處理。
     """
 
-    compact = re.sub(r"\s+", "", question).strip(_SCOPE_TRAILING)
+    compact = compact_question(question).strip(_SCOPE_TRAILING)
     for topic, accepted in DATA_SCOPE_QUESTIONS.items():
         if compact in accepted:
             return topic
     return None
 
 
+# 已接受問法之外唯一可以出現的字。這是**白名單**，因為贅字的集合小而穩定，限定詞的
+# 集合是開放的 —— 燃料、地區、電廠名、年份，寫不完。任何沒列到的字都當成實質限定詞。
+#
+# 為什麼非這樣不可：實測「火力電廠有哪些」與「水力電廠有哪些」都是「電廠有哪些」的子
+# 序列，兩句都回同一份全部 22 座電廠的清單。同樣被吞掉的還有地區、電廠名與年份 ——
+# 16 種限定詞乘 6 種問法，96 種組合全部誤接，而且畫面上沒有任何異狀。
+_SCOPE_FILLER = frozenset(
+    "目前現在請問我想知道總共一共到底為止呢嗎吧啊喔的了資料庫裡面列出顯示幫查看一下"
+)
+
+
+# v_unit 的「燃料」只有這五個值：水、煤、天然氣、重油、輕柴油。「火力」是上層分類，
+# 資料裡沒有這個值，必須展開成組成它的燃料。
+#
+# 核能、風力、太陽能、地熱刻意不列。核能機組另有 taipower_align/nuclear_units.csv，
+# 但沒有進機組主檔；再生能源場站在 v_re_generation。給它們一份空清單會回一張空表，
+# 看起來像「沒有核能電廠」—— 那是另一種騙人，寧可讓它走到誠實答不出來那條路。
+FUEL_GROUPS: dict[str, tuple[str, ...]] = {
+    "火力": ("天然氣", "煤", "輕柴油", "重油"),
+    "水力": ("水",),
+    "燃煤": ("煤",),
+    "燃氣": ("天然氣",),
+    "天然氣": ("天然氣",),
+    "重油": ("重油",),
+    "輕柴油": ("輕柴油",),
+}
+
+_PLANT_LIST_WORDS = ("有哪些", "哪些", "清單", "列出", "幾座", "幾間", "哪幾")
+# 問到這些就不是在問電廠清單，而是機組、容量或出力 —— 那些有自己的 handler。
+_NOT_A_PLANT_LIST = ("機組", "設備", "容量", "出力", "發電量", "幾台", "台數")
+
+
+def fuels_in_question(question: str) -> tuple[str, ...]:
+    """問句限定的燃料，展開成 v_unit 實際存在的值。沒有限定或資料沒有就回空 tuple。"""
+
+    selected: list[str] = []
+    for word, fuels in FUEL_GROUPS.items():
+        if word in question:
+            selected.extend(fuel for fuel in fuels if fuel not in selected)
+    return tuple(selected)
+
+
+def _wants_plant_list(question: str) -> bool:
+    if any(word in question for word in _NOT_A_PLANT_LIST):
+        return False
+    return "廠" in question and any(word in question for word in _PLANT_LIST_WORDS)
+
+
+def _subsequence_remainder(needle: str, haystack: str) -> str | None:
+    """``needle`` 是 ``haystack`` 的子序列時回傳剩下的字，否則回 ``None``。"""
+
+    remainder: list[str] = []
+    iterator = iter(needle)
+    want = next(iterator, None)
+    for char in haystack:
+        if want is not None and char == want:
+            want = next(iterator, None)
+        else:
+            remainder.append(char)
+    return None if want is not None else "".join(remainder)
+
+
 def _is_subsequence(needle: str, haystack: str) -> bool:
     """``needle`` 的每個字依序出現在 ``haystack`` 裡，不必相鄰。"""
 
-    iterator = iter(haystack)
-    return all(char in iterator for char in needle)
+    return _subsequence_remainder(needle, haystack) is not None
 
 
 def nearest_scope_topic(question: str) -> str | None:
-    """Return the scope topic whose accepted form is a subsequence of ``question``.
+    """Return the scope topic this question is an unqualified variant of.
 
-    接住「目前有哪些電廠」這種只多了贅字的問法，不必維護一份贅字清單。
-
-    **這個比對本身不安全**：「大觀發電廠有哪些設備」同樣包含「發電廠有哪些」這個子
-    序列。安全性來自呼叫端 —— 它是 ``classify_intent`` 的**最後一條**規則，那些題目
-    在上游就被更具體的規則接走了。把它往前搬會讓離線執行率再掉一次，
-    ``tests/test_data_discovery.py`` 有成對的測試釘住這件事。
+    接住「目前有哪些電廠」這種只多了贅字的問法，但**多出來的字必須全部是贅字**。
+    帶了燃料、地區、電廠名或年份就不是範圍問句 —— 那是在問一個更窄的問題，回一份沒有
+    篩選的清單等於給錯答案，而使用者看不出來。
 
     同一句話命中多個主題時回 ``None``：分不出要問什麼就不要猜。
     """
 
-    compact = re.sub(r"\s+", "", question).strip(_SCOPE_TRAILING)
+    compact = compact_question(question).strip(_SCOPE_TRAILING)
     topics = {
         topic
         for topic, accepted in DATA_SCOPE_QUESTIONS.items()
-        if any(_is_subsequence(form, compact) for form in accepted)
+        for form in accepted
+        if (remainder := _subsequence_remainder(form, compact)) is not None
+        and set(remainder) <= _SCOPE_FILLER
     }
     return topics.pop() if len(topics) == 1 else None
 
@@ -135,13 +195,121 @@ def suggest_scope_question(question: str) -> str | None:
     所以給得出一個夠接近的問法就是淨賺。給不出來就維持原樣，不硬湊。
     """
 
-    compact = re.sub(r"\s+", "", question).strip(_SCOPE_TRAILING)
+    compact = compact_question(question).strip(_SCOPE_TRAILING)
     if not compact:
+        return None
+    # 只是「某個範圍問句 + 限定詞」的話，不要建議 —— 建議會把限定詞弄丟，而弄丟之後
+    # 的答案完全不同。「核能電廠有哪些」最接近的是「有哪些電廠」，點下去拿到全部 22 座
+    # 火水力電廠，看起來完全正常。答不出來就說答不出來，比推一個錯答案好。
+    if any(
+        _is_subsequence(form, compact)
+        for accepted in DATA_SCOPE_QUESTIONS.values()
+        for form in accepted
+    ):
         return None
     best = _scope_retriever().retrieve(compact, top_k=1)
     if not best or best[0].score < SCOPE_SUGGESTION_THRESHOLD:
         return None
     return str(best[0].example["question"])
+
+
+@dataclass(frozen=True)
+class MissingParameter:
+    """意圖明確、但問句少了執行查詢非有不可的那個條件。"""
+
+    missing: str
+    reason: str
+    suggestion: str
+
+
+def _example_date(data_range: tuple[str, str] | None) -> str:
+    """建議問法裡的日期取資料實際涵蓋的最後一天，不要寫死一個查無資料的日期。"""
+
+    end = data_range[1] if data_range else "2026-07-31"
+    year, month, day = end.split("-")
+    return f"{year}年{int(month)}月{int(day)}日"
+
+
+def missing_parameter_clarification(
+    question: str,
+    entities: Entities,
+    *,
+    peak_columns: set[str],
+    plants: set[str],
+    data_range: tuple[str, str] | None = None,
+) -> MissingParameter | None:
+    """問句缺了哪個必要條件？答得出來的題目不會走到這裡。
+
+    ★ 為什麼是反問而不是交給模型猜
+      「某天機組尖峰功率排行榜」沒有說是哪一天。任何模型都推不出那個日期，能做的只有
+      挑一天，然後回一張看起來完全正常的表 —— 使用者不會發現那不是他要的那天。課程
+      第 7 章講的就是這件事：猜錯的代價是畫面上什麼異狀都沒有。
+
+    ★ 為什麼放在管線的最後一步
+      與 ``suggest_scope_question`` 同一層。走到這裡表示規則沒接、線上模型也沒生出
+      能過守門的 SQL，所以**不可能**從任何 handler 手上搶題目。安全靠順序，不靠把
+      判斷寫得多精準。
+    """
+
+    intent = classify_intent(question)
+    dated = entities.explicit_date is not None or entities.date_range is not None
+    unit = resolve_peak_column(question, peak_columns)
+    units = resolve_peak_columns(question, peak_columns)
+    named_unit = unit.value or (units[0] if units else None)
+    plant = resolve_plant(question, plants)
+    example_day = _example_date(data_range)
+
+    if intent == "comparison" and len(units) < 2:
+        return MissingParameter(
+            "units",
+            "比較需要兩個對象，這句只認得出"
+            + (f"「{named_unit}」一個。" if named_unit else "零個。"),
+            "比較台中#1和台中#2的平均出力",
+        )
+
+    if intent in {"unit_day", "unit_extreme", "zero_days"} and named_unit is None:
+        return MissingParameter(
+            "unit",
+            "這句沒有指名是哪一部機組。",
+            {
+                "unit_day": f"{example_day}台中#1的出力",
+                "unit_extreme": "台中#1在2025年的最高出力",
+                "zero_days": "台中#1在2025年尖峰出力等於零的天數",
+            }[intent],
+        )
+
+    if intent == "unit_day" and not dated:
+        return MissingParameter(
+            "date",
+            f"知道你要問「{named_unit}」，但沒有說是哪一天。",
+            f"{example_day}{named_unit}的出力",
+        )
+
+    if intent == "daily_ranking" and not dated:
+        return MissingParameter(
+            "date",
+            "排名要先指定是哪一天的排名。",
+            f"{example_day}機組尖峰出力排行",
+        )
+
+    if intent == "plant_units" and plant.value is None and not plant.ambiguous:
+        return MissingParameter(
+            "plant",
+            "這句沒有指名是哪一座電廠。",
+            "大觀發電廠有哪些機組",
+        )
+
+    if intent == "system_metric" and _system_metric(question) is None:
+        return MissingParameter(
+            "metric",
+            "沒有說是哪一個系統指標。",
+            "2025年系統尖峰負載最高是多少",
+        )
+
+    # outage 刻意不反問。實測那幾題是「哪一些機組目前維修中」「列出日期有效的歲修」——
+    # 要的是清單，不是某一部機組，反問「請指定機組」等於把人推往錯的方向。這類缺的是
+    # 規則而不是參數，誠實回答不會比較丟臉。
+    return None
 
 
 def classify_intent(question: str) -> str:
@@ -786,5 +954,18 @@ def route(
                     'ORDER BY "日期" DESC LIMIT 200',
                     (plant.value, *params),
                 )
+
+    # 燃料別限定的電廠清單。原本「火力電廠有哪些」會被近似比對當成「電廠有哪些」，回
+    # 全部 22 座 —— 火力與水力拿到同一份答案，而畫面上沒有任何異狀。擋掉誤接之後在這裡
+    # 真的答出來：火力 11 座、水力 11 座，兩份清單完全不重疊。
+    fuels = fuels_in_question(question)
+    if fuels and _wants_plant_list(question):
+        placeholders = ", ".join("?" * len(fuels))
+        return RoutedQuery(
+            intent,
+            f'SELECT DISTINCT "電廠" FROM v_unit WHERE "燃料" IN ({placeholders}) '
+            'ORDER BY "電廠" LIMIT 200',
+            fuels,
+        )
 
     return RoutedQuery(intent)

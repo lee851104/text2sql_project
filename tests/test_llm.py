@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from text2sql.llm import OpenAILLM
+from text2sql.llm import DisabledLLM, LLMUnavailableError, OpenAILLM, is_unavailable
 
 
 def test_openai_adapter_uses_bounded_client_without_nested_sdk_retries(
@@ -55,3 +55,26 @@ def test_openai_adapter_uses_bounded_client_without_nested_sdk_retries(
 def test_openai_adapter_rejects_non_positive_timeout() -> None:
     with pytest.raises(ValueError, match="timeout_seconds"):
         OpenAILLM(api_key="sk-test", timeout_seconds=0)
+
+
+def test_disabled_llm_reports_unavailability_rather_than_a_generic_failure() -> None:
+    with pytest.raises(LLMUnavailableError):
+        DisabledLLM().generate("任何 prompt")
+
+
+@pytest.mark.parametrize(
+    ("name", "unavailable"),
+    (
+        ("APIConnectionError", True),
+        ("APITimeoutError", True),
+        ("RateLimitError", True),
+        ("InternalServerError", True),
+        ("AuthenticationError", False),
+        ("ValueError", False),
+    ),
+)
+def test_service_outages_are_told_apart_from_a_bad_answer(name: str, unavailable: bool) -> None:
+    """「連不上」與「答得不好」要分得開：前者不該重試，後者該。"""
+
+    assert is_unavailable(type(name, (Exception,), {})("simulated")) is unavailable
+    assert is_unavailable(LLMUnavailableError("未啟用")) is True

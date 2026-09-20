@@ -15,6 +15,20 @@
 7. SQL 層語意守門。
 8. 透過注入的 `run_sql` 唯讀執行，失敗才進入下一次重生。
 
+## 答不出來的時候
+
+規則沒接、模型也生不出能過守門的 SQL 時，依序再試三件事，全部落空才回報失敗：
+
+1. **缺參數就反問**（`MISSING_PARAMETER`，`severity=clarify`）。「某天機組尖峰功率排行榜」沒有說是哪一天，任何模型都推不出那個日期，能做的只有挑一天然後回一張看起來完全正常的表。`evidence.missing` 標明缺的是 `date`／`unit`／`units`／`plant`／`metric`，`suggestions` 給一句可以直接照用的問法。
+2. **近似問法建議**（`DATA_SCOPE_NEAR_MATCH`）。
+3. **線上生成不可用**（`LLM_UNAVAILABLE`）。連不上、逾時、額度用盡或未設定 key 時，只呼叫一次就停 —— 重問同一句不會有不同結果。這與 `GENERATION_FAILED`（模型有回答、只是答不好，會重試到上限）是兩回事，必須分得開：前者請使用者稍後再試，後者請他換個問法。
+
+這一層放在最後而不是放在意圖分類，是因為走到這裡就表示沒有任何 handler 認領這句話，**不可能**從既有規則或線上模型手上搶題目。安全靠順序，不靠把判斷寫得多精準。
+
+## 後設問句
+
+問「這裡有什麼資料」與問「服務現在是什麼狀態」都沒有對應的 SQL，在問句守門就澄清：前者 `DATA_SCOPE_QUESTION` 指向 `/api/coverage`，後者 `SYSTEM_STATUS_QUESTION` 指向 `/api/health`。比對前先經 `compact_question()` 去空白並統一異體字（「甚麼」→「什麼」），否則同一句話會因為一個字形而走上完全不同的路。
+
 ## SQL 安全契約
 
 - 單一 `SELECT`，不允許註解、多敘述、CTE、DDL、DML、`ATTACH`、`PRAGMA` 或危險函式。
@@ -24,7 +38,7 @@
 
 ## LLM adapter
 
-`FakeLLM` 用於離線 CI 與重試測試。`OpenAILLM` 使用 OpenAI Responses API 的 JSON Schema Structured Outputs；需安裝 `online` extra，而且必須有 `OPENAI_API_KEY`。缺 key 時明確報錯，不會自動 fallback。
+`FakeLLM` 用於離線 CI 與重試測試。`OpenAILLM` 使用 OpenAI Responses API 的 JSON Schema Structured Outputs；需安裝 `online` extra，而且必須有 `OPENAI_API_KEY`。缺 key 時由 `DisabledLLM` 拋 `LLMUnavailableError`，管線回 `LLM_UNAVAILABLE`，不會自動改用 `FakeLLM` 假裝在用真實模型。
 
 ## Trace
 
