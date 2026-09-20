@@ -566,19 +566,46 @@ class RawDataService:
 
     @classmethod
     def _read_xml(cls, handle: BinaryIO, *, search: str, limit: int, offset: int) -> dict[str, Any]:
+        """Stream XML rows, filtering by `search` before the read limit applies.
+
+        先前的順序是「先讀滿 offset + limit + 1 筆就停，再交給 `_records_result` 過濾」，
+        於是符合搜尋詞的記錄只要排在那個位置之後就永遠讀不到：三筆資料、第三筆才符合、
+        limit=1 時回的是空結果。而且它不報錯 —— 使用者看到的是「查無資料」，
+        和真的沒有這筆資料分不出來。
+
+        `_read_csv` 與 `_read_json` 的順序本來就是對的：先過濾、再跳 offset、
+        最後才看夠不夠 limit。這裡照同一個順序，也保留 iterparse 的串流讀法。
+        """
+
+        needle = search.casefold()
         records: list[dict[str, Any]] = []
+        matched = 0
+        has_more = False
         for _event, element in ElementTree.iterparse(handle, events=("end",)):
             children = list(element)
-            if children and all(not list(child) for child in children):
-                record = {str(key): value for key, value in element.attrib.items()}
-                for child in children:
-                    record[str(child.tag).split("}")[-1]] = (child.text or "").strip()
-                if any(value not in (None, "") for value in record.values()):
-                    records.append(record)
-                    if len(records) >= offset + limit + 1:
-                        break
-                element.clear()
-        return cls._records_result(records, search=search, limit=limit, offset=offset)
+            if not (children and all(not list(child) for child in children)):
+                continue
+            record = {str(key): value for key, value in element.attrib.items()}
+            for child in children:
+                record[str(child.tag).split("}")[-1]] = (child.text or "").strip()
+            element.clear()
+            if not any(value not in (None, "") for value in record.values()):
+                continue
+            if needle and needle not in " ".join(map(str, record.values())).casefold():
+                continue
+            if matched < offset:
+                matched += 1
+                continue
+            if len(records) >= limit:
+                has_more = True
+                break
+            records.append(record)
+            matched += 1
+        # 過濾與分頁都已經在上面做完，所以這裡不再傳 search／offset，
+        # 與 `_read_json_array_stream` 的收尾方式一致。
+        result = cls._records_result(records, search="", limit=limit, offset=0)
+        result["has_more"] = has_more
+        return result
 
     @classmethod
     def _records_result(
