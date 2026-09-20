@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -9,6 +10,7 @@ import text2sql.corpus_builder as corpus_builder
 from text2sql.corpus import (
     DEFAULT_NGRAM_RANGE,
     build_index,
+    column_values,
     load_corpus,
     ngram_range,
     normalize_question,
@@ -300,3 +302,74 @@ def test_the_index_records_how_it_was_cut(tmp_path: Path) -> None:
     assert {len(gram) for gram in three["documents"][0]["ngrams"]} == {3}
     assert {len(gram) for gram in wide["documents"][0]["ngrams"]} == {2, 3, 4}
     assert three["documents"] != wide["documents"], "設定不同就該切出不同的索引"
+
+
+# ── 封閉集合欄位的偵測：哪些欄位的值該寫進 prompt ──────────────────────
+
+
+def _fake_sql(tables: dict[str, list[object]]):
+    """假的 run_sql：照 view.column 給值，並尊重 LIMIT。"""
+
+    pattern = re.compile(r'SELECT DISTINCT "(.+)" FROM (\w+) LIMIT (\d+)')
+
+    def run(sql: str, params: tuple[object, ...]):
+        del params
+        match = pattern.match(sql)
+        assert match, sql
+        column, view, limit = match.group(1), match.group(2), int(match.group(3))
+        values = tables.get(f"{view}.{column}", [])
+        return [column], [(value,) for value in values[:limit]]
+
+    return run
+
+
+def test_closed_text_columns_are_collected() -> None:
+    run = _fake_sql({"v_unit.燃料": ["水", "重油", "天然氣", "輕柴油", "煤"]})
+
+    assert column_values(run, {"v_unit": ["燃料"]}) == {
+        "v_unit.燃料": ["水", "重油", "天然氣", "輕柴油", "煤"]
+    }
+
+
+def test_a_column_with_too_many_values_is_not_an_enum() -> None:
+    """多取一筆就是為了分辨「剛好 25 個」與「至少 26 個」—— 後者是資料，不是列舉。"""
+
+    run = _fake_sql({"v_peak.日期": [f"2026-01-{day:02d}" for day in range(1, 40)]})
+
+    assert column_values(run, {"v_peak": ["日期"]}, max_values=25) == {}
+
+
+def test_numeric_columns_are_skipped() -> None:
+    """列舉數字對模型沒有幫助，只會佔掉注意力。"""
+
+    run = _fake_sql({"v_re_generation.月份": [str(month) for month in range(1, 13)]})
+
+    assert column_values(run, {"v_re_generation": ["月份"]}) == {}
+
+
+def test_long_identifier_columns_are_skipped() -> None:
+    values = [f"realtime:和平#{n}@0762068123{n:02d}" for n in range(12)]
+
+    run = _fake_sql({"v_peak.容量來源": values})
+
+    assert column_values(run, {"v_peak": ["容量來源"]}, max_chars=100) == {}
+
+
+def test_one_unreadable_column_does_not_sink_the_whole_prompt() -> None:
+    """快照與 allowlist 不同步時少列一欄，不要讓整個 prompt 組不出來。"""
+
+    def run(sql: str, params: tuple[object, ...]):
+        del params
+        if "壞掉的欄位" in sql:
+            raise RuntimeError("no such column")
+        return ["燃料"], [("煤",), ("天然氣",)]
+
+    assert column_values(run, {"v_unit": ["燃料", "壞掉的欄位"]}) == {
+        "v_unit.燃料": ["煤", "天然氣"]
+    }
+
+
+def test_blank_values_do_not_become_an_enum() -> None:
+    run = _fake_sql({"v_outage.原因": ["", "   ", None]})
+
+    assert column_values(run, {"v_outage": ["原因"]}) == {}

@@ -1,6 +1,6 @@
 # 線上生成要打哪一家。值必須是 providers 底下的一個鍵，填別的會在建 runtime 時就失敗，
 # 不會默默退回某個預設 —— 打錯 provider 名字而服務照常啟動是最難查的那種錯。
-provider: openai
+provider: gmi
 
 max_attempts: 3
 request_timeout_seconds: 30

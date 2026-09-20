@@ -180,3 +180,13 @@
 - `GET /api/examples`：已審核的範例問句。
 
 空問題、超過長度、額外 JSON 欄位、不合法 enum、非 JSON，或 `limit` 超出範圍時使用 FastAPI 422；422 的 detail 不反射原始 `input`，避免 malformed API key 或問句出現在錯誤回應。資料庫或語料學習工作區未就緒時使用 503。所有回應附加 CSP、`nosniff`、`DENY` frame 與 no-referrer headers。
+
+### 執行環境錯誤訊息的揭露範圍
+
+`PUT /api/runtime/llm` 失敗時，只有**講設定檔而非內部狀態**的訊息會原樣回傳：缺 API key（訊息帶上該 provider 的環境變數名，例如 `GMI_API_KEY`）、provider 名稱不在 `providers` 裡、以及 online 套件未安裝。其餘一律換成一句通用訊息，避免連線字串、憑證片段或內部例外外流。
+
+放行這兩類是刻意的：它們正是操作者最需要當場看懂的兩件事，遮掉會讓「你沒設 key」和「provider 名字打錯」變成同一句沒有指向性的錯誤。
+
+### 查詢結果的資料出處
+
+`POST /api/query` 成功時，`data.data_provenance` 附上該次查詢用到的來源檔。作用中快照缺少某個 slot 時（版本 id 不含 schema 版本，見 `docs/SPEC.md` 的「已知待修」），該筆出處會**略過而不是捏造**，`data_sources` 可能因此是空陣列。查詢結果本身不受影響 —— 出處是補充說明，不該讓一個已經成功的查詢失敗。

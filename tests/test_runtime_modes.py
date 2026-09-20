@@ -39,6 +39,29 @@ def database(tmp_path_factory: pytest.TempPathFactory) -> Path:
     return path
 
 
+@pytest.fixture(autouse=True)
+def pin_provider(monkeypatch: pytest.MonkeyPatch) -> None:
+    """把 `build_runtime` 讀到的 provider 釘成 openai。
+
+    這個檔案大半在驗 runtime 的機制 —— 模式切換、憑證來源、快取失效、key 輪替 ——
+    與使用者選了哪一家無關。不釘住的話，只要有人把 `configs/llm.yaml` 改成別家，
+    這些測試就會整批紅：憑證改讀另一個環境變數、預設模型換成另一個名字。
+    那是設定變了，不是程式壞了，讓它染紅會蓋掉真正的迴歸。
+
+    專門驗 provider 切換的那幾筆自己讀設定檔，不經過這裡。
+    """
+
+    original = runtime_module._yaml
+
+    def pinned(path: Path) -> dict[str, object]:
+        config = original(path)
+        if path.name == "llm.yaml":
+            return {**config, "provider": "openai"}
+        return config
+
+    monkeypatch.setattr(runtime_module, "_yaml", pinned)
+
+
 def test_build_runtime_offline_ignores_environment_key(
     database: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

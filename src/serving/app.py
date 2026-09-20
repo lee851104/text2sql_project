@@ -54,11 +54,20 @@ from serving.query_log import QueryErrorLog
 from serving.raw_data import RawDataError, RawDataNotFoundError, RawDataService
 from serving.runtime import RuntimeManager, RuntimeMode, ServiceRuntime
 
+# 這幾句不含內部細節，可以原樣回給前端；其餘一律換成通用訊息。
 SAFE_RUNTIME_ERRORS = {
     "線上模式尚未設定 API key。",
     "線上模式需要 API key；請在記憶體設定或使用 OPENAI_API_KEY。",
     "請先執行 `uv sync --extra online`。",
 }
+# provider 可設定之後，這兩類訊息尾端會帶上設定內容（環境變數名、可用的 provider 清單），
+# 不再是固定字串，用整句比對會漏掉。它們講的是設定檔而不是內部狀態，所以整句仍可外流 ——
+# 漏掉的代價是「你沒設 key」與「provider 名字打錯」都被遮成一句沒有指向性的通用錯誤，
+# 而那兩件事正是最需要當場說清楚的。
+SAFE_RUNTIME_ERROR_PREFIXES = (
+    "線上模式需要 API key；",
+    "不支援的線上 provider：",
+)
 SWAGGER_UI_VERSION = "5.32.15"
 SWAGGER_UI_JS_SRI = "sha384-m7zaGj7MPzU+G4lz2eyy73GxK9bbRDr9bB2CSdj8wodg2wu/Wnt6wsoLP3JD+RS9"
 SWAGGER_UI_CSS_SRI = "sha384-fgyWYkUAamzuI8mJFu/xpRP0JWCJRwkwUwsYDoOYVHUJ8NQE5cENn8ib3ppwFFSX"
@@ -84,7 +93,9 @@ VIEW_SOURCE_SLOTS = {
 
 def _safe_runtime_error(error: Exception) -> str:
     message = str(error)
-    return message if message in SAFE_RUNTIME_ERRORS else GENERIC_RUNTIME_ERROR
+    if message in SAFE_RUNTIME_ERRORS or message.startswith(SAFE_RUNTIME_ERROR_PREFIXES):
+        return message
+    return GENERIC_RUNTIME_ERROR
 
 
 def _auth_http_error(error: AdminAuthError) -> HTTPException:
@@ -519,7 +530,14 @@ def create_app(
             selected_slots.update(VIEW_SOURCE_SLOTS.get(table, ()))
         sources = []
         for slot in sorted(selected_slots):
-            source = files[slot]
+            # 舊快照可能沒有後來才加的 slot —— 版本 id 只由來源內容雜湊決定、不含 schema
+            # 版本（見 SPEC「已知待修」與 CP-039），所以來源沒變時作用中快照會停在舊版。
+            # 那時 `files[slot]` 會 KeyError，而呼叫端的 except 沒接這一類，整個請求變成
+            # HTTP 500 —— 查詢其實已經成功了，炸掉的只是「資料從哪來」這段補充說明。
+            # 缺一筆出處就少列一筆，不要把答得出來的查詢一起拖垮。
+            source = files.get(slot)
+            if source is None:
+                continue
             if not isinstance(source, Mapping):
                 raise ValueError("作用中資料來源 snapshot 無效。")
             source_views = [
@@ -1339,7 +1357,9 @@ def create_app(
                 if data_snapshot is None:
                     raise ValueError("data snapshot unavailable")
                 provenance = data_provenance(tables, data_snapshot)
-            except (DataManagementError, HTTPException, OSError, ValueError):
+            # KeyError 也接住：出處是查詢結果的補充說明，組不出來就降級成「不明」，
+            # 不該讓一個已經成功的查詢變成 500。
+            except (DataManagementError, HTTPException, KeyError, OSError, ValueError):
                 provenance = {
                     "database_version": (
                         str(data_snapshot["version"])

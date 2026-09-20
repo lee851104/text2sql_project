@@ -259,3 +259,49 @@ def test_restart_rejects_mismatched_version_hash_before_building_runtime(
 
     assert response.status_code == 503
     assert restarted.state.runtime_manager is None
+
+
+def test_a_snapshot_missing_a_slot_degrades_provenance_instead_of_failing(
+    base_database: Path,
+    tmp_path: Path,
+) -> None:
+    """舊快照缺了後來才加的 slot 時，查詢仍要答得出來。
+
+    版本 id 只由來源內容雜湊決定、不含 schema 版本（SPEC「已知待修」與 CP-039），
+    所以來源沒變時作用中快照會停在舊版、少掉新加的 slot。實測它讓再生能源類問句
+    全部回 HTTP 500 —— 查詢其實成功了，炸掉的只是「資料從哪來」那段補充說明。
+    出處組不出來就少列一筆，不該把答得出來的查詢一起拖垮。
+    """
+
+    application = _application(base_database, tmp_path)
+
+    with TestClient(application) as client:
+        assert client.get("/api/stats").status_code == 200  # data manager 是延遲初始化的
+        manager = application.state.data_manager
+        available = set(manager.active_snapshot()["sources"])
+        assert not available & {"re_sites_csv", "re_generation_csv", "re_sites_supplement_csv"}, (
+            "這個測試的前提是快照缺再生能源那組 slot"
+        )
+
+        # 一、整組 slot 都不在快照裡 —— 使用者實際踩到的那個 500。
+        whole_view = client.post("/api/query", json={"question": "離岸風力的發電量"})
+
+        # 二、只缺其中一個 —— 其餘仍要列出來，不能因為一筆缺就整段放棄。
+        snapshot = dict(manager.active_snapshot())
+        partial = dict(snapshot["sources"])
+        partial.pop("units_csv", None)
+        snapshot["sources"] = partial
+        manager.active_snapshot = lambda: snapshot  # type: ignore[method-assign]
+        one_missing = client.post("/api/query", json={"question": "台中發電廠有哪些機組"})
+
+    assert whole_view.status_code == 200, whole_view.text
+    assert whole_view.json()["success"] is True
+    assert whole_view.json()["data"]["data_provenance"]["data_sources"] == [], (
+        "一個 slot 都對不上時列空的，不要憑空捏造出處"
+    )
+
+    assert one_missing.status_code == 200, one_missing.text
+    payload = one_missing.json()
+    assert payload["success"] is True
+    listed = {item["dataset"] for item in payload["data"]["data_provenance"]["data_sources"]}
+    assert "units_csv" not in listed, "缺的那一筆不該出現"

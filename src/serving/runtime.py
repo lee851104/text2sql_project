@@ -13,6 +13,7 @@ from typing import Any, Literal, cast
 import yaml
 
 from ingest.validate import PROJECT_ROOT
+from text2sql.corpus import column_values
 from text2sql.db import ReadOnlySQLite
 from text2sql.llm import DisabledLLM, OpenAILLM
 from text2sql.pipeline import Text2SQLPipeline
@@ -203,10 +204,13 @@ def build_runtime(
         else DisabledLLM()
     )
     ngram = retriever_config["character_ngram"]
+    sql_guard = SqlGuard(max_rows=int(guard_config["sql"]["max_rows"]))
     pipeline = Text2SQLPipeline(
         llm=llm,
-        sql_guard=SqlGuard(max_rows=int(guard_config["sql"]["max_rows"])),
+        sql_guard=sql_guard,
         run_sql=executor.execute,
+        # 封閉集合欄位的值跟著 allowlist 走：守門准查的欄位，才有必要讓模型知道值長什麼樣。
+        column_values=column_values(executor.execute, sql_guard.allowed_columns),
         corpus_path=root / "corpus/training_corpus.json",
         data_range=semantic_guard.data_range,
         peak_columns=peak_columns,
