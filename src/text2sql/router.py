@@ -8,7 +8,7 @@ from functools import lru_cache
 
 from align.naming import chinese_number
 from text2sql.aliases import resolve_peak_column, resolve_peak_columns, resolve_plant
-from text2sql.entities import Entities, compact_question
+from text2sql.entities import Entities, compact_question, extract_entities
 from text2sql.retriever import TfidfRetriever
 
 
@@ -312,7 +312,10 @@ def missing_parameter_clarification(
     return None
 
 
-def classify_intent(question: str) -> str:
+def classify_intent(question: str, entities: Entities | None = None) -> str:
+    """Route a question to one intent. ``entities`` avoids re-parsing when已經有了。"""
+
+    resolved = entities if entities is not None else extract_entities(question)
     question = re.sub(r"\s+", "", question)
     if "成本" in question:
         return "generation_cost"
@@ -419,13 +422,14 @@ def classify_intent(question: str) -> str:
     if any(word in question for word in system_words):
         return "system_metric"
 
-    explicit_day = bool(
-        re.search(r"20\d{2}[-/]\d{1,2}[-/]\d{1,2}", question)
-        or re.search(
-            r"(?:20\d{2}年|今年|去年)?[0-9一二三四五六七八九十]+月[0-9一二三四五六七八九十]+日",
-            question,
-        )
-        or any(word in question for word in ("某天", "指定日期", "指定日", "同一天"))
+    # 用 extract_entities 的結果，不要在這裡再寫一份日期 regex。
+    #
+    # 這裡原本自己認「20xx 配 - 或 /」與中文年月日，於是 CP-053 補齊日期格式之後出現
+    # 一個很難發現的半殘狀態：`115/7/20台中#1的尖峰出力` 的日期**解析對了**
+    # （explicit_date=2026-07-20），但意圖被判成 other，整句掉到 LLM。同一件事的判斷散
+    # 在兩個地方，補一邊沒補另一邊就會這樣。
+    explicit_day = resolved.explicit_date is not None or any(
+        word in question for word in ("某天", "指定日期", "指定日", "同一天")
     )
     unit_shape = any(
         word in question
@@ -572,7 +576,7 @@ def route(
     plants: set[str] | None = None,
     data_range: tuple[str, str] | None = None,
 ) -> RoutedQuery:
-    intent = classify_intent(question)
+    intent = classify_intent(question, entities)
     bounded_range = _bounded_range(entities, data_range)
 
     if intent == "generation_cost":
