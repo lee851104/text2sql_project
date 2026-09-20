@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from text2sql.entities import extract_entities
+from text2sql.generation_cost import aggregate_rows, wants_overview
 from text2sql.router import classify_intent, missing_parameter_clarification, route
 from text2sql.sql_guard import SqlGuard
 
@@ -279,3 +280,58 @@ def test_the_intent_uses_the_entities_it_is_given() -> None:
     question = "115/7/20台中#1的尖峰出力"
     assert classify_intent(question) == "unit_day"
     assert classify_intent(question, extract_entities(question)) == "unit_day"
+
+
+COST_OVERVIEW_QUESTIONS = (
+    "各種發電方式成本",
+    "2025年各種發電方式的成本",
+    "所有發電方式的成本",
+    "比較各種發電方式的成本",
+)
+
+
+@pytest.mark.parametrize("question", COST_OVERVIEW_QUESTIONS)
+def test_a_cost_overview_is_answered_without_the_aggregate_rows(question: str) -> None:
+    """問「各種」就是要一覽。原本一律回「請指定發電方式」—— 那要問十二次。"""
+
+    routed = _route(question)
+    assert routed.intent == "generation_cost"
+    assert routed.sql, question
+    assert "NOT IN" in routed.sql
+    assert set(aggregate_rows()) <= set(routed.params), "彙總列必須全部排除"
+    assert SqlGuard().validate(routed.sql, routed.params).allowed
+
+
+def test_the_excluded_rows_are_the_ones_that_would_be_misread() -> None:
+    """「火力發電」與燃煤／燃氣／燃油並列會被當成四種並列的發電方式。"""
+
+    excluded = set(aggregate_rows())
+    assert {"火力發電", "再生能源發電", "再生能源"} <= excluded, "上層分類要排除"
+    assert {"平均發購電成本", "自發電力小計", "購入電力小計"} <= excluded, "小計要排除"
+    assert "燃煤" not in excluded and "燃氣" not in excluded, "最細的明細不能排除"
+
+
+def test_asking_for_one_kind_of_cost_is_unchanged() -> None:
+    """指名去問單一種類（含被排除的彙總列）仍然答得出來。"""
+
+    for question in ("2025年火力發電成本是多少", "核能發電成本", "2025年平均發購電成本"):
+        routed = _route(question)
+        assert routed.sql, question
+        assert "NOT IN" not in routed.sql, question
+        assert SqlGuard().validate(routed.sql, routed.params).allowed
+
+
+def test_a_missing_hierarchy_config_falls_back_to_asking(tmp_path: Path) -> None:
+    """讀不到裁決就退回「請指定發電方式」—— 少列比把彙總和明細混在一起列出去好。"""
+
+    aggregate_rows.cache_clear()
+    try:
+        assert aggregate_rows(tmp_path) == ()
+    finally:
+        aggregate_rows.cache_clear()
+
+
+def test_overview_words_do_not_catch_a_single_kind() -> None:
+    assert wants_overview("各種發電方式成本")
+    assert not wants_overview("2025年火力發電成本是多少")
+    assert not wants_overview("核能發電成本")

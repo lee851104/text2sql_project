@@ -20,6 +20,7 @@ def test_required_configuration_files_are_valid_yaml() -> None:
         "guard.yaml",
         "accounts.example.yaml",
         "coverage.yaml",
+        "generation_cost.yaml",
     }
     # 名冊是每台機器自己的檔案（不進版控），存在與否都不該影響這個清單檢查。
     local_only = {"accounts.yaml"}

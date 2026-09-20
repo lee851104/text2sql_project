@@ -370,3 +370,29 @@ def test_a_readable_or_absent_date_is_left_alone(
 
     decision = semantic_guard.check_question(question, extract_entities(question))
     assert decision.code != "UNPARSED_DATE", question
+
+
+@pytest.mark.parametrize(
+    "question", ("各種發電方式成本", "2025年各種發電方式的成本", "比較各種發電方式的成本")
+)
+def test_a_cost_overview_discloses_what_it_left_out(
+    semantic_guard: SemanticGuard, question: str
+) -> None:
+    """答案要帶著限制一起送到眼前 —— 排掉的列不是消失了，是換個問法才拿得到。"""
+
+    decision = semantic_guard.check_question(question, extract_entities(question))
+    assert decision.code == "GENERATION_COST_AGGREGATES_EXCLUDED"
+    assert decision.severity == "disclose", "disclose 不能攔下查詢"
+    assert "火力發電" in decision.evidence["excluded"]
+    assert decision.suggestions, "要說得出彙總怎麼問"
+
+
+@pytest.mark.parametrize("question", ("發電成本", "成本多少", "2025年成本"))
+def test_a_cost_question_with_no_kind_and_no_overview_still_asks(
+    semantic_guard: SemanticGuard, question: str
+) -> None:
+    """既不指名、也不是要一覽的，仍然要問清楚是哪一種口徑。"""
+
+    decision = semantic_guard.check_question(question, extract_entities(question))
+    assert decision.code == "GENERATION_COST_TYPE_REQUIRED"
+    assert decision.severity == "clarify"
