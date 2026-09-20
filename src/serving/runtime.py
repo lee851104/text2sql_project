@@ -186,6 +186,8 @@ def build_runtime(
         top_k=int(retriever_config["top_k"]),
         ngram_min=int(ngram["min"]),
         ngram_max=int(ngram["max"]),
+        min_score=float(retriever_config.get("min_score", 0.0)),
+        relative_score=float(retriever_config.get("relative_score", 0.0)),
     )
     source: RuntimeSource = key_source if active_mode == "online" else "offline"
     return ServiceRuntime(

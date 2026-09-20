@@ -190,3 +190,46 @@ def test_the_offline_answers_still_work_while_the_service_is_down() -> None:
     asked = pipeline.query("某天機組尖峰功率排行榜")
     assert asked.error_code == "MISSING_PARAMETER"
     assert asked.severity == "clarify"
+
+
+def test_the_trace_says_how_many_examples_the_floor_dropped() -> None:
+    """全被砍掉時 prompt 只剩 schema 與領域規則，那比塞五個 0.000 分的範例好。
+
+    但要看得到它發生了 —— 否則長尾答不好時，沒人知道模型手上根本沒有範例。
+    """
+
+    valid = json.dumps(
+        {"sql": 'SELECT "日期" FROM v_system LIMIT 1', "params": []}, ensure_ascii=False
+    )
+    pipeline = Text2SQLPipeline(
+        llm=FakeLLM([valid]),
+        sql_guard=SqlGuard(),
+        run_sql=lambda _sql, _params: (["日期"], [("2026-07-31",)]),
+        corpus_path=CORPUS,
+        data_range=("2025-01-01", "2026-07-31"),
+        peak_columns={"台中#2"},
+        min_score=0.9,
+    )
+    response = pipeline.query("asdfghjkl 完全無關的字")
+    step = next(item for item in response.data["trace"] if item["stage"] == "retrieve")
+    assert step["example_ids"] == []
+    assert step["dropped"] == pipeline.top_k
+
+
+def test_a_pipeline_without_floors_keeps_every_example() -> None:
+    """預設不篩 —— 門檻是 serving 層從設定檔給的，不是管線自己長出來的。"""
+
+    pipeline = Text2SQLPipeline(
+        llm=FakeLLM(["SELECT 1"] * 3),
+        sql_guard=SqlGuard(),
+        run_sql=lambda _sql, _params: ([], []),
+        corpus_path=CORPUS,
+        data_range=("2025-01-01", "2026-07-31"),
+        peak_columns={"台中#2"},
+    )
+    assert pipeline.min_score == 0.0
+    assert pipeline.relative_score == 0.0
+    response = pipeline.query("asdfghjkl 完全無關的字")
+    step = next(item for item in response.data["trace"] if item["stage"] == "retrieve")
+    assert step["dropped"] == 0
+    assert len(step["example_ids"]) == pipeline.top_k

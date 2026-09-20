@@ -71,6 +71,8 @@ class Text2SQLPipeline:
         top_k: int = 5,
         ngram_min: int = 2,
         ngram_max: int = 4,
+        min_score: float = 0.0,
+        relative_score: float = 0.0,
     ):
         if max_attempts < 1:
             raise ValueError("max_attempts 必須至少是 1")
@@ -92,6 +94,8 @@ class Text2SQLPipeline:
         self.scope_guard = scope_guard
         self.max_attempts = max_attempts
         self.top_k = top_k
+        self.min_score = min_score
+        self.relative_score = relative_score
 
     def reload_corpus(self, corpus_path: Path | None = None) -> str:
         """Atomically replace the retrieval snapshot used by subsequent queries."""
@@ -170,12 +174,20 @@ class Text2SQLPipeline:
         retrieved = []
         if not routed.sql:
             started = perf_counter()
-            retrieved = retriever.retrieve(question, top_k=self.top_k)
+            retrieved = retriever.retrieve(
+                question,
+                top_k=self.top_k,
+                min_score=self.min_score,
+                relative_score=self.relative_score,
+            )
             self._trace(
                 trace,
                 "retrieve",
                 started,
                 example_ids=[item.example["id"] for item in retrieved],
+                # 被門檻砍掉幾個。全被砍掉時 prompt 只剩 schema 與領域規則，那比塞五個
+                # 0.000 分的範例好 —— 但要看得到它發生了。
+                dropped=self.top_k - len(retrieved),
             )
 
         prior_error: str | None = None

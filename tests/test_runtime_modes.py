@@ -3,6 +3,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
+import yaml
 
 from ingest.build_db import build_database
 from ingest.validate import PROJECT_ROOT
@@ -379,3 +380,13 @@ def test_failed_database_switch_keeps_previous_runtime(
 
     assert manager.active_runtime is previous
     assert manager.get_runtime().database == database.resolve()
+
+
+def test_the_runtime_takes_the_retrieval_floors_from_config() -> None:
+    """門檻改在設定檔就要生效，不能是程式裡寫死的數字。"""
+
+    config = yaml.safe_load((PROJECT_ROOT / "configs/retriever.yaml").read_text(encoding="utf-8"))
+    pipeline = build_runtime(mode="offline").pipeline
+    assert pipeline.min_score == float(config["min_score"])
+    assert pipeline.relative_score == float(config["relative_score"])
+    assert pipeline.min_score > 0.0, "設定檔給了門檻，管線卻沒吃到"
