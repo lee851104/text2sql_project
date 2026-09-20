@@ -2,6 +2,46 @@
 
 > 這份檔案在每個可驗證、可回退的儲存點更新。回退前需保留使用者原有的未提交變更。
 
+## CP-058 — XML 搜尋在過濾前就停了，以及我自己弄紅的 CI
+
+- 時間：2026-09-20 23:15 +08:00
+- 狀態：已完成
+- 起點：使用者帶來兩則發現（XML 搜尋過早停止、資料版本未含 schema 版本），問需不需要改。
+
+### XML：安靜地回錯答案
+
+`_read_xml` 先讀滿 `offset + limit + 1` 筆就 `break`，**之後**才交給 `_records_result` 過濾搜尋詞。於是符合的記錄只要排在那個位置後面就永遠讀不到。用三筆 XML 重現，對照同樣資料的 CSV 讀法：
+
+```
+                       XML（修正前）                  CSV（本來就對）
+search='gamma' limit=1   rows=[]                      rows=[['gamma','Kaohsiung']]
+search='gamma' limit=5   rows=[['gamma','Kaohsiung']] rows=[['gamma','Kaohsiung']]
+```
+
+`limit=5` 就正確，正是因為那時讀取上限大過全部資料。**它不報錯** —— 使用者看到的是「查無資料」，和真的沒有這筆分不出來。`db.py` 那句「安靜的錯誤比報錯危險得多」講的就是這種。
+
+掃過另外兩個讀法確認範圍：`_read_csv` 與 `_read_json` 的順序本來就是對的（先過濾 → 再跳 offset → 最後才看夠不夠 limit），**只有 XML 是反的**。修正照同一個順序，並保留 `iterparse` 的串流讀法；收尾與 `_read_json_array_stream` 一致，過濾與分頁都做完後才呼叫 `_records_result`。
+
+順帶修掉原本的一個小問題：`element.clear()` 先前只在記錄非空時才執行，不符條件的元素不會被清掉，串流的記憶體優勢打了折。
+
+### 資料版本未含 schema 版本：評估後維持現狀
+
+屬實，而且不是新發現 —— `docs/SPEC.md` 的「已知待修」與 CP-039 都記著，CP-039 還是**實際踩到**才寫下的：作用中快照停在 9/14 建的版本，沒有 `dim_plant_scope` 也沒有 `v_re_generation`。建議「接 API 前修好，免得把資料版本問題誤判成模型問題」這個理由站得住，症狀確實會偽裝成模型答不出來。
+
+本次未修，因為它不是改一個函式的事。`_version_for_entries` 目前是 `data-{sha256(來源檔的 present/sha256/bytes)}`；把 schema 版本納進去，同一組來源就會算出不同的版本 id，既有工作區的 `active.json`、`versions/` 與 `audit.jsonl` 全都指向舊 id —— **那正是 CP-039 那次損壞的模式**。要動就得連遷移一起設計。CP-039 自己記下的第二個方案（版本紀錄一併記建置程式版本，不符時視為新版本而非篡改）侵入性小得多，值得優先考慮。留給使用者決定。
+
+### 我自己弄紅的 CI
+
+CP-057 的 log 裡寫了一段 Python 區塊，行內註解前打了三個空格。**`ruff format` 會格式化 Markdown 裡的 Python 程式碼區塊**，所以 `ruff format --check .`（CI 的第一道）在 CP-057 併進 main 之後就是紅的。這次一併修掉。
+
+漏掉它的原因值得記：pre-merge-check 當時報「`ruff format --check` 通過（91 個受版控檔案，**與 CI 範圍一致**）」，但真正的 CI 跑的是 `ruff format --check .`，涵蓋 110 個檔案 —— 多出來的正是含程式碼區塊的 `.md`。那句「與 CI 範圍一致」目前不成立，門檻工具因此攔不到這一類。**修不修留給使用者決定**（要改的是 `.claude/skills/pre-merge-check/scripts/check_merge.py` 的檔案清單）；在那之前，寫完 log 要自己再跑一次 `uv run ruff format --check .`。
+
+### 驗收
+
+- `ruff format --check .`（110 files）、`ruff check .` 通過；`pytest -q` **599 passed, 1 skipped**（CP-057 後為 592，本次新增 7 筆；skip 是 port 8765 被執行中的服務占用）。
+- 新測試釘住行為而不是實作：三筆 XML、第三筆才符合、`limit=1` 要拿得到那一筆；另外六組（搜尋詞／limit／offset 的組合）要求 XML 與 CSV 兩個讀法給出一樣的 rows 與 `has_more` —— 格式不該改變「搜尋 + 分頁」的語意。
+- 回退方式：回退 `fix: filter XML rows before the read limit, not after` 這個 commit。回退後 XML 搜尋會再次漏掉排在讀取上限之後的符合項，且 `ruff format --check .` 會再次失敗。
+
 ## CP-057 — 兩道假防線：403 擋不住的原始檔，與黑名單漏掉的 randomblob
 
 - 時間：2026-09-20 22:53 +08:00
@@ -15,7 +55,7 @@
 根因不是「沒限制結果大小」，是**同一個 guard 裡資料表與欄位用白名單，函式卻用黑名單**：
 
 ```python
-DANGEROUS_FUNCTIONS = {"load_extension", "readfile", "writefile"}   # 只有三個
+DANGEROUS_FUNCTIONS = {"load_extension", "readfile", "writefile"}  # 只有三個
 ```
 
 補上 `randomblob` 還會漏下一個。改成白名單，但**不能照名字列**——實測 `find_all(exp.Func)` 抓到的不只真函式，`And`／`Or` 也是 `Func` 的子類，照名字做白名單會讓 `WHERE a = ? AND b = ?` 被自己的守門擋下來。

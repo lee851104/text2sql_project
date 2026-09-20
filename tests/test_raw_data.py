@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 import json
 import zipfile
 from pathlib import Path
@@ -140,6 +141,61 @@ def test_readers_keep_source_schemas_separate_and_read_zip_members(tmp_path: Pat
     assert xml_rows["rows"] == [["gamma", "3"]]
     assert zip_members["rows"][0][0] == "inside.csv"
     assert zip_rows["rows"] == [["delta", "4"]]
+
+
+_SEARCH_XML = (
+    b"<rows>"
+    b"<row><name>alpha</name><city>Taipei</city></row>"
+    b"<row><name>beta</name><city>Taipei</city></row>"
+    b"<row><name>gamma</name><city>Kaohsiung</city></row>"
+    b"</rows>"
+)
+
+
+def test_xml_search_reaches_a_match_that_sits_past_the_read_limit() -> None:
+    """搜尋詞要在讀取上限之前套用，否則排在後面的符合項永遠讀不到。
+
+    先前是讀滿 `offset + limit + 1` 筆就停、之後才過濾：三筆資料、第三筆才符合、
+    `limit=1` 時回的是空結果。它不報錯，所以和「真的沒有這筆資料」分不出來 ——
+    安靜的錯答比報錯難發現得多。
+    """
+
+    result = RawDataService._read_xml(io.BytesIO(_SEARCH_XML), search="gamma", limit=1, offset=0)
+
+    assert result["rows"] == [["gamma", "Kaohsiung"]]
+    assert result["has_more"] is False
+
+
+@pytest.mark.parametrize(
+    ("search", "limit", "offset"),
+    [
+        ("gamma", 1, 0),
+        ("gamma", 5, 0),
+        ("", 1, 0),
+        ("Taipei", 1, 0),
+        ("Taipei", 1, 1),
+        ("無", 5, 0),
+    ],
+)
+def test_xml_reader_pages_the_same_way_the_csv_reader_does(
+    search: str, limit: int, offset: int
+) -> None:
+    """同一份資料、同一組參數，XML 與 CSV 兩個讀法要給一樣的答案。
+
+    格式不該改變「搜尋 + 分頁」的語意；先前只有 XML 的順序是反的。
+    """
+
+    csv_bytes = b"name,city\nalpha,Taipei\nbeta,Taipei\ngamma,Kaohsiung\n"
+
+    from_xml = RawDataService._read_xml(
+        io.BytesIO(_SEARCH_XML), search=search, limit=limit, offset=offset
+    )
+    from_csv = RawDataService._read_csv(
+        io.BytesIO(csv_bytes), search=search, limit=limit, offset=offset
+    )
+
+    assert from_xml["rows"] == from_csv["rows"]
+    assert from_xml["has_more"] == from_csv["has_more"]
 
 
 def test_large_json_array_is_streamed_instead_of_loaded_as_one_document(
