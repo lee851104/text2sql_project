@@ -191,6 +191,7 @@ class Text2SQLPipeline:
             )
 
         prior_error: str | None = None
+        prior_sql: str | None = None
         unavailable: str | None = None
         attempts = 1 if routed.sql else self.max_attempts
         for attempt in range(1, attempts + 1):
@@ -205,11 +206,14 @@ class Text2SQLPipeline:
                     examples=retrieved,
                     data_range=self.data_range,
                     prior_error=prior_error,
+                    prior_sql=prior_sql,
                 )
                 try:
                     generated = parse_generated_query(self.llm.generate(prompt))
                 except Exception as error:  # Adapter errors become bounded pipeline errors.
                     prior_error = f"LLM_OUTPUT_ERROR: {type(error).__name__}"
+                    # 連解析都沒過，手上沒有可以還給模型的 SQL。
+                    prior_sql = None
                     self._trace(trace, "generate", started, attempt=attempt, error=prior_error)
                     if type(error).__name__ in {"AuthenticationError", "PermissionDeniedError"}:
                         return PipelineResponse(
@@ -241,6 +245,7 @@ class Text2SQLPipeline:
             )
             if not guard_result.allowed:
                 prior_error = f"{guard_result.code}: {guard_result.reason}"
+                prior_sql = generated.sql
                 continue
 
             started = perf_counter()
@@ -269,6 +274,7 @@ class Text2SQLPipeline:
                 columns, rows = self.run_sql(execute_sql, execute_params)
             except Exception as error:
                 prior_error = f"SQL_EXECUTION_ERROR: {type(error).__name__}: {error}"
+                prior_sql = generated.sql
                 self._trace(trace, "execute", started, attempt=attempt, error=prior_error)
                 continue
             self._trace(trace, "execute", started, attempt=attempt, record_count=len(rows))
