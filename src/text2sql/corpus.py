@@ -70,6 +70,40 @@ def column_values(
     return collected
 
 
+def column_value_conflicts(collected: Mapping[str, Iterable[str]]) -> dict[str, str]:
+    """Flag columns that share a name across views but not their values.
+
+    列出值還不夠。實測問「最多發電廠是哪個縣市」，模型寫了 `GROUP BY "縣市"` ——
+    那是任何人都會寫的 SQL，但 `v_unit."縣市"` 存的是「南投縣水里鄉」，於是它變成
+    按鄉鎮分組：高雄四座電廠散在美濃、永安、小港、前鎮各算一座，輸給擠在同一個鄉的
+    南投兩座。答案回「南投 2 個」，正確答案是高雄市 4 座。
+
+    SQL 合法、有結果、數字看起來合理 —— 這種錯不會自己浮出來。模型看得到值，
+    但沒有理由去比對兩個同名欄位的值長得不一樣。這裡把那個比對做掉並明講。
+
+    只報「同名而值不同」這個事實，不猜誰比較細：`v_unit` 有「基隆市」這種本身就沒有
+    鄉鎮的值，任何「A 的值都以 B 為前綴」的規則都會在這裡判錯。與其給一句可能錯的
+    推論，不如把兩邊的樣本並排，讓模型自己看。
+    """
+
+    by_column: dict[str, list[tuple[str, list[str]]]] = {}
+    for key, values in collected.items():
+        view, _, column = key.partition(".")
+        if not column:
+            continue
+        by_column.setdefault(column, []).append((view, list(values)))
+
+    conflicts: dict[str, str] = {}
+    for column, entries in sorted(by_column.items()):
+        if len(entries) < 2:
+            continue
+        if len({tuple(sorted(values)) for _view, values in entries}) == 1:
+            continue
+        samples = [f"{view} 用「{'、'.join(values[:2])}」" for view, values in sorted(entries)]
+        conflicts[column] = "；".join(samples) + "。同名但值不同，用哪一個要看查的是哪個檢視。"
+    return conflicts
+
+
 def ngram_range(root: Path = PROJECT_ROOT) -> tuple[int, int]:
     """索引要用的字元 n-gram 範圍，與檢索共用 ``configs/retriever.yaml``。
 

@@ -143,9 +143,11 @@ def test_context_is_loaded_from_database(tmp_path) -> None:
             "'refuse', 'reason', 'suggestion', '{}')",
             ("氣渦輪",),
         )
-    data_range, pitfalls = load_semantic_context(database)
+    data_range, pitfalls, view_spans = load_semantic_context(database)
     assert data_range == DATA_RANGE
     assert pitfalls[0].target_name == "氣渦輪"
+    # 這個 fixture 沒有任何 v_* 檢視，量不到範圍就該是空的，而不是讓載入整個失敗。
+    assert view_spans == {}
 
 
 def test_unspecified_generation_cost_requires_clarification(
@@ -396,3 +398,53 @@ def test_a_cost_question_with_no_kind_and_no_overview_still_asks(
     decision = semantic_guard.check_question(question, extract_entities(question))
     assert decision.code == "GENERATION_COST_TYPE_REQUIRED"
     assert decision.severity == "clarify"
+
+
+# ── 聚合的時間範圍：數字對，但少了讀懂它需要的那句話 ────────────────────
+
+
+def _scope_guard() -> SemanticGuard:
+    return SemanticGuard(
+        data_range=DATA_RANGE,
+        peak_columns=set(),
+        view_spans={"v_re_generation": ("2024-01", "2026-07")},
+    )
+
+
+def test_an_unbounded_aggregate_says_what_period_it_covers() -> None:
+    """「離岸風力 794,751,440 度」看起來像年度數字，其實是 31 個月的合計。"""
+
+    query = GeneratedQuery(
+        'SELECT "能源別", SUM("發電量_度") FROM v_re_generation GROUP BY "能源別" LIMIT 20', ()
+    )
+
+    decision = _scope_guard().describe_aggregate_scope(query)
+
+    assert decision is not None
+    assert decision.severity == "disclose"
+    assert decision.code == "AGGREGATE_OVER_FULL_RANGE"
+    assert "2024-01" in decision.reason and "2026-07" in decision.reason
+
+
+def test_an_aggregate_already_bounded_by_time_says_nothing() -> None:
+    """問句自己框了時間就不必再說一次。"""
+
+    query = GeneratedQuery(
+        'SELECT SUM("發電量_度") FROM v_re_generation WHERE "年度" = ? LIMIT 1', (2025,)
+    )
+
+    assert _scope_guard().describe_aggregate_scope(query) is None
+
+
+def test_a_query_without_aggregation_says_nothing() -> None:
+    query = GeneratedQuery('SELECT "發電站" FROM v_re_generation LIMIT 5', ())
+
+    assert _scope_guard().describe_aggregate_scope(query) is None
+
+
+def test_a_view_with_no_measured_span_says_nothing() -> None:
+    """量不到範圍的檢視不要硬掰一個期間出來。"""
+
+    query = GeneratedQuery("SELECT COUNT(*) FROM v_unit LIMIT 1", ())
+
+    assert _scope_guard().describe_aggregate_scope(query) is None

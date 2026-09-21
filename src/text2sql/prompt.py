@@ -19,6 +19,7 @@ def build_prompt(
     examples: list[RetrievedExample],
     data_range: tuple[str, str],
     column_values: Mapping[str, Sequence[str]] | None = None,
+    column_value_conflicts: Mapping[str, str] | None = None,
     prior_error: str | None = None,
     prior_sql: str | None = None,
 ) -> str:
@@ -50,6 +51,8 @@ def build_prompt(
     if column_values:
         payload["column_values_note"] = COLUMN_VALUES_NOTE
         payload["column_values"] = {key: list(values) for key, values in column_values.items()}
+    if column_value_conflicts:
+        payload["column_value_conflicts"] = dict(column_value_conflicts)
     payload.update(
         {
             "rules": corpus["documentation"],

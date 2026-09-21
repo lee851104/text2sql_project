@@ -56,6 +56,10 @@
     {
       "id": "b-column-capacity-source",
       "text": "對應裝置容量_萬瓩對有機組主檔的欄位取自機組設備對照；核能、民營電廠、汽電共生與風光彙總改由核能主檔或各機組即時資訊填入，容量來源欄位會標明是crosswalk、nuclear、realtime或realtime_subtotal。麥寮三欄目前沒有可引用來源，容量為NULL。"
+    },
+    {
+      "id": "county-granularity",
+      "text": "縣市欄位在不同檢視的粒度不同：v_unit的縣市含鄉鎮（例如南投縣水里鄉），v_re_generation的縣市只到縣市（例如南投縣）。問哪個縣市時不可直接對v_unit的縣市分組，那等於按鄉鎮分組；要縣市層級請用SUBSTR(\"縣市\",1,3)。"
     }
   ],
   "examples": [
