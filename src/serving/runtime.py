@@ -201,7 +201,8 @@ def build_runtime(
             default_model=str(settings.get("default_model", "gpt-5.4-mini")),
         )
         if active_mode == "online"
-        else DisabledLLM()
+        # 離線時也要指名這個 provider 讀的是哪個變數，不然使用者會被指去設 OPENAI_API_KEY。
+        else DisabledLLM(api_key_env=api_key_env)
     )
     ngram = retriever_config["character_ngram"]
     sql_guard = SqlGuard(max_rows=int(guard_config["sql"]["max_rows"]))

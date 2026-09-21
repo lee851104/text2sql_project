@@ -11,7 +11,13 @@ from typing import Any, Protocol
 
 from text2sql.corpus import load_corpus
 from text2sql.entities import Entities, extract_entities
-from text2sql.llm import GeneratedQuery, LLMProtocol, is_unavailable, parse_generated_query
+from text2sql.llm import (
+    RETRYABLE_CATEGORY,
+    GeneratedQuery,
+    LLMProtocol,
+    classify_error,
+    parse_generated_query,
+)
 from text2sql.prompt import build_prompt
 from text2sql.retriever import TfidfRetriever
 from text2sql.router import missing_parameter_clarification, route, suggest_scope_question
@@ -20,6 +26,19 @@ from text2sql.semantic_guard import SemanticDecision
 from text2sql.sql_guard import SqlGuard, SqlGuardResult
 
 RunSql = Callable[[str, tuple[object, ...]], tuple[list[str], list[tuple[object, ...]]]]
+
+LLM_FAILURE_CODES = {
+    "authentication": "LLM_AUTH_FAILED",
+    "configuration": "LLM_REQUEST_REJECTED",
+    "rate_limit": "LLM_RATE_LIMITED",
+    "service": "LLM_UNAVAILABLE",
+    "refused": "LLM_REFUSED",
+    "incomplete": "LLM_INCOMPLETE",
+}
+
+# 憑證與設定的問題，換個問法不會變好。交給迴圈後面的離線澄清的話，使用者會看到
+# 「這句沒有指名是哪一座電廠」，然後照做，然後還是不能用 —— 而真正該修的人不知道。
+IMMEDIATE_LLM_FAILURES = frozenset({"authentication", "configuration"})
 
 
 class SemanticGuardProtocol(Protocol):
@@ -149,6 +168,42 @@ class Text2SQLPipeline:
             raise ScopeError("此服務未載入授權對照，無法提供電廠帳號查詢。")
         return self.scope_guard.apply(generated.sql, generated.params, plant=plant)
 
+    def _llm_failure_response(
+        self,
+        category: str,
+        error: Exception,
+        trace: list[dict[str, Any]],
+        attempts: int,
+    ) -> PipelineResponse:
+        """把轉接層的分類變成一句使用者或維運能據以行動的話。
+
+        只帶例外的類別名稱，不帶它的訊息 —— 上游的錯誤原文可能回顯我們送出去的東西。
+        """
+
+        environment = getattr(self.llm, "api_key_env", None)
+        hint = f"（這個 provider 讀的是 {environment}）" if environment else ""
+        messages = {
+            "authentication": f"線上服務拒絕了這組憑證；請到 API 設定確認金鑰與權限。{hint}",
+            "configuration": "線上服務不接受這個請求；請確認模型名稱、端點與輸出格式設定。",
+            "rate_limit": "線上服務這次限流了，稍後再試。",
+            "service": "線上生成這次用不了，而這一題需要它才答得出來。"
+            "規則接得住的問題不受影響，可以先換一個具體一點的問法。",
+            "refused": "模型拒絕回答這一題。換個問法或改問資料本身，重複送同一句不會有不同結果。",
+            "incomplete": "模型的回應沒有講完；沒講完的 SQL 不會拿去執行。",
+        }
+        return PipelineResponse(
+            False,
+            data={"trace": trace},
+            error_code=LLM_FAILURE_CODES[category],
+            error=messages[category],
+            severity="error",
+            evidence={
+                "attempts": attempts,
+                "llm_error": category,
+                "last_error": f"LLM_OUTPUT_ERROR: {type(error).__name__}",
+            },
+        )
+
     @staticmethod
     def _semantic_error(
         decision: SemanticDecision, trace: list[dict[str, Any]]
@@ -209,7 +264,7 @@ class Text2SQLPipeline:
 
         prior_error: str | None = None
         prior_sql: str | None = None
-        unavailable: str | None = None
+        llm_failure: tuple[str, Exception, int] | None = None
         attempts = 1 if routed.sql else self.max_attempts
         for attempt in range(1, attempts + 1):
             source = "router" if routed.sql else "llm"
@@ -230,26 +285,26 @@ class Text2SQLPipeline:
                 try:
                     generated = parse_generated_query(self.llm.generate(prompt))
                 except Exception as error:  # Adapter errors become bounded pipeline errors.
+                    category = classify_error(error)
                     prior_error = f"LLM_OUTPUT_ERROR: {type(error).__name__}"
                     # 連解析都沒過，手上沒有可以還給模型的 SQL。
                     prior_sql = None
-                    self._trace(trace, "generate", started, attempt=attempt, error=prior_error)
-                    if type(error).__name__ in {"AuthenticationError", "PermissionDeniedError"}:
-                        return PipelineResponse(
-                            False,
-                            data={"trace": trace},
-                            error_code="LLM_AUTH_FAILED",
-                            error="OpenAI API key 驗證失敗，請到 API 設定更新金鑰。",
-                            severity="error",
-                            evidence={"attempts": attempt, "last_error": prior_error},
-                        )
-                    if is_unavailable(error):
-                        # 服務不通，拿同一個 prompt 再問兩次只會讓使用者多等兩輪逾時。
-                        # 但離線做得到的事還是要做完 —— 缺參數反問與近似問法建議都在
-                        # 迴圈後面，LLM 掛掉的時候它們正好是最有用的那一段。
-                        unavailable = str(error)
-                        break
-                    continue
+                    self._trace(
+                        trace,
+                        "generate",
+                        started,
+                        attempt=attempt,
+                        error=prior_error,
+                        category=category,
+                    )
+                    if category == RETRYABLE_CATEGORY:
+                        continue
+                    if category in IMMEDIATE_LLM_FAILURES:
+                        return self._llm_failure_response(category, error, trace, attempt)
+                    # 其餘不重送，但離線做得到的事還是要做完 —— 缺參數反問與近似問法
+                    # 建議都在迴圈後面，服務不通或限流的時候它們正好是最有用的那一段。
+                    llm_failure = (category, error, attempt)
+                    break
                 self._trace(trace, "generate", started, attempt=attempt)
 
             started = perf_counter()
@@ -341,6 +396,10 @@ class Text2SQLPipeline:
         if out_of_range is not None:
             return self._semantic_error(out_of_range, trace)
 
+        # 離線澄清照樣優先給使用者 —— 它是他當下做得到的事。但線上為什麼沒接上要留在
+        # evidence 裡，否則限流或服務中斷會完全躲在「這句沒有指名是哪一座電廠」後面。
+        llm_note = {"llm_error": llm_failure[0]} if llm_failure else {}
+
         missing = missing_parameter_clarification(
             question,
             entities,
@@ -356,7 +415,7 @@ class Text2SQLPipeline:
                 error=missing.reason,
                 severity="clarify",
                 suggestions=(missing.suggestion,),
-                evidence={"missing": missing.missing, "attempts": attempts},
+                evidence={"missing": missing.missing, "attempts": attempts, **llm_note},
             )
 
         suggestion = suggest_scope_question(question)
@@ -368,19 +427,12 @@ class Text2SQLPipeline:
                 error="這句我沒有把握。你是不是想問下面這個？",
                 severity="clarify",
                 suggestions=(suggestion,),
-                evidence={"attempts": attempts, "last_error": prior_error},
+                evidence={"attempts": attempts, "last_error": prior_error, **llm_note},
             )
 
-        if unavailable is not None:
-            return PipelineResponse(
-                False,
-                data={"trace": trace},
-                error_code="LLM_UNAVAILABLE",
-                error="線上生成這次用不了，而這一題需要它才答得出來。"
-                "規則接得住的問題不受影響，可以先換一個具體一點的問法。",
-                severity="error",
-                evidence={"reason": unavailable, "attempts": attempt},
-            )
+        if llm_failure is not None:
+            category, error, made = llm_failure
+            return self._llm_failure_response(category, error, trace, made)
 
         return PipelineResponse(
             False,
