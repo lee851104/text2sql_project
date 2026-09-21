@@ -1,0 +1,261 @@
+{
+  "schema_version": "online-checklist-v1",
+  "generated_at": "2026-09-21T12:51:59.619061+00:00",
+  "mode": "offline",
+  "provider": "gmi",
+  "model": "meta-llama/Llama-3.3-70B-Instruct",
+  "corpus_fingerprint": "144e7b2f2467",
+  "database_fingerprint": "6c1f88f22be5",
+  "data_range": [
+    "2025-01-01",
+    "2026-07-31"
+  ],
+  "summary": {
+    "verdicts": {
+      "pass": 5,
+      "fail": 2,
+      "manual": 1
+    },
+    "sources": {
+      "router": 4,
+      "llm": 0
+    },
+    "total": 8
+  },
+  "results": [
+    {
+      "id": "chk-county-grain",
+      "question": "最多發電廠是哪個縣市",
+      "ok": false,
+      "source": null,
+      "intent": null,
+      "sql": null,
+      "params": null,
+      "record_count": null,
+      "rows_preview": [],
+      "rows_omitted": 0,
+      "disclosures": [],
+      "error_code": "LLM_UNAVAILABLE",
+      "error": "線上生成這次用不了，而這一題需要它才答得出來。規則接得住的問題不受影響，可以先換一個具體一點的問法。",
+      "severity": "error",
+      "elapsed_seconds": 0.03,
+      "verdict": "fail",
+      "verdict_failures": [
+        "資料列少了「高雄市」",
+        "SQL 少了「SUBSTR」"
+      ],
+      "why": "v_unit.縣市 存的是「南投縣水里鄉」這種含鄉鎮的值，直接 GROUP BY 會把高雄四座電廠拆到四個區各算一座。CP-061 為此加了語料第 13 條，要模型改用 SUBSTR。這是 CP-061 三項改動裡唯一能端到端驗證的一項。"
+    },
+    {
+      "id": "chk-fuel-mix",
+      "question": "哪些電廠同時有燃煤和燃氣機組",
+      "ok": false,
+      "source": null,
+      "intent": null,
+      "sql": null,
+      "params": null,
+      "record_count": null,
+      "rows_preview": [],
+      "rows_omitted": 0,
+      "disclosures": [],
+      "error_code": "MISSING_PARAMETER",
+      "error": "這句沒有指名是哪一座電廠。",
+      "severity": "clarify",
+      "elapsed_seconds": 0.0,
+      "verdict": "fail",
+      "verdict_failures": [
+        "資料列少了「大林發電廠」",
+        "資料列少了「興達發電廠」"
+      ],
+      "why": "資料裡的燃料值是「煤／天然氣」，不是問句用的「燃煤／燃氣」。CP-060 加了 column_values() 把封閉集合的值放進 prompt，就是為了讓模型不必從問句抄詞。"
+    },
+    {
+      "id": "chk-offshore-wind",
+      "question": "離岸風力的發電量",
+      "ok": true,
+      "source": "router",
+      "intent": "renewable_generation",
+      "sql": "SELECT \"能源別\", SUM(\"發電量_度\") AS \"發電量_度\" FROM v_re_generation WHERE \"能源別\" = ? GROUP BY \"能源別\" ORDER BY \"發電量_度\" DESC LIMIT 20",
+      "params": [
+        "離岸風力"
+      ],
+      "record_count": 1,
+      "rows_preview": [
+        [
+          "離岸風力",
+          794751440
+        ]
+      ],
+      "rows_omitted": 0,
+      "disclosures": [
+        "RENEWABLE_SELF_BUILT_ONLY",
+        "AGGREGATE_OVER_FULL_RANGE"
+      ],
+      "error_code": null,
+      "error": null,
+      "severity": null,
+      "elapsed_seconds": 0.01,
+      "verdict": "pass",
+      "verdict_failures": [],
+      "why": "這題不是模型算的，intent=renewable_generation 的 SQL 寫死在 router 裡。拿來驗 CP-061 的期間揭露：數字看起來像年度值，其實是 31 個月的合計。兩個揭露要同時出現，這正是 describe_aggregate_scope 與 check_sql 分開回報的理由。"
+    },
+    {
+      "id": "chk-solar-scope",
+      "question": "2025年台灣太陽能發了多少度",
+      "ok": true,
+      "source": "router",
+      "intent": "renewable_generation",
+      "sql": "SELECT \"能源別\", SUM(\"發電量_度\") AS \"發電量_度\" FROM v_re_generation WHERE \"能源別\" = ? AND \"年度\" = ? GROUP BY \"能源別\" ORDER BY \"發電量_度\" DESC LIMIT 20",
+      "params": [
+        "太陽能",
+        2025
+      ],
+      "record_count": 1,
+      "rows_preview": [
+        [
+          "太陽能",
+          402546529
+        ]
+      ],
+      "rows_omitted": 0,
+      "disclosures": [
+        "RENEWABLE_SELF_BUILT_ONLY"
+      ],
+      "error_code": null,
+      "error": null,
+      "severity": null,
+      "elapsed_seconds": 0.01,
+      "verdict": "pass",
+      "verdict_failures": [],
+      "why": "README 開頭主打的案例：查得到答案，但只涵蓋台電自建場站，約占全國風光地熱的 3～4%。少了那句揭露，數字看起來完全正常。"
+    },
+    {
+      "id": "chk-plant-equipment",
+      "question": "大觀發電廠有哪些設備",
+      "ok": true,
+      "source": "router",
+      "intent": "plant_units",
+      "sql": "SELECT \"機組名\", \"燃料\", \"商轉日期\" FROM v_unit WHERE \"電廠\" = ? ORDER BY \"機組名\" LIMIT 50",
+      "params": [
+        "大觀發電廠"
+      ],
+      "record_count": 9,
+      "rows_preview": [
+        [
+          "大觀一廠#1機",
+          "水",
+          "1934-07-01"
+        ],
+        [
+          "大觀一廠#2機",
+          "水",
+          "1934-07-01"
+        ],
+        [
+          "大觀一廠#3機",
+          "水",
+          "1934-07-01"
+        ],
+        [
+          "大觀一廠#4機",
+          "水",
+          "1934-07-01"
+        ],
+        [
+          "大觀一廠#5機",
+          "水",
+          "1934-07-01"
+        ]
+      ],
+      "rows_omitted": 4,
+      "disclosures": [],
+      "error_code": null,
+      "error": null,
+      "severity": null,
+      "elapsed_seconds": 0.01,
+      "verdict": "pass",
+      "verdict_failures": [],
+      "why": "CP 記過的迴歸：新增「資料範圍」意圖時用包含比對，把這題判成「有哪些電廠」，離線執行率從 100% 掉到 95%。改成完全比對後修好。放進清單是為了接 LLM 之後再確認一次沒被偷走。"
+    },
+    {
+      "id": "chk-capacity-rank",
+      "question": "裝置容量前三大的電廠各在哪個縣市",
+      "ok": false,
+      "source": null,
+      "intent": null,
+      "sql": null,
+      "params": null,
+      "record_count": null,
+      "rows_preview": [],
+      "rows_omitted": 0,
+      "disclosures": [],
+      "error_code": "MISSING_PARAMETER",
+      "error": "排名要先指定是哪一天的排名。",
+      "severity": "clarify",
+      "elapsed_seconds": 0.0,
+      "verdict": "manual",
+      "verdict_failures": [
+        "清單未給 expect，需人工判定"
+      ],
+      "why": "跨欄位組合的長尾題，router 應該沒有規則接。用來確認線上模式真的有在接手，而不是全部被規則吃掉。同時再驗一次縣市粒度。"
+    },
+    {
+      "id": "chk-out-of-range",
+      "question": "2030年的尖峰負載是多少",
+      "ok": false,
+      "source": null,
+      "intent": null,
+      "sql": null,
+      "params": null,
+      "record_count": null,
+      "rows_preview": [],
+      "rows_omitted": 0,
+      "disclosures": [],
+      "error_code": "DATA_RANGE_OUT_OF_BOUNDS",
+      "error": "問句的日期超出目前資料涵蓋範圍。",
+      "severity": "clarify",
+      "elapsed_seconds": 0.0,
+      "verdict": "pass",
+      "verdict_failures": [],
+      "why": "資料範圍是 2025-01-01 ~ 2026-07-31。超出範圍要擋下並說明，不能給一個看起來像答案的東西。"
+    },
+    {
+      "id": "chk-generation-cost",
+      "question": "2024年燃煤的發電成本是多少",
+      "ok": true,
+      "source": "router",
+      "intent": "generation_cost",
+      "sql": "SELECT \"年度\", \"電力來源\", \"發電方式\", \"成本_元每度\", \"決算類型\" FROM v_generation_cost WHERE \"年度\" = ? AND \"發電方式\" = ? LIMIT 20",
+      "params": [
+        2024,
+        "燃煤"
+      ],
+      "record_count": 2,
+      "rows_preview": [
+        [
+          2024,
+          "自發電力",
+          "燃煤",
+          2.5,
+          "審定決算"
+        ],
+        [
+          2024,
+          "購入電力",
+          "燃煤",
+          3.27,
+          "審定決算"
+        ]
+      ],
+      "rows_omitted": 0,
+      "disclosures": [],
+      "error_code": null,
+      "error": null,
+      "severity": null,
+      "elapsed_seconds": 0.0,
+      "verdict": "pass",
+      "verdict_failures": [],
+      "why": "已知失敗，刻意讓它紅著：守門用全域 data_range（2025-01-01~2026-07-31）判定 2024 超出範圍，但 v_generation_cost 實際涵蓋 2023～2025，2024 年燃煤查得到 2.5 與 3.27 元／度。CP-061 已把「揭露」改成逐檢視量期間，但 semantic_guard.check_question 的日期守門還在用全域範圍，只改了一半。這一題補語料沒有用 —— check_question 在產生 SQL 之前就短路回傳，LLM 根本不會被呼叫。"
+    }
+  ]
+}

@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import re
 import sqlite3
+from calendar import monthrange
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol
@@ -118,6 +119,33 @@ def _view_time_spans(connection: sqlite3.Connection) -> dict[str, tuple[str, str
     return spans
 
 
+def _floor_day(value: str) -> str:
+    """把 2023、2024-01、2025-01-01 都攤成該單位的第一天。"""
+
+    parts = value.split("-")
+    year = int(parts[0])
+    month = int(parts[1]) if len(parts) > 1 else 1
+    day = int(parts[2]) if len(parts) > 2 else 1
+    return f"{year:04d}-{month:02d}-{day:02d}"
+
+
+def _ceil_day(value: str) -> str:
+    """攤成該單位的最後一天：2023 → 2023-12-31、2026-07 → 2026-07-31。
+
+    逐檢視量出來的範圍有三種粒度（日期、年月、年），不攤平就拿去跟日期做字串比對會
+    出錯：「2025-06-15」大於「2025」，於是 v_generation_cost 會擋掉自己明明有的那年。
+    """
+
+    parts = value.split("-")
+    year = int(parts[0])
+    if len(parts) == 1:
+        return f"{year:04d}-12-31"
+    month = int(parts[1])
+    if len(parts) == 2:
+        return f"{year:04d}-{month:02d}-{monthrange(year, month)[1]:02d}"
+    return f"{year:04d}-{month:02d}-{int(parts[2]):02d}"
+
+
 def load_semantic_context(
     database: Path,
 ) -> tuple[tuple[str, str], list[SemanticPitfall], dict[str, tuple[str, str]]]:
@@ -165,6 +193,69 @@ class SemanticGuard:
             peak_columns=peak_columns,
             pitfalls=pitfalls,
             view_spans=view_spans,
+        )
+
+    def _view_bounds(self, view: str) -> tuple[str, str] | None:
+        """該檢視涵蓋的範圍，攤平成可比對的日期。量不到或格式看不懂就回 None。"""
+
+        span = self.view_spans.get(view)
+        if span is None:
+            return None
+        try:
+            return _floor_day(span[0]), _ceil_day(span[1])
+        except (IndexError, ValueError):
+            return None
+
+    @property
+    def coverage_range(self) -> tuple[str, str]:
+        """全域宣告與所有檢視的聯集。
+
+        `check_question` 跑在 route 之前，不知道最後會查哪個檢視，所以它唯一能誠實說
+        出口的是「所有資料都涵蓋不到」。比這更窄就是在猜，而猜錯的代價是告訴使用者資料
+        不存在 —— 但它其實就在另一個檢視裡（v_generation_cost 有 2023～2025，全域宣告
+        只有 2025-01-01～2026-07-31）。逐檢視那一關留給 `check_sql`，它看得到表名。
+        """
+
+        starts = [self.data_range[0]]
+        ends = [self.data_range[1]]
+        for view in self.view_spans:
+            bounds = self._view_bounds(view)
+            if bounds is None:
+                continue
+            starts.append(bounds[0])
+            ends.append(bounds[1])
+        return min(starts), max(ends)
+
+    def explain_unanswerable_date(self, entities: Entities) -> SemanticDecision | None:
+        """答不出來時，若問句的期間只有部分檢視涵蓋得到，就把哪些涵蓋得到講出來。
+
+        `check_question` 跑在 route 之前，只能擋「所有檢視都涵蓋不到」；`check_sql` 擋得
+        精準，但要先有 SQL 才輪到它。中間有一道縫：「2024年台中出力」—— v_peak 沒有
+        2024，v_generation_cost 有，所以前者放行；router 又接不住這個問法，沒有 SQL 給
+        後者看。掉進縫裡的題目只會拿到一句「線上生成這次用不了」，而那是誤導 —— 它跟
+        線上模式無關，換成線上也永遠答不出來。
+        """
+
+        if entities.date_range is None:
+            return None
+        covering = {
+            view: bounds
+            for view in self.view_spans
+            if (bounds := self._view_bounds(view)) is not None
+            and not (entities.date_range.end < bounds[0] or entities.date_range.start > bounds[1])
+        }
+        # 全部涵蓋得到就不是日期的問題；全部涵蓋不到的話 `check_question` 早就擋掉了。
+        if not covering or len(covering) == len(self.view_spans):
+            return None
+        described = "；".join(
+            f"{view} 涵蓋 {start} 至 {end}" for view, (start, end) in sorted(covering.items())
+        )
+        return self._decision(
+            "clarify",
+            "DATA_RANGE_OUT_OF_BOUNDS",
+            f"這段期間只有部分資料涵蓋得到（{described}），其餘檢視沒有。",
+            "請改問涵蓋得到的期間，或換一個這段期間查得到的指標。",
+            evidence={"covering": {view: list(span) for view, span in covering.items()}},
         )
 
     def describe_aggregate_scope(self, query: GeneratedQuery) -> SemanticDecision | None:
@@ -471,20 +562,18 @@ class SemanticGuard:
                 evidence={"fragment": fragment, "available_range": list(self.data_range)},
             )
 
+        coverage = self.coverage_range
         if (
             entities.date_range
-            and (
-                entities.date_range.end < self.data_range[0]
-                or entities.date_range.start > self.data_range[1]
-            )
+            and (entities.date_range.end < coverage[0] or entities.date_range.start > coverage[1])
             or "資料開始日前一天" in compact
         ):
             return self._decision(
                 "clarify",
                 "DATA_RANGE_OUT_OF_BOUNDS",
                 "問句的日期超出目前資料涵蓋範圍。",
-                f"請改查 {self.data_range[0]} 至 {self.data_range[1]} 之間。",
-                evidence={"available_range": list(self.data_range)},
+                f"請改查 {coverage[0]} 至 {coverage[1]} 之間。",
+                evidence={"available_range": list(coverage)},
             )
         return SemanticDecision()
 
@@ -495,6 +584,32 @@ class SemanticGuard:
             tree = parse_one(query.sql, read="sqlite")
         except ParseError:
             return SemanticDecision()
+
+        # 這一關放在最前面：檢視根本沒有那段期間時，再去挑 SQL 的寫法沒有意義。
+        # check_question 只能判「所有檢視都涵蓋不到」，到這裡才知道查的是哪一個。
+        if entities.date_range:
+            bounded = {
+                table.name: bounds
+                for table in tree.find_all(exp.Table)
+                if (bounds := self._view_bounds(table.name)) is not None
+            }
+            # join 會碰到多個檢視，而時間條件通常只落在其中一個 —— 只要有任何一個涵蓋
+            # 得到就放行，否則最窄的那一邊會把整個查詢誤殺。
+            if bounded and all(
+                entities.date_range.end < start or entities.date_range.start > end
+                for start, end in bounded.values()
+            ):
+                described = "；".join(
+                    f"{view} 涵蓋 {start} 至 {end}"
+                    for view, (start, end) in sorted(bounded.items())
+                )
+                return self._decision(
+                    "clarify",
+                    "DATA_RANGE_OUT_OF_BOUNDS",
+                    f"這個查詢用到的檢視沒有問句那段期間的資料（{described}）。",
+                    "請改問該檢視涵蓋得到的期間。",
+                    evidence={"spans": {view: list(span) for view, span in bounded.items()}},
+                )
 
         for aggregate in tree.find_all(exp.Sum):
             summed = aggregate.this

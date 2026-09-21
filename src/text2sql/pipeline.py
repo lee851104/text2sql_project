@@ -31,6 +31,8 @@ class SemanticGuardProtocol(Protocol):
 
     def describe_aggregate_scope(self, query: GeneratedQuery) -> SemanticDecision | None: ...
 
+    def explain_unanswerable_date(self, entities: Entities) -> SemanticDecision | None: ...
+
 
 class AllowAllSemanticGuard:
     def check_question(self, question: str, entities: Entities) -> SemanticDecision:
@@ -43,6 +45,10 @@ class AllowAllSemanticGuard:
 
     def describe_aggregate_scope(self, query: GeneratedQuery) -> SemanticDecision | None:
         del query
+        return None
+
+    def explain_unanswerable_date(self, entities: Entities) -> SemanticDecision | None:
+        del entities
         return None
 
 
@@ -329,6 +335,12 @@ class Text2SQLPipeline:
         # 最後一步：與其只回「未能通過驗證與執行」，不如問一句。這一層放在這裡而不是
         # 放在意圖分類，是因為相似度本身分不開 —— 會被它偷走的題目，到這裡早就被更具
         # 體的規則接走了。線上模式同理：LLM 答得出來就走不到這裡。
+        # 日期先問。「2024年台中出力」答不出來的原因就是 2024 沒有出力資料，回一句
+        # 「缺少參數」或「線上生成用不了」都是把使用者指向錯的方向。
+        out_of_range = self.semantic_guard.explain_unanswerable_date(entities)
+        if out_of_range is not None:
+            return self._semantic_error(out_of_range, trace)
+
         missing = missing_parameter_clarification(
             question,
             entities,

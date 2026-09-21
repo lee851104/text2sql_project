@@ -448,3 +448,151 @@ def test_a_view_with_no_measured_span_says_nothing() -> None:
     query = GeneratedQuery("SELECT COUNT(*) FROM v_unit LIMIT 1", ())
 
     assert _scope_guard().describe_aggregate_scope(query) is None
+
+
+# ── 日期界線逐檢視：說「沒有資料」之前，先確定每個檢視都真的沒有 ──────────
+
+
+def _bounds_guard() -> SemanticGuard:
+    """全域宣告 2025-01-01～2026-07-31，但有兩個檢視往前伸得更早。"""
+
+    return SemanticGuard(
+        data_range=DATA_RANGE,
+        peak_columns=PEAK_COLUMNS,
+        view_spans={
+            "v_peak": ("2025-01-01", "2026-07-31"),
+            "v_re_generation": ("2024-01", "2026-07"),
+            "v_generation_cost": ("2023", "2025"),
+        },
+    )
+
+
+def test_a_year_only_one_view_has_is_not_refused_before_routing() -> None:
+    """v_generation_cost 有 2024，全域 data_range 沒有。
+
+    check_question 跑在 route 之前，不知道最後會查哪個檢視。拿全域範圍去擋，等於告訴
+    使用者「2024 沒有資料」—— 而 2024 年的燃煤成本就在那裡。比「所有檢視的聯集」更窄
+    的判斷都是在猜，猜錯的代價是把查得到的東西講成查不到。
+    """
+
+    question = "2024年燃煤的發電成本是多少"
+
+    decision = _bounds_guard().check_question(question, extract_entities(question))
+
+    assert decision.code != "DATA_RANGE_OUT_OF_BOUNDS"
+
+
+def test_a_year_no_view_has_is_still_refused() -> None:
+    """放寬不等於不擋。2019 落在每個檢視之外，照樣要擋，而且要講聯集後的真實範圍。"""
+
+    question = "2019年備轉容量"
+
+    decision = _bounds_guard().check_question(question, extract_entities(question))
+
+    assert (decision.code, decision.severity) == ("DATA_RANGE_OUT_OF_BOUNDS", "clarify")
+    assert "2023-01-01" in " ".join(decision.suggestions)
+
+
+def test_sql_on_a_view_that_lacks_the_year_is_refused_with_that_view_range() -> None:
+    """放寬 check_question 之後，逐檢視這一關要接住。
+
+    否則「2024年台中出力」會產生 SQL、查 v_peak、回 0 筆 —— 使用者看到的是空結果，
+    而不是「這個檢視沒有那段期間」。
+    """
+
+    question = "查2024年台中出力"
+    query = GeneratedQuery(
+        'SELECT "日期", "尖峰出力_萬瓩" FROM v_peak WHERE "日期" LIKE ? LIMIT 100', ("2024%",)
+    )
+
+    decision = _bounds_guard().check_sql(question, query, extract_entities(question))
+
+    assert (decision.code, decision.severity) == ("DATA_RANGE_OUT_OF_BOUNDS", "clarify")
+    assert "v_peak" in decision.reason
+    assert "2025-01-01" in decision.reason
+
+
+def test_sql_on_the_view_that_has_the_year_is_allowed() -> None:
+    question = "2024年燃煤的發電成本是多少"
+    query = GeneratedQuery(
+        'SELECT "年度", "成本_元每度" FROM v_generation_cost WHERE "年度" = ? LIMIT 100', (2024,)
+    )
+
+    decision = _bounds_guard().check_sql(question, query, extract_entities(question))
+
+    assert decision.code == "OK"
+
+
+def test_a_join_is_allowed_when_any_touched_view_covers_the_dates() -> None:
+    """join 不該被最窄的那一邊誤殺 —— 時間條件只落在其中一個檢視上。"""
+
+    question = "2024年燃煤的發電成本是多少"
+    query = GeneratedQuery(
+        'SELECT c."成本_元每度" FROM v_generation_cost AS c '
+        'JOIN v_peak AS p ON p."日期" LIKE ? LIMIT 10',
+        ("2024%",),
+    )
+
+    decision = _bounds_guard().check_sql(question, query, extract_entities(question))
+
+    assert decision.code == "OK"
+
+
+def test_a_year_granular_span_covers_the_whole_year() -> None:
+    """v_generation_cost 的範圍量出來是「2023」「2025」，不是日期。
+
+    不攤成 2023-01-01～2025-12-31 的話，字串比對會讓 2025-06-15 大於 2025，
+    於是這個檢視會擋掉自己明明有的那一年。
+    """
+
+    question = "2025年6月15日燃煤的發電成本"
+    query = GeneratedQuery(
+        'SELECT "成本_元每度" FROM v_generation_cost WHERE "年度" = ? LIMIT 10', (2025,)
+    )
+
+    decision = _bounds_guard().check_sql(question, query, extract_entities(question))
+
+    assert decision.code == "OK"
+
+
+def test_a_view_with_no_measured_span_is_never_the_reason_to_refuse() -> None:
+    """量不到範圍的檢視不該變成擋人的理由。"""
+
+    question = "查2024年台中出力"
+    query = GeneratedQuery('SELECT "電廠" FROM v_unit LIMIT 10', ())
+
+    decision = _bounds_guard().check_sql(question, query, extract_entities(question))
+
+    assert decision.code == "OK"
+
+
+def test_a_date_only_some_views_cover_says_which_ones() -> None:
+    """兩關之間的縫：v_peak 沒有 2024，v_generation_cost 有。
+
+    check_question 放行（聯集涵蓋得到），router 又接不住這個問法，於是沒有 SQL 讓
+    check_sql 檢查。掉進縫裡的題目會拿到「線上生成這次用不了」—— 那句話是誤導，
+    它跟線上模式無關，換成線上也永遠答不出來。
+    """
+
+    question = "查2024年台中出力"
+
+    decision = _bounds_guard().explain_unanswerable_date(extract_entities(question))
+
+    assert decision is not None
+    assert (decision.code, decision.severity) == ("DATA_RANGE_OUT_OF_BOUNDS", "clarify")
+    assert "v_generation_cost" in decision.reason
+    assert "v_peak" not in decision.reason
+
+
+def test_a_date_every_view_covers_is_not_blamed() -> None:
+    """日期沒問題時不要怪日期 —— 答不出來的原因在別處。"""
+
+    question = "2025年6月15日台中的出力"
+
+    assert _bounds_guard().explain_unanswerable_date(extract_entities(question)) is None
+
+
+def test_a_question_without_a_date_is_not_blamed() -> None:
+    question = "裝置容量前三大的電廠各在哪個縣市"
+
+    assert _bounds_guard().explain_unanswerable_date(extract_entities(question)) is None
