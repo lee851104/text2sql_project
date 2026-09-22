@@ -81,6 +81,16 @@ def _last_day(year: int, month: int) -> int:
     return (following - date.resolution).day
 
 
+def _relative_year(reference_year: int, word: str) -> int:
+    """今年／去年／明年 換算成實際年份。
+
+    三個判斷點（年月日、年月、只有年）共用這一份，避免補一邊漏一邊 —— 下面那段
+    「同一件事的判斷散在兩個地方」的註解講的就是這種半殘狀態。
+    """
+
+    return reference_year + {"明年": 1, "去年": -1}.get(word, 0)
+
+
 def _day_range(year: int, month: int, day: int) -> tuple[DateRange | None, str | None]:
     try:
         value = date(year, month, day).isoformat()
@@ -132,11 +142,11 @@ def extract_date_range(
         return _day_range(_calendar_year(year), _number(month), _number(day))
 
     relative_day = re.search(
-        rf"(今年|去年)\s*({NUMBER_TOKEN})\s*月\s*({NUMBER_TOKEN})\s*日", question
+        rf"(今年|去年|明年)\s*({NUMBER_TOKEN})\s*月\s*({NUMBER_TOKEN})\s*日", question
     )
     if relative_day:
         relation, month, day = relative_day.groups()
-        year = reference.year - (relation == "去年")
+        year = _relative_year(reference.year, relation)
         return _day_range(year, _number(month), _number(day))
 
     month_day = re.search(rf"({NUMBER_TOKEN})\s*月\s*({NUMBER_TOKEN})\s*日", question)
@@ -148,16 +158,30 @@ def extract_date_range(
         year, month = absolute_month.groups()
         return _month_range(_calendar_year(year), _number(month))
 
-    relative_month = re.search(rf"(今年|去年)\s*({NUMBER_TOKEN})\s*月", question)
+    relative_month = re.search(rf"(今年|去年|明年)\s*({NUMBER_TOKEN})\s*月", question)
     if relative_month:
         relation, month = relative_month.groups()
-        return _month_range(reference.year - (relation == "去年"), _number(month))
+        return _month_range(_relative_year(reference.year, relation), _number(month))
 
     if "上個月" in question:
         year, month = reference.year, reference.month - 1
         if month == 0:
             year, month = year - 1, 12
         return _month_range(year, month)
+
+    if "下個月" in question:
+        year, month = reference.year, reference.month + 1
+        if month == 13:
+            year, month = year + 1, 1
+        return _month_range(year, month)
+
+    # 「未來兩年」是從今天起算的滾動區間，不是某個日曆年 —— 大修排程幾乎只用這個講法。
+    if "未來兩年" in question or "未來2年" in question:
+        try:
+            end = reference.replace(year=reference.year + 2)
+        except ValueError:  # 2/29 起算
+            end = reference.replace(year=reference.year + 2, day=28)
+        return DateRange(reference.isoformat(), end.isoformat()), None
 
     # 純數字的年月：`2026-07`、`115/07`、`202607`、`11507`。少了這段，它們會掉到下面
     # 「只認得年份」那條，靜默擴大成整年。
@@ -173,11 +197,11 @@ def extract_date_range(
         return _month_range(_calendar_year(year), int(month))
 
     explicit_year = re.search(r"(?<!\d)(20\d{2}|1\d{2})\s*年?", question)
-    relation = re.search(r"(今年|去年)", question)
+    relation = re.search(r"(今年|去年|明年)", question)
     if explicit_year:
         year = _calendar_year(explicit_year.group(1))
     elif relation:
-        year = reference.year - (relation.group(1) == "去年")
+        year = _relative_year(reference.year, relation.group(1))
     else:
         year = None
     if year is not None:

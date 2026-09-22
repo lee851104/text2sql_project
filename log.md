@@ -81,6 +81,157 @@ API key）。列兩欄會讓空的那欄看起來像還沒填，而不是沒量�
 - 這次只動 README 與本檔，沒有碰程式、測試或設定。
 - 回退方式：回退本分支的單一 commit，README 回到「示範動畫施工中」那句，圖片檔一併移除。
 
+## CP-067 — 大修、核能、成本：三組離線答不出來、卻答了別的問題的問句
+
+- 時間：2026-09-22 20:07 +08:00
+- 狀態：已完成（服務需重啟才套用）
+- 分支：`feat/offline-outage-routing`
+- 編號：CP-066 在未合併的 `docs/make-db-is-offline` 上，這裡往後編避免撞號。
+- 起點：測試集裡三組問句在離線模式全部掉到線上生成 —— 沒有 API key 的環境等於完全沒有回應。
+- 貫串三組的一件事：**答不出來不是最糟的，答了別的問題才是。** 這三組原本大多回得出數字、
+  筆數正常、沒有任何錯誤提示，答的卻是另一個問題。
+- 本筆一～三節整理自各 commit 當時的紀錄；四、五節與驗收是這次重新量的（核能六部機各 577 列
+  這項也重新查過，與紀錄相符）。
+
+### 一、大修：少一個詞，整組題目落到別的分支
+
+`classify_intent` 的 outage 關鍵字只收「歲修／維修／修復」，沒收使用者實際會講的「大修」。
+落不到 outage 之後，會被更早的分支接走：
+
+| 問句 | 原本被誰接走 | 原本回什麼 |
+| --- | --- | --- |
+| 林口電廠今年有哪些機組大修 | `plant_units` | 機組主檔，不是大修排程 |
+| 下個月大修的燃煤機組總裝置容量 | `fuel_stats` | 全部燃煤機組 1,060 萬瓩，完全忽略大修條件 |
+| 哪個月份大修停機容量最大 | `unit_extreme` | 追問「沒有指名是哪一部機組」，而題目問的是月份 |
+
+所以 outage 的判斷要排在電廠與燃料之前。其餘四處：`entities` 補「下個月」「明年」「未來兩年」
+（「明年」要動年月日／年月／只有年三個判斷點，抽 `_relative_year()` 共用，免得補一邊漏一邊）；
+大修是前瞻資料（`dim_outage` 涵蓋到 2028-06），守門卻拿日尖峰的範圍（止於 2026-07-31）去檢查它，
+把答得出來的題目擋成 `DATA_RANGE_OUT_OF_BOUNDS`，理由還指向錯的那張表 —— 改成依問句所屬的表挑範圍，
+問 2030 年仍然會擋；容量加總一律先 `DISTINCT`（大修表同一部機有重複列，通霄#2 同起日 4 筆）；
+清單查詢的欄位跟著問句走，問「燃煤機組」才帶燃料欄。
+
+### 二、核能：資料查得到，只是規則沒接
+
+核能不在 `dim_unit` 機組主檔裡，所以 10 題核能問句原本一路掉到線上。但 `v_peak` 的「核能」類別
+有完整的六部單機（核一／二／三各 2 部，容量 63.6／98.5／95.1 萬瓩）。守門原本把核能列在 unsupported，
+理由是「機組主檔不含該類別的單機明細」—— 那句話對 `dim_unit` 是對的，卻把 `v_peak` 查得到的部分
+也一起擋掉了。判斷依據改成**涵蓋是否完整**：
+
+| 類別 | 資料長相 | 判定 |
+| --- | --- | --- |
+| 核能 | 6 欄單機、沒有彙總欄 | 放行，查明細不會少算 |
+| IPP | 9 欄單機 + 3 欄彙總 | 維持擋下，列出來會少算而且看不出來 |
+| 風光 | 只有多機彙總 | 維持擋下 |
+
+trap 題「核能機組主檔細節」仍然要擋，但理由要說對：改成「核能」與「主檔」同時出現才擋，訊息並
+告訴使用者去哪裡找。兩個實作細節：nuclear 的意圖判斷排在 `plant_units` 之前（否則「哪一座核能電廠
+機組總裝置容量最高」會被接走，追問「沒有指名是哪一座電廠」，而題目正是要找出那一座）；`v_peak`
+一天一列、六部機各 577 天，所以先 `DISTINCT` 取「機組欄位 → 容量」再彙總，直接 SUM 會把容量乘上天數。
+
+### 三、成本：兩個方向相反的錯
+
+一是口徑用語對不上，該答的沒答：成本表存「燃氣」「慣常水力」，使用者講「天然氣」「水力」，對不上
+就回「請指定發電方式」—— 對一個已經指名口徑的問句追問口徑。水力還得拆成慣常水力與抽蓄發電
+（2025 年 1.32 與 4.69 元/度，差三倍多，合併成一個數字會把差異藏起來）。
+
+二是反方向：本資料集沒有任何發電量欄位（每日資料是尖峰出力，屬功率不是能量），所以「發電量 × 成本」
+無解，但那 8 題原本有兩種下場，兩種都不對 —— 4 題「成功」卻只回成本表，4 題回
+`GENERATION_COST_TYPE_REQUIRED`，理由指向錯的東西。新增 `NO_GENERATION_FOR_COST` 統一擋下並說清楚
+真正的原因，排在一覽揭露規則之前（否則「各種」會先被那條接走）。另修三處答非所問：「由低到高」
+原本產生 `ORDER BY 成本 DESC`、「成本平均」原本回 54 筆明細沒有 `AVG`、「燃煤與天然氣差多少」原本
+只查了燃煤。
+
+### 四、與 main 的整合
+
+main 帶進了 `VIEW_TIME_SPANS`（逐檢視量時間範圍），跟本分支的 `load_outage_range` 在
+`semantic_guard.py` 撞了 5 段。兩邊其實是同一個發現的兩半：`meta_manifest` 的 `data_range` 描述不了
+每一張檢視 —— 這支是從 `dim_outage` 發現的，main 是從 `v_re_generation` 發現的。兩套機制沒有碰到
+同一個檢查（`outage_range` 管大修問句的日期擋門，`view_spans` 只替聚合加期間附註），所以兩套都留：
+`load_semantic_context` 用 main 的三元組回傳，`SemanticGuard` 同時帶 `outage_range` 與 `view_spans`。
+
+接著就收成一套了：`load_outage_range()` 拿掉，`v_outage` 跟其他四個檢視一樣由 `_view_time_spans()`
+量（`SELECT MIN("開始日期"), MAX("結束日期") FROM v_outage WHERE "日期狀態" = 'valid'`），量到的還是
+`2025-07-01 ~ 2028-06-23`，與舊查法逐字相同；日期擋門改讀 `view_spans.get("v_outage")`，`SemanticGuard`
+少一個欄位，守門只剩一套「哪張表涵蓋哪段期間」的機制。
+
+收斂換來一個原本沒有的效果：沒限制時間的大修聚合現在會被 `AGGREGATE_OVER_FULL_RANGE` 附註 ——
+`SELECT COUNT(*) FROM v_outage` 回「這個彙總沒有限制時間，涵蓋資料庫內的全部期間（v_outage 涵蓋
+2025-07-01 至 2028-06-23）」，等於把「這個總和含兩年後的排程」講出來；`WHERE "開始日期" >= …` 這種
+有框時間的查詢維持不附註。這不是特別為大修寫的規則，是併成一套之後自己生出來的。
+
+**CP-062 併進 main 之後又談了一次，而且第一次談錯了。** CP-062 給 `check_question` 的是
+`coverage_range` —— 全域宣告與所有檢視的聯集，理由寫在它的 docstring：這一關跑在 route 之前，
+不知道最後會查哪個檢視，唯一誠實說得出口的是「所有資料都涵蓋不到」。既然 `v_outage` 已經是
+`VIEW_TIME_SPANS` 的一員，聯集自動含到 2028-06-23，大修問句本來就過得了那一關，所以我先把本分支
+「用 `classify_intent` 挑範圍」那段整個刪掉。
+
+**跑評測才看到代價：語意陷阱從 45 題對 45 題掉到 42 題**（93.3%，低於驗收要求的 95%，`make eval`
+直接判 fail）。沒過的是三題問句層的日期陷阱：
+
+| 陷阱 | 問句 | 狀況 |
+| --- | --- | --- |
+| `trap-data_range_out_of_bounds-2` | 2027年一月尖峰負載 | 這次刪掉那段造成的 |
+| `trap-data_range_out_of_bounds-4` | 2026年八月機組排行 | 這次刪掉那段造成的 |
+| `trap-data_range_out_of_bounds-1` | 查2024年台中出力 | `main` 上本來就沒過（見下） |
+
+原因不在 CP-062，在 `v_outage` 的性質：**它的期間是「未來會發生什麼」，不是「量到了什麼」。**
+把它放進聯集，等於宣告「因為 2027 年有大修排程，所以 2027 年的尖峰負載也算涵蓋得到」。那句話是錯的。
+
+最後的界線是 `SCHEDULE_VIEWS`：排程檢視留在 `view_spans` 裡（`check_sql` 的逐檢視判斷與聚合期間附註
+照樣看得到它），但不進 `coverage_range` 的聯集；問句的意圖是大修時，日期那一關才把它併回來。實測：
+
+| 問句 | 結果 |
+| --- | --- |
+| 下個月有哪些機組大修 | OK |
+| 2027年3月有哪些機組大修 | OK |
+| 2030年有哪些機組安排大修 | `DATA_RANGE_OUT_OF_BOUNDS` |
+| 2027年3月台中#1的尖峰出力 | `DATA_RANGE_OUT_OF_BOUNDS`（問句層就擋） |
+
+語意陷阱回到 **44/45（97.8%）**，跟 `main` 同分。剩下那一題 `查2024年台中出力` 在 main 上本來就沒過 ——
+`v_generation_cost` 涵蓋 2023～2025，聯集因此從 2023 開始，那是 CP-062 自己的取捨，不是這次帶進來的。
+
+順帶修掉測試替身的一個漏洞：`_guard_with_outage_range()` 的 `view_spans` 只放了 `v_outage`，少了
+`v_peak`。真實的 guard 是逐檢視量出來的，少一個就讓 `check_sql` 那一關找不到界線、不會擋，測出來的
+行為比實際寬鬆。
+
+### 五、一個從來沒在 CI 跑過的測試
+
+`test_the_outage_range_is_read_from_the_database` 讀 `data/processed/power.db`，讀不到就
+`pytest.skip("尚未建庫")` —— 那個檔不進版控，所以這個測試在 runner 上從來沒有真的跑過。改成用版控裡的
+`taipower_align/` 現建快照（約 3 秒）再斷言同一件事。同一個盲點的另一半見 CP-064。
+
+### 驗收
+
+- 乾淨樹（只有版控檔案、沒有 `data/`，等同 CI checkout）跑全套：**703 passed**；同樣條件下 `main` 是
+  637 passed。
+- 離線評測 `python -m eval.run_eval`：pass，意圖 100%、執行 100%、語意陷阱 100%、端到端 100%。
+- CI run #70（`ec65d1b`）綠：`ruff format --check`、`ruff check`、`pytest` 三關全過。
+- 測試函式數：`tests/test_router.py` 22 → 43、`tests/test_semantic_guard.py` 22 → 30。
+- 回退方式：回退 `feat/offline-outage-routing` 整支。回退後大修、核能、成本三組問句會退回線上生成或
+  錯誤分流，`NO_GENERATION_FOR_COST` 這條守門規則消失，`configs/guard.yaml` 也要一併回退。
+
+### 尚未驗證
+
+各 commit 當時記的「離線可答題數 26 → 40 → 50／100」「成功計數 −3、正確性 +8」出自那份 100 題測試集，
+**那份清單不在這個 repo 裡**，本次沒有重跑，上面的驗收數字都不是它。repo 內可重跑的是 `benchmarks/`
+的 185 題（eval 60 ＋ golden 80 ＋ trap 45），今天四項都是 100%。
+
+線上模式一次都沒跑過 —— 這三組分流是離線規則，接上 provider 之後模型會不會照樣被這些規則接住，
+還沒驗過。
+
+### 尚未處理：`guard.yaml` 的規則開關是死設定
+
+這次在 `configs/guard.yaml` 加的 `NO_GENERATION_FOR_COST: true` **不起作用**。全 repo 只有
+`build_runtime()` 讀 `guard.yaml`，而且只取 `sql.timeout_seconds` 與 `sql.max_rows`；
+`semantic.rules` 整段沒有任何程式讀它。既有那九條開關同樣不起作用 —— 把任何一條設成 `false`
+都不會關掉那條規則。設計規格寫「`guard.yaml` 的每條語意規則開關 —— ablation 要能整層關掉」，
+那個能力目前不存在。
+
+要嘛把開關接到 `SemanticGuard`，要嘛把這段從 `guard.yaml` 拿掉；這次兩件都沒做，只在
+`docs/SEMANTIC_GUARD.md` 把現況寫明，順帶補上文件漏掉的 code（`AGGREGATE_OVER_FULL_RANGE`、
+`GENERATION_COST_TYPE_REQUIRED` 等七個）。
+
 ## CP-066 — `make db` 不會下載，README 說它會
 
 - 時間：2026-09-22 19:45 +08:00
@@ -212,6 +363,65 @@ Release 這條路能讓 CI 綠，但 Release 是為了「別人要拿得到 182 
 現在的 `lee851104/text2sql_project` 有 0 個 Release。資料要能從這個 repo 下載得另外發一次，這次沒動。
 
 `feat/offline-outage-routing` 還帶著舊的那一行，要等它併上 `main`（或 rebase）才會跟著綠。
+
+## CP-063 — 錯誤分類看類別名稱，於是一個狀態碼都接不到
+
+- 時間：2026-09-22 00:50 +08:00
+- 狀態：已完成（服務需重啟才套用）
+- 分支：`fix/provider-errors-and-response-checks`
+- 起點：使用者提供《API 串接風險與 Claude 修改清單》（R01–R12）。第一批取 R03＋R04 —— 兩者都在 `src/text2sql/llm.py`，是同一層契約：從線路上收到什麼、怎麼分類。接上 key 的第一秒就會遇到。
+- 核對：文件基準 `bc6dc53` 到 HEAD 只差 CP-061，描述都還準。文件提到的 `.codex-reference/` 重現素材不在這個 repo，所以重現測試自己寫。
+
+### 一、R03：`APIStatusError` 在名單裡，卻一個子類別都接不到
+
+`is_unavailable()` 用 `type(error).__name__` **完全比對**。SDK 丟出來的全是 `APIStatusError` 的子類別，名稱對不上；名單裡的 `APIStatusError` 只在狀態碼對不到特定子類別時才派上用場。所以它看起來涵蓋了所有 HTTP 狀態錯誤，實際上一個都沒有。（名單裡還有 `"Timeout"`，openai 2.54.0 根本沒有這個類別。）
+
+實測（假 LLM 丟出真的 SDK 例外，問「哪些電廠同時有燃煤和燃氣機組」）：
+
+| 狀態 | 修正前 | 修正後 |
+|---|---|---|
+| 400 / 404 / 409 / 422 | **3 次**，`MISSING_PARAMETER` | 1 次，`LLM_REQUEST_REJECTED` |
+| 401 / 403 | 1 次，`LLM_AUTH_FAILED` | 1 次，`LLM_AUTH_FAILED`（訊息改） |
+| 429 | 1 次，`MISSING_PARAMETER` | 1 次，`MISSING_PARAMETER` + `evidence.llm_error` |
+| 500 / timeout / connection | 1 次，`MISSING_PARAMETER` | 同上 |
+
+兩件事比文件寫的更具體。
+
+**401／403 本來就有攔。** `pipeline.py` 在 `is_unavailable` 之前就用名稱攔下 `AuthenticationError`／`PermissionDeniedError`。文件只列 400／404／422 是對的。
+
+**使用者看到的不是 `GENERATION_FAILED`，是 `MISSING_PARAMETER`。** 尾端的缺參數反問排在 `unavailable` 檢查之前，所以「模型名稱打錯」「額度用盡」「服務掛掉」全部被講成**「這句沒有指名是哪一座電廠」**。使用者會照著改問句，然後繼續不能用，而真正該修的人不知道有事發生。
+
+分類改依 **HTTP 狀態碼**（`getattr(error, "status_code", None)`），名稱比對留作後備給沒有狀態碼的相容端點例外。這順帶讓測試不必 import openai —— CI 沒裝 online extra 也跑得動，而替身只要帶狀態碼就分得出來。另補一筆 `importorskip` 的測試釘住「SDK 真的有給這個屬性」，換版把它搬走就會紅。
+
+`classify_error()` 回傳 configuration／authentication／rate_limit／service／refused／incomplete／output，**只有 output 值得重送**。configuration 與 authentication 立刻回傳（換個問法不會變好，離線澄清只會指錯方向）；其餘仍走離線澄清優先，但把 `llm_error` 留在 evidence，不讓限流躲在缺參數反問後面。
+
+### 二、R04：文字剛好能解析，不代表模型講完了
+
+`_generate_responses` 直接取 `.output_text`，`_generate_chat_completions` 直接取 `choices[0].message.content` —— `status`、`incomplete_details`、`finish_reason`、`refusal` 一個都沒看，空 choices 還會 IndexError。截斷處若剛好落在合法 JSON 之後，文字看不出任何問題，那段 SQL 就跑下去了。
+
+新增 `LLMRefusedError`／`LLMIncompleteError`，兩者都不重送：拒答拿去跑 SQL 修復迴圈，是為一個不會改變的答案付三次錢。**缺 metadata 的相容端點不當成有問題** —— 沒有資訊跟有壞消息是兩件事，所以 `status` 不存在時照常放行。
+
+本地驗證原本只檢查 `params` 是不是 list。實測全部放行：巢狀 dict、巢狀 list、NaN、Infinity、50KB 字串。strict json_schema 只在支援它的端點上成立，關掉 structured output 的退路只剩這裡把關。現在要求純量、有限數值，並限制 SQL 長度、參數個數與單一參數長度。NaN／Infinity 用 `json.loads(parse_constant=...)` 擋下，`1e400` 這種溢位成 inf 的字面量則由 `isfinite` 接住 —— 它們進了 SQL 會讓比較全部為假而且不報錯，看起來就像「真的沒有符合的資料」。
+
+### 三、順手修掉的兩件
+
+`DisabledLLM` 的訊息寫死 `OPENAI_API_KEY`。用 GMI 的人會被指去設一個這個服務根本不讀的變數，照做，然後繼續不能用。改成跟著 provider 走，`build_runtime` 建構時傳入。憑證失敗的訊息同樣不再寫死「OpenAI API key」，改讀轉接層的 `api_key_env`。
+
+原本 `evidence={"reason": str(error)}` 會把上游錯誤原文原樣回傳（R06 重現過的那條）。這次重寫這段時只保留例外的**類別名稱**，不帶訊息。R06 的其餘路徑（`QueryErrorLog`、其他輸出邊界）沒有處理。
+
+### 驗收
+
+- `ruff format --check .`（111 files）、`ruff check .` 通過；`pytest -q` **678 passed, 1 skipped**（CP-062 後為 646，本次新增 32 筆）。
+- `make eval` pass：意圖 100%、執行 100%、語意陷阱 97.8%（端到端 100%），驗收條件全過。線上清單離線對照**零差異**。
+- 既有測試抓到我引入的一個 bug：`evidence.attempts` 回報計畫上限 3 而不是實際呼叫次數 1。`test_an_unreachable_service_is_not_retried_and_says_so` 釘住了它。
+- 另一筆既有測試釘的是「OpenAI API key 驗證失敗」這句寫死的文案，那正是要改的東西，改成釘 `evidence` 結構與不外洩 `sk-secret`，並新增一筆釘「訊息要指名這個 provider 讀的變數」。
+- 回退方式：回退 `fix/provider-errors-and-response-checks` 這個分支。回退後設定類錯誤會重新變成重送三次，截斷與拒答會重新進入 SQL 修復迴圈。
+
+### 尚未驗證
+
+**全部用替身重現，沒有對真實 provider 送過任何一次查詢。** 這批證明的是「管線對某種回應／例外的處理」，不是 GMI 或 OpenAI 一定會產生那種回應。GMI 實際接受的 `structured_output`、模型名稱與錯誤格式仍待實測。
+
+R01（封閉集合參數填錯仍回 success + 0 筆）、R02（設定已套用 ≠ API 可用）尚未處理，兩者都會直接影響線上清單的判讀。R05–R12 未動。
 
 ## CP-062 — 期間是逐檢視的，守門卻還在用全域那一組
 

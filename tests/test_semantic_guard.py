@@ -9,6 +9,7 @@ import pytest
 from align.crosswalk import parse_crosswalk
 from align.pitfalls import generate_pitfalls
 from eval.cases import SEMANTIC_NEGATIVE_CONTROLS
+from ingest.build_db import build_database
 from text2sql.entities import extract_entities
 from text2sql.llm import GeneratedQuery
 from text2sql.semantic_guard import SemanticGuard, SemanticPitfall, load_semantic_context
@@ -398,6 +399,163 @@ def test_a_cost_question_with_no_kind_and_no_overview_still_asks(
     decision = semantic_guard.check_question(question, extract_entities(question))
     assert decision.code == "GENERATION_COST_TYPE_REQUIRED"
     assert decision.severity == "clarify"
+
+
+# ---------------------------------------------------------------------------
+# 大修排程的涵蓋期間與日尖峰不同
+#
+# meta_manifest 的 data_end 來自日尖峰資料（2026-07-31），但 dim_outage 是**前瞻性
+# 排程**，實測涵蓋到 2028-06。拿日尖峰的範圍去擋大修問句，會把「下個月有哪些機組要
+# 大修」這種完全答得出來的題目擋掉，而且理由寫成「日期超出資料涵蓋範圍」—— 指向錯
+# 的那張表。
+# ---------------------------------------------------------------------------
+
+OUTAGE_RANGE = ("2025-07-01", "2028-06-23")
+
+
+def _guard_with_outage_range() -> SemanticGuard:
+    return SemanticGuard(
+        data_range=DATA_RANGE,
+        peak_columns=PEAK_COLUMNS,
+        pitfalls=(),
+        # 真實的 guard 是逐檢視量出來的，v_peak 也在裡面 —— 少了它，check_sql 那一關
+        # 找不到 v_peak 的界線就不會擋，測出來的行為會比實際寬鬆。
+        view_spans={"v_peak": DATA_RANGE, "v_outage": OUTAGE_RANGE},
+    )
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "下個月有哪些機組要大修",
+        "明年有哪些機組安排大修",
+        "未來兩年有哪些機組會進行大修",
+        "下個月大修的燃煤機組總裝置容量是多少",
+    ],
+)
+def test_a_future_overhaul_question_is_not_blocked_by_the_peak_data_range(question: str) -> None:
+    decision = _guard_with_outage_range().check_question(question, extract_entities(question))
+    assert decision.code != "DATA_RANGE_OUT_OF_BOUNDS", question
+
+
+def test_an_overhaul_question_beyond_even_the_schedule_is_still_blocked() -> None:
+    """放寬的是「換一張表的範圍」，不是「不檢查」。2030 年仍然該擋。"""
+
+    question = "2030年有哪些機組安排大修"
+    decision = _guard_with_outage_range().check_question(question, extract_entities(question))
+    assert decision.code == "DATA_RANGE_OUT_OF_BOUNDS"
+
+
+def test_a_peak_question_still_uses_the_peak_range() -> None:
+    """非大修的問句不受影響，仍然以量到的資料為準，在問句層就擋。
+
+    `v_outage` 是前瞻性排程，涵蓋到 2028 年。它必須能回答未來的大修問句，但不能讓
+    `coverage_range` 跟著延伸 —— 否則「2027年一月尖峰負載」只因為那時有大修排程就過關，
+    要到 `check_sql` 才擋，而陷阱題釘的就是問句層這一關。`SCHEDULE_VIEWS` 就是這條界線。
+    """
+
+    question = "2027年3月台中#1的尖峰出力"
+    decision = _guard_with_outage_range().check_question(question, extract_entities(question))
+    assert decision.code == "DATA_RANGE_OUT_OF_BOUNDS"
+
+
+def test_the_schedule_view_does_not_widen_the_coverage_union() -> None:
+    """排程檢視進得了 view_spans，但進不了 coverage_range。"""
+
+    guard = _guard_with_outage_range()
+    assert guard.view_spans["v_outage"] == OUTAGE_RANGE, "check_sql 與聚合附註仍然看得到它"
+    assert guard.coverage_range[1] == DATA_RANGE[1], "聯集的結尾不該被排程拉到 2028"
+
+
+@pytest.fixture(scope="module")
+def built_database(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """用版控裡的 taipower_align/ 現建一份快照（約 3 秒）。
+
+    原本這裡讀 data/processed/power.db，讀不到就 skip —— 那個檔不進版控，所以 CI 從來
+    沒有真的跑過這個測試（CP-064 是同一個毛病的另一半）。
+    """
+
+    database = tmp_path_factory.mktemp("semantic-guard") / "power.db"
+    build_database(database)
+    return database
+
+
+def test_the_outage_range_is_read_from_the_database(built_database: Path) -> None:
+    guard = SemanticGuard.from_database(built_database, peak_columns=PEAK_COLUMNS)
+    outage_range = guard.view_spans.get("v_outage")
+    assert outage_range is not None, "v_outage 要跟其他檢視一樣被量到"
+    assert outage_range[1] > guard.data_range[1], "大修排程應該比日尖峰更晚結束"
+
+
+def test_nuclear_unit_capacity_is_answerable_but_the_unit_master_is_still_refused() -> None:
+    """核能在 v_peak 有完整的 6 部單機，問容量明細答得出來；
+    但問「機組主檔」仍該擋 —— dim_unit 確實沒有核能。"""
+
+    guard = SemanticGuard(data_range=DATA_RANGE, peak_columns=PEAK_COLUMNS, pitfalls=())
+    answerable = guard.check_question(
+        "各核能電廠的機組與裝置容量明細", extract_entities("各核能電廠的機組與裝置容量明細")
+    )
+    assert answerable.code != "NO_UNIT_DETAIL"
+
+    refused = guard.check_question("核能機組主檔細節", extract_entities("核能機組主檔細節"))
+    assert refused.code == "NO_UNIT_DETAIL"
+
+
+# ---------------------------------------------------------------------------
+# 「發電量 × 成本」：擋，但要用對的理由
+#
+# 成本表只有元/度，資料庫沒有任何發電量欄位（fact_daily_peak 是功率不是能量）。
+# 所以「去年燃煤發電量乘以發電成本」算不出來。
+#
+# 原本這幾題有兩種下場，兩種都不對：
+#   1. 回 GENERATION_COST_TYPE_REQUIRED「請指定發電方式」—— 理由指向錯的東西，
+#      使用者照建議改問了還是答不出來
+#   2. 成功但只回成本表，沒有乘上發電量 —— 數字看起來正常，答的卻是另一個問題
+# ---------------------------------------------------------------------------
+
+
+def _cost_guard() -> SemanticGuard:
+    return SemanticGuard(data_range=DATA_RANGE, peak_columns=PEAK_COLUMNS, pitfalls=())
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "去年燃煤發電量乘以發電成本是多少",
+        "去年天然氣發電量乘以發電成本是多少",
+        "去年各種能源的發電量與估算成本是多少",
+        "哪種能源去年估算發電成本最高",
+        "各火力電廠去年發電量及估算成本是多少",
+        "林口電廠去年發電量及估算成本是多少",
+    ],
+)
+def test_cost_times_generation_is_refused_for_the_right_reason(question: str) -> None:
+    decision = _cost_guard().check_question(question, extract_entities(question))
+    assert decision.code == "NO_GENERATION_FOR_COST", question
+    assert decision.severity == "refuse"
+
+
+@pytest.mark.parametrize(
+    "question",
+    ["天然氣發電成本是多少", "水力發電成本是多少"],
+)
+def test_a_named_cost_type_is_not_asked_back(question: str) -> None:
+    """成本表用「燃氣」「慣常水力」，但使用者講「天然氣」「水力」。
+
+    問句已經指名了口徑，再追問「請指定發電方式」等於沒有回答。
+    """
+
+    decision = _cost_guard().check_question(question, extract_entities(question))
+    assert decision.code != "GENERATION_COST_TYPE_REQUIRED", question
+
+
+@pytest.mark.parametrize(
+    "question",
+    ["2025年火力發電成本是多少", "各種發電方式的發電成本是多少", "燃煤發電成本是多少"],
+)
+def test_a_pure_cost_question_is_unaffected(question: str) -> None:
+    decision = _cost_guard().check_question(question, extract_entities(question))
+    assert decision.code != "NO_GENERATION_FOR_COST", question
 
 
 # ── 聚合的時間範圍：數字對，但少了讀懂它需要的那句話 ────────────────────

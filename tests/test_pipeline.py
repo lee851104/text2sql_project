@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from text2sql.llm import FakeLLM
 from text2sql.pipeline import Text2SQLPipeline
 from text2sql.sql_guard import SqlGuard
@@ -82,13 +84,71 @@ def test_authentication_error_is_not_retried_and_is_actionable() -> None:
 
     assert not response.success
     assert response.error_code == "LLM_AUTH_FAILED"
-    assert response.error == "OpenAI API key 驗證失敗，請到 API 設定更新金鑰。"
     assert response.evidence == {
         "attempts": 1,
+        "llm_error": "authentication",
         "last_error": "LLM_OUTPUT_ERROR: AuthenticationError",
     }
     assert llm.calls == 1
     assert "sk-secret" not in str(response.to_dict())
+
+
+def test_the_credential_message_names_the_variable_this_provider_reads() -> None:
+    """原本寫死「OpenAI API key」。用 GMI 的人照著去翻 OpenAI 的設定，翻不到東西。"""
+
+    class AuthenticationError(Exception):
+        status_code = 401
+
+    class GmiLLM:
+        api_key_env = "GMI_API_KEY"
+
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def generate(self, _prompt: str) -> str:
+            self.calls += 1
+            raise AuthenticationError("401")
+
+    response = make_pipeline(GmiLLM(), lambda _sql, _params: ([], [])).query("列出所有資料可用日期")
+
+    assert response.error_code == "LLM_AUTH_FAILED"
+    assert "GMI_API_KEY" in str(response.error)
+    assert "OpenAI" not in str(response.error)
+
+
+@pytest.mark.parametrize(
+    ("status", "code"),
+    ((400, "LLM_REQUEST_REJECTED"), (404, "LLM_REQUEST_REJECTED"), (422, "LLM_REQUEST_REJECTED")),
+)
+def test_a_request_the_provider_rejects_is_sent_once_not_three_times(
+    status: int, code: str
+) -> None:
+    """模型名稱、端點或輸出格式不被接受，重送同一份不會變成被接受。
+
+    原本這幾個被當成「模型答得不好」跑完整個 SQL 修復迴圈：三倍的錢與等待，換來一句
+    指向錯方向的錯誤 —— 而且在會觸發缺參數反問的題目上，使用者看到的是「這句沒有指名
+    是哪一座電廠」，跟真正的原因完全無關。
+    """
+
+    class Rejected(Exception):
+        def __init__(self) -> None:
+            super().__init__(f"HTTP {status}")
+            self.status_code = status
+
+    class RejectingLLM:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def generate(self, _prompt: str) -> str:
+            self.calls += 1
+            raise Rejected()
+
+    llm = RejectingLLM()
+    response = make_pipeline(llm, lambda _sql, _params: ([], [])).query("列出所有資料可用日期")
+
+    assert llm.calls == 1
+    assert response.error_code == code
+    assert response.evidence["llm_error"] == "configuration"
 
 
 def test_a_near_miss_asks_back_instead_of_failing_with_nothing() -> None:
