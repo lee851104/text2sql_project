@@ -17,6 +17,7 @@ from text2sql.aliases import resolve_peak_column
 from text2sql.entities import Entities, compact_question, unparsed_date
 from text2sql.generation_cost import aggregate_rows, wants_overview
 from text2sql.llm import GeneratedQuery
+from text2sql.router import classify_intent
 
 # 後設問句：問的是「這個系統／資料庫有什麼」，而不是資料本身。這類沒有對應的 SQL，
 # 所以在守門就澄清，不進產生流程 —— 讓它一路失敗到 GENERATION_FAILED 只會給使用者
@@ -102,7 +103,19 @@ VIEW_TIME_SPANS: dict[str, tuple[str, tuple[str, ...]]] = {
         'SELECT MIN("年度"), MAX("年度") FROM v_generation_cost',
         ("年度",),
     ),
+    # 大修是前瞻性排程，本來就延伸到未來（實測 2025-07～2028-06）。跟日尖峰共用一個
+    # 範圍，會把答得出來的大修問句擋掉，理由還指向錯的那張表。
+    "v_outage": (
+        'SELECT MIN("開始日期"), MAX("結束日期") FROM v_outage WHERE "日期狀態" = \'valid\'',
+        ("開始日期", "結束日期"),
+    ),
 }
+
+
+# 前瞻性排程：它的期間是「未來會發生什麼」，不是「量到了什麼」。這種檢視可以回答未來的
+# 問句，但不該讓「資料涵蓋到哪裡」的聯集跟著延伸 —— 否則問 2027 年的尖峰負載會在問句層
+# 通過，只因為 2027 年有大修排程。
+SCHEDULE_VIEWS = {"v_outage"}
 
 
 def _view_time_spans(connection: sqlite3.Connection) -> dict[str, tuple[str, str]]:
@@ -183,6 +196,7 @@ class SemanticGuard:
         self.data_range = data_range
         self.peak_columns = peak_columns
         self.pitfalls = tuple(pitfalls)
+        # 量不到的檢視不會出現在這裡；少一張表的資訊不該讓守門失效，用到的地方各自退回。
         self.view_spans = dict(view_spans or {})
 
     @classmethod
@@ -219,6 +233,8 @@ class SemanticGuard:
         starts = [self.data_range[0]]
         ends = [self.data_range[1]]
         for view in self.view_spans:
+            if view in SCHEDULE_VIEWS:
+                continue
             bounds = self._view_bounds(view)
             if bounds is None:
                 continue
@@ -369,10 +385,31 @@ class SemanticGuard:
             "燃油",
             "燃煤",
             "燃氣",
+            # 成本表存的是「燃氣」「慣常水力」，但使用者講「天然氣」「水力」。
+            # 不收這兩個寫法，等於對一個已經指名口徑的問句追問「請指定發電方式」。
+            "天然氣",
+            "水力",
             "發購電",
             "自發電力小計",
             "購入電力小計",
         )
+        # 成本表只有元/度，資料庫沒有任何發電量欄位（fact_daily_peak 是功率不是能量），
+        # 所以「發電量 × 成本」算不出來。這條要排在口徑追問之前：真正的阻礙是缺發電量，
+        # 不是沒指定發電方式 —— 照那個追問改寫問法，改完還是答不出來。
+        wants_generation = any(
+            word in compact for word in ("發電量", "度數", "發了多少", "估算成本", "估算發電成本")
+        )
+        if "成本" in compact and wants_generation:
+            return self._decision(
+                "refuse",
+                "NO_GENERATION_FOR_COST",
+                "發電成本是元/度，但本資料集沒有發電量（每日資料是尖峰出力，"
+                "屬功率不是能量），兩者相乘算不出來。",
+                "2025年燃煤發電成本是多少？",
+                "各種發電方式的發電成本是多少？",
+                evidence={"missing": "generation_kwh", "have": "cost_per_kwh"},
+            )
+
         aggregates = aggregate_rows()
         if "成本" in compact and aggregates and wants_overview(compact):
             # 一覽式問句由 router 答出來，但**答案要帶著限制一起送到眼前**：排掉的那幾列
@@ -434,8 +471,20 @@ class SemanticGuard:
                 evidence={"units": ["瓩", "萬瓩"]},
             )
 
-        unsupported = ("風力", "風光", "IPP", "ipp", "核能", "太陽能", "汽電共生")
+        # 核能不在這張清單裡：v_peak 的「核能」類別有**完整**的 6 部單機（核一/二/三
+        # 各 2 部，沒有彙總欄），容量查得到。其他幾類不是沒有單機欄就是只涵蓋一部分
+        # （IPP 有 9 欄單機但另有 3 欄彙總，列出來會少算而且看不出來）。
+        unsupported = ("風力", "風光", "IPP", "ipp", "太陽能", "汽電共生")
         detail_words = ("每一台", "各機組", "機組主檔", "每部設備", "單機", "明細")
+        # 「機組主檔」指的是 dim_unit，那裡確實沒有核能 —— 這一句仍然要擋。
+        if "核能" in compact and "主檔" in compact:
+            return self._decision(
+                "refuse",
+                "NO_UNIT_DETAIL",
+                "機組主檔不含核能；核能的單機容量在每日尖峰資料的核能類別裡。",
+                "各核能電廠的機組與裝置容量明細",
+                evidence={"unsupported_scope": "unit master"},
+            )
         if any(word in compact for word in unsupported) and any(
             word in compact for word in detail_words
         ):
@@ -563,6 +612,13 @@ class SemanticGuard:
             )
 
         coverage = self.coverage_range
+        # 排程檢視不進聯集，但問的就是排程時要算進來 —— 「下個月有哪些機組大修」答得出來，
+        # 靠的是 v_outage 涵蓋到 2028，而不是量到的資料延伸到了那裡。
+        if classify_intent(question, entities) == "outage":
+            for view in SCHEDULE_VIEWS:
+                bounds = self._view_bounds(view)
+                if bounds is not None:
+                    coverage = (min(coverage[0], bounds[0]), max(coverage[1], bounds[1]))
         if (
             entities.date_range
             and (entities.date_range.end < coverage[0] or entities.date_range.start > coverage[1])
@@ -644,7 +700,10 @@ class SemanticGuard:
 
         all_columns = {column.name for column in tree.find_all(exp.Column)}
         string_params = tuple(str(param) for param in query.params if isinstance(param, str))
-        unsupported = ("風力", "風光", "IPP", "ipp", "核能", "太陽能", "汽電共生")
+        # 核能不在這張清單裡，理由與上面問句層那條相同：v_peak 的核能類別是完整的
+        # 六部單機，沒有彙總欄，查單機明細不會少算。其餘幾類要嘛沒有單機欄，要嘛
+        # 單機只涵蓋一部分（IPP 9 欄單機之外另有 3 欄彙總）。
+        unsupported = ("風力", "風光", "IPP", "ipp", "太陽能", "汽電共生")
         asks_for_unit_detail = bool({"機組名", "機組欄位"} & all_columns)
         if asks_for_unit_detail and any(
             category in value for category in unsupported for value in string_params
