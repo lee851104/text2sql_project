@@ -9,6 +9,7 @@ import pytest
 from align.crosswalk import parse_crosswalk
 from align.pitfalls import generate_pitfalls
 from eval.cases import SEMANTIC_NEGATIVE_CONTROLS
+from ingest.build_db import build_database
 from text2sql.entities import extract_entities
 from text2sql.llm import GeneratedQuery
 from text2sql.semantic_guard import SemanticGuard, SemanticPitfall, load_semantic_context
@@ -451,11 +452,21 @@ def test_a_peak_question_still_uses_the_peak_range() -> None:
     assert decision.code == "DATA_RANGE_OUT_OF_BOUNDS"
 
 
-def test_the_outage_range_is_read_from_the_database() -> None:
-    database = ROOT / "data" / "processed" / "power.db"
-    if not database.is_file():
-        pytest.skip("尚未建庫")
-    guard = SemanticGuard.from_database(database, peak_columns=PEAK_COLUMNS)
+@pytest.fixture(scope="module")
+def built_database(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """用版控裡的 taipower_align/ 現建一份快照（約 3 秒）。
+
+    原本這裡讀 data/processed/power.db，讀不到就 skip —— 那個檔不進版控，所以 CI 從來
+    沒有真的跑過這個測試（CP-064 是同一個毛病的另一半）。
+    """
+
+    database = tmp_path_factory.mktemp("semantic-guard") / "power.db"
+    build_database(database)
+    return database
+
+
+def test_the_outage_range_is_read_from_the_database(built_database: Path) -> None:
+    guard = SemanticGuard.from_database(built_database, peak_columns=PEAK_COLUMNS)
     assert guard.outage_range is not None
     assert guard.outage_range[1] > guard.data_range[1], "大修排程應該比日尖峰更晚結束"
 
