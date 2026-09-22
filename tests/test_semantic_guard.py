@@ -418,7 +418,7 @@ def _guard_with_outage_range() -> SemanticGuard:
         data_range=DATA_RANGE,
         peak_columns=PEAK_COLUMNS,
         pitfalls=(),
-        outage_range=OUTAGE_RANGE,
+        view_spans={"v_outage": OUTAGE_RANGE},
     )
 
 
@@ -467,8 +467,9 @@ def built_database(tmp_path_factory: pytest.TempPathFactory) -> Path:
 
 def test_the_outage_range_is_read_from_the_database(built_database: Path) -> None:
     guard = SemanticGuard.from_database(built_database, peak_columns=PEAK_COLUMNS)
-    assert guard.outage_range is not None
-    assert guard.outage_range[1] > guard.data_range[1], "大修排程應該比日尖峰更晚結束"
+    outage_range = guard.view_spans.get("v_outage")
+    assert outage_range is not None, "v_outage 要跟其他檢視一樣被量到"
+    assert outage_range[1] > guard.data_range[1], "大修排程應該比日尖峰更晚結束"
 
 
 def test_nuclear_unit_capacity_is_answerable_but_the_unit_master_is_still_refused() -> None:

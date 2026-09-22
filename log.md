@@ -71,7 +71,15 @@ main 帶進了 `VIEW_TIME_SPANS`（逐檢視量時間範圍），跟本分支的
 同一個檢查（`outage_range` 管大修問句的日期擋門，`view_spans` 只替聚合加期間附註），所以兩套都留：
 `load_semantic_context` 用 main 的三元組回傳，`SemanticGuard` 同時帶 `outage_range` 與 `view_spans`。
 
-**大修範圍要不要收成 `VIEW_TIME_SPANS` 的一筆、變成同一套機制，這筆刻意沒有決定。**
+接著就收成一套了：`load_outage_range()` 拿掉，`v_outage` 跟其他四個檢視一樣由 `_view_time_spans()`
+量（`SELECT MIN("開始日期"), MAX("結束日期") FROM v_outage WHERE "日期狀態" = 'valid'`），量到的還是
+`2025-07-01 ~ 2028-06-23`，與舊查法逐字相同；日期擋門改讀 `view_spans.get("v_outage")`，`SemanticGuard`
+少一個欄位，守門只剩一套「哪張表涵蓋哪段期間」的機制。
+
+收斂換來一個原本沒有的效果：沒限制時間的大修聚合現在會被 `AGGREGATE_OVER_FULL_RANGE` 附註 ——
+`SELECT COUNT(*) FROM v_outage` 回「這個彙總沒有限制時間，涵蓋資料庫內的全部期間（v_outage 涵蓋
+2025-07-01 至 2028-06-23）」，等於把「這個總和含兩年後的排程」講出來；`WHERE "開始日期" >= …` 這種
+有框時間的查詢維持不附註。這不是特別為大修寫的規則，是併成一套之後自己生出來的。
 
 ### 五、一個從來沒在 CI 跑過的測試
 

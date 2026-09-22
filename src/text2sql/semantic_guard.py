@@ -87,22 +87,6 @@ class SemanticPitfall:
     evidence: dict[str, Any]
 
 
-def load_outage_range(database: Path) -> tuple[str, str] | None:
-    """大修排程的涵蓋期間。
-
-    meta_manifest 的 data_end 來自日尖峰資料，但 dim_outage 是前瞻性排程，本來就
-    延伸到未來（實測 2025-07～2028-06）。兩者共用一個範圍，會把答得出來的大修問句
-    擋掉，而且理由指向錯的那張表。
-    """
-
-    uri = f"{database.resolve().as_uri()}?mode=ro"
-    with sqlite3.connect(uri, uri=True) as connection:
-        row = connection.execute(
-            "SELECT MIN(start_date), MAX(end_date) FROM dim_outage WHERE date_status = 'valid'"
-        ).fetchone()
-    return (row[0], row[1]) if row and row[0] and row[1] else None
-
-
 # 每個檢視自己的時間欄位與量出範圍的查詢。`meta_manifest` 的 data_range 是全域的
 # （2025-01-01～2026-07-31），但 v_re_generation 實際是 2024-01～2026-07 —— 用全域那組
 # 去描述再生能源的合計會講錯期間，所以逐個檢視量。
@@ -117,6 +101,12 @@ VIEW_TIME_SPANS: dict[str, tuple[str, tuple[str, ...]]] = {
     "v_generation_cost": (
         'SELECT MIN("年度"), MAX("年度") FROM v_generation_cost',
         ("年度",),
+    ),
+    # 大修是前瞻性排程，本來就延伸到未來（實測 2025-07～2028-06）。跟日尖峰共用一個
+    # 範圍，會把答得出來的大修問句擋掉，理由還指向錯的那張表。
+    "v_outage": (
+        'SELECT MIN("開始日期"), MAX("結束日期") FROM v_outage WHERE "日期狀態" = \'valid\'',
+        ("開始日期", "結束日期"),
     ),
 }
 
@@ -167,14 +157,12 @@ class SemanticGuard:
         data_range: tuple[str, str],
         peak_columns: set[str],
         pitfalls: list[PitfallLike] | tuple[PitfallLike, ...] = (),
-        outage_range: tuple[str, str] | None = None,
         view_spans: dict[str, tuple[str, str]] | None = None,
     ):
         self.data_range = data_range
         self.peak_columns = peak_columns
         self.pitfalls = tuple(pitfalls)
-        # None 表示不知道大修的範圍，退回 data_range —— 少一張表的資訊不該讓守門失效。
-        self.outage_range = outage_range
+        # 量不到的檢視不會出現在這裡；少一張表的資訊不該讓守門失效，用到的地方各自退回。
         self.view_spans = dict(view_spans or {})
 
     @classmethod
@@ -184,7 +172,6 @@ class SemanticGuard:
             data_range=data_range,
             peak_columns=peak_columns,
             pitfalls=pitfalls,
-            outage_range=load_outage_range(database),
             view_spans=view_spans,
         )
 
@@ -529,8 +516,9 @@ class SemanticGuard:
         # 在這裡再寫一份關鍵字：同一件事的判斷散在兩個地方，補一邊沒補另一邊就會出現
         # 難查的半殘狀態。
         applicable_range = self.data_range
-        if self.outage_range is not None and classify_intent(question, entities) == "outage":
-            applicable_range = self.outage_range
+        outage_range = self.view_spans.get("v_outage")
+        if outage_range is not None and classify_intent(question, entities) == "outage":
+            applicable_range = outage_range
 
         if (
             entities.date_range
