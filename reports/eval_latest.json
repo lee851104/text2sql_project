@@ -1,6 +1,6 @@
 {
   "schema_version": "eval-report-v1",
-  "generated_at": "2026-09-21T16:48:13.819435+00:00",
+  "generated_at": "2026-09-22T14:39:51.849524+00:00",
   "mode": "offline_deterministic_rules",
   "database": "data/processed/power.db",
   "data_range": {
