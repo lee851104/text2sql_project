@@ -46,9 +46,14 @@ def test_complete_offline_evaluation_meets_acceptance(tmp_path: Path) -> None:
 def test_the_trap_metric_separates_the_guard_call_from_what_the_user_sees(tmp_path: Path) -> None:
     """守門判斷正確不等於使用者看得到。
 
-    refuse／clarify 一判就短路回傳，守門的結論**就是**回應本身。disclose 不是 ——
-    它只是掛在成功答案上的附註，SQL 產不出來，附註就跟著消失。只報守門判斷的話，
+    disclose 只是掛在成功答案上的附註，SQL 產不出來附註就跟著消失。只報守門判斷的話，
     那 15 題 disclose 就算端到端全滅，指標仍然是 100%，而且驗不出退步。
+
+    refuse／clarify 的結論就是回應本身，但出口不只 `check_question` 一個：逐檢視的期間
+    由 `check_sql`（看得到表名）或 `explain_unanswerable_date`（router 接不住時）接手
+    （CP-062）。所以這兩種嚴重度的兩個數字現在可以不一樣 —— 原本這裡釘的是「必須相等」，
+    而那條斷言的註解正好預告了這件事：「哪天不一致，表示 refuse／clarify 也開始走到產生
+    SQL 那一段了。」
     """
 
     database = tmp_path / "power.db"
@@ -61,15 +66,19 @@ def test_the_trap_metric_separates_the_guard_call_from_what_the_user_sees(tmp_pa
     traps = report["safety"]["semantic_traps"]
     end_to_end = traps["end_to_end"]
 
-    # 短路的兩種嚴重度：守門結論就是回應，所以兩個數字必須永遠一致。
-    # 哪天不一致，表示 refuse／clarify 也開始走到產生 SQL 那一段了。
+    # 端到端可以比守門判斷高，不能比它低：後面的關卡只能補回第一關沒接到的結論，
+    # 不會弄丟它已經接到的。掉下去就表示有題目在產生 SQL 的路上把結論丟了。
     for severity in ("refuse", "clarify"):
-        assert end_to_end["by_severity"][severity] == traps["by_severity"][severity], severity
+        assert (
+            end_to_end["by_severity"][severity]["accuracy"]
+            >= traps["by_severity"][severity]["accuracy"]
+        ), severity
 
-    # 傳達不到的題目必須列名，不能只留一個比率讓人無從追起。
+    # 傳達不到的題目必須列名，不能只留一個比率讓人無從追起。這裡不再限定只有 disclose
+    # 會出現在名單上 —— refuse／clarify 若三關都漏接也該被列出來，而那個水準由驗收條件
+    # semantic_traps_end_to_end_no_regression 把關，不必在這裡重複一次。
     for item in end_to_end["unreachable"]:
         assert {"question", "code", "severity", "outcome"} <= set(item), item
-        assert item["severity"] == "disclose", "只有 disclose 會在產生 SQL 失敗時弄丟結論"
 
     assert end_to_end["total"] == traps["total"]
     assert "semantic_traps_end_to_end_no_regression" in report["acceptance"]

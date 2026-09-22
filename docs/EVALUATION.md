@@ -16,10 +16,12 @@
 
 `semantic_traps.accuracy` 只驗 `check_question()` 的判斷是否正確；`semantic_traps.end_to_end` 再走一次離線路徑，驗**使用者實際看不看得到那個結論**。
 
-兩者不等價，而且分歧集中在一種嚴重度：
+兩者不等價，而且分歧有兩個來源：
 
-- `refuse`／`clarify` 一判就短路回傳，守門的結論**就是**回應本身，所以兩個數字必然一致。
+- `refuse`／`clarify` 一判就短路回傳，結論**就是**回應本身 —— 但出口不只 `check_question` 一個。它跑在 route 之前，看不到最後會查哪個檢視，所以「有的檢視有、有的沒有」的期間要由 `check_sql`（看得到表名）或 `explain_unanswerable_date`（router 接不住時）接手。端到端會把這三關問完，只看第一關會把後兩關確實擋下的題目誤記成傳達不到。
 - `disclose` 不是。它只是掛在成功答案上的附註 —— 答案產不出來，揭露就跟著消失，使用者看到的是 `GENERATION_FAILED`。
+
+所以兩個數字現在可以合理地不一樣：「查2024年台中出力」在 `check_question` 過不了（2024 落在 `v_generation_cost` 的範圍內，第一關無從得知問的是出力），但 `explain_unanswerable_date` 擋下並說明了哪些檢視涵蓋得到。`accuracy` 44/45、`end_to_end` 45/45 —— 前者量的是便宜前置過濾器的命中率，後者量的是使用者的實際遭遇，掉的那一題不是漏接。
 
 這個指標剛加上去時，端到端是 36/45：9 題 `disclose` 全部卡在 `NO_OFFLINE_CANDIDATE`，因為離線 router 沒有規則接「電廠總出力」「容量缺口」這類問法。補上 `route()` 最後那段 fallback 之後回到 **45/45**。
 

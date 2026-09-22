@@ -1,0 +1,80 @@
+{
+  "note": "線上模式的人工驗收清單，給 scripts/eval_online.py 讀。這不是評測題庫，所以放在 scripts/ 而不是 benchmarks/：後者由 test_no_leakage 釘死只能有那四份版控題庫，而且 corpus_learning 會 glob benchmarks/*_questions.json 禁止裡面的問句進入語料 —— 這份清單的題目正是要拿來補語料的，混進去會自相矛盾。",
+  "expect_fields": "contains / not_contains 比對回傳的資料列；sql_contains 比對產生的 SQL；source 是 router 或 llm；disclosure_codes 是必須出現的揭露代碼；error_code 是預期被擋下的代碼。沒給 expect 的題目判定為 manual，等第一次實跑之後再填。",
+  "questions": [
+    {
+      "id": "chk-county-grain",
+      "question": "最多發電廠是哪個縣市",
+      "why": "v_unit.縣市 存的是「南投縣水里鄉」這種含鄉鎮的值，直接 GROUP BY 會把高雄四座電廠拆到四個區各算一座。CP-061 為此加了語料第 13 條，要模型改用 SUBSTR。這是 CP-061 三項改動裡唯一能端到端驗證的一項。",
+      "expect": {
+        "contains": ["高雄市"],
+        "not_contains": ["南投縣水里鄉"],
+        "sql_contains": ["SUBSTR"]
+      },
+      "ground_truth": "高雄市 4 座（南投縣 3、苗栗縣 2、桃園市 2）。以 SELECT SUBSTR(\"縣市\",1,3), COUNT(DISTINCT \"電廠\") FROM v_unit GROUP BY 1 量得。"
+    },
+    {
+      "id": "chk-fuel-mix",
+      "question": "哪些電廠同時有燃煤和燃氣機組",
+      "why": "資料裡的燃料值是「煤／天然氣」，不是問句用的「燃煤／燃氣」。CP-060 加了 column_values() 把封閉集合的值放進 prompt，就是為了讓模型不必從問句抄詞。",
+      "expect": {
+        "contains": ["大林發電廠", "興達發電廠"],
+        "not_contains": ["台中發電廠", "塔山發電廠"]
+      },
+      "ground_truth": "大林、興達兩座。台中是「輕柴油,煤」、塔山是「重油,輕柴油」，都沒有天然氣。注意 log.md CP-060 記成「台中、塔山、大林、興達四座」是錯的，CP-061 的「大林、興達」才對。"
+    },
+    {
+      "id": "chk-offshore-wind",
+      "question": "離岸風力的發電量",
+      "why": "這題不是模型算的，intent=renewable_generation 的 SQL 寫死在 router 裡。拿來驗 CP-061 的期間揭露：數字看起來像年度值，其實是 31 個月的合計。兩個揭露要同時出現，這正是 describe_aggregate_scope 與 check_sql 分開回報的理由。",
+      "expect": {
+        "source": "router",
+        "contains": ["794751440"],
+        "disclosure_codes": ["RENEWABLE_SELF_BUILT_ONLY", "AGGREGATE_OVER_FULL_RANGE"]
+      },
+      "ground_truth": "794,751,440 度，期間 2024-01 ~ 2026-07 共 31 筆月資料。以 SUM(\"發電量_度\") FROM v_re_generation WHERE \"能源別\" LIKE '%離岸風力%' 量得。"
+    },
+    {
+      "id": "chk-solar-scope",
+      "question": "2025年台灣太陽能發了多少度",
+      "why": "README 開頭主打的案例：查得到答案，但只涵蓋台電自建場站，約占全國風光地熱的 3～4%。少了那句揭露，數字看起來完全正常。",
+      "expect": {
+        "disclosure_codes": ["RENEWABLE_SELF_BUILT_ONLY"]
+      }
+    },
+    {
+      "id": "chk-plant-equipment",
+      "question": "大觀發電廠有哪些設備",
+      "why": "CP 記過的迴歸：新增「資料範圍」意圖時用包含比對，把這題判成「有哪些電廠」，離線執行率從 100% 掉到 95%。改成完全比對後修好。放進清單是為了接 LLM 之後再確認一次沒被偷走。",
+      "expect": {
+        "source": "router",
+        "intent": "plant_units",
+        "contains": ["大觀一廠#1機"]
+      },
+      "ground_truth": "9 部機組，離線實跑確認仍走 plant_units，沒有被「有哪些電廠」偷走。"
+    },
+    {
+      "id": "chk-capacity-rank",
+      "question": "裝置容量前三大的電廠各在哪個縣市",
+      "why": "跨欄位組合的長尾題，router 應該沒有規則接。用來確認線上模式真的有在接手，而不是全部被規則吃掉。同時再驗一次縣市粒度。"
+    },
+    {
+      "id": "chk-out-of-range",
+      "question": "2030年的尖峰負載是多少",
+      "why": "資料範圍是 2025-01-01 ~ 2026-07-31。超出範圍要擋下並說明，不能給一個看起來像答案的東西。",
+      "expect": {
+        "error_code": "DATA_RANGE_OUT_OF_BOUNDS"
+      },
+      "ground_truth": "離線實跑確認擋下，severity=clarify。這是擋對的那一邊。"
+    },
+    {
+      "id": "chk-generation-cost",
+      "question": "2024年燃煤的發電成本是多少",
+      "why": "已知失敗，刻意讓它紅著：守門用全域 data_range（2025-01-01~2026-07-31）判定 2024 超出範圍，但 v_generation_cost 實際涵蓋 2023～2025，2024 年燃煤查得到 2.5 與 3.27 元／度。CP-061 已把「揭露」改成逐檢視量期間，但 semantic_guard.check_question 的日期守門還在用全域範圍，只改了一半。這一題補語料沒有用 —— check_question 在產生 SQL 之前就短路回傳，LLM 根本不會被呼叫。",
+      "expect": {
+        "contains": ["燃煤"]
+      },
+      "ground_truth": "應回 2024 年燃煤成本 2.5 與 3.27 元／度（審定決算）。同一個 bug 也擋掉「2023年燃氣的發電成本」與「2024年離岸風力發電量」；對照組「2025年燃煤的發電成本」可正常回 2 筆。"
+    }
+  ]
+}
