@@ -1,7 +1,8 @@
 # 台電資料 Release 清單（2026-09-13）
 
-- 發布狀態：已公開（2026-09-13 16:46 +08:00）
-- Release：https://github.com/chenliyu0410/text2sql_project/releases/tag/taipower-data-2026-09-13
+- 發布狀態：已公開（2026-09-13 16:46 +08:00）；2026-09-22 11:25 UTC 鏡像到現在的 repo
+- Release：https://github.com/lee851104/text2sql_project/releases/tag/taipower-data-2026-09-13
+- 原始發行：https://github.com/chenliyu0410/text2sql_project/releases/tag/taipower-data-2026-09-13（舊帳號，資產位元組相同）
 - Tag commit：`da749ad6f93eae7d949b47e1d291c690a0e4cb29`
 - Release tag：`taipower-data-2026-09-13`
 - 名稱：台電開放資料與 PowerQuery 資料包（2026-09-13）
@@ -29,6 +30,10 @@
 - GitHub 上傳完成後回報的四個 asset 狀態均為 `uploaded`；三個 ZIP 的遠端 byte 大小與 SHA-256 digest 均和本機完全一致。
 - 明確排除 `參考資料/00-05*.md`、`參考資料/power-analysis-ui.skill`、`data/processed/.powerquery-learning/**`、本機查詢／語料事件、`.env`、`*.key`、API 金鑰、虛擬環境、快取與 Git 內部資料。
 - 文件白名單掃描未發現 API secret、台灣身分證格式或 10～16 位連續數字。
+- 2026-09-22 鏡像：三個 ZIP 自舊 Release 取回，SHA-256 與版控中的 `releases/taipower-data-2026-09-13/SHA256SUMS.txt`
+  逐檔相符；舊 Release 的 `SHA256SUMS.txt` 與版控那份內容也完全相同。上傳後再從新 Release 下載一次重算，同樣三檔相符，
+  四個 asset 狀態均為 `uploaded`。新 repo 的 tag `taipower-data-2026-09-13` 指向同一個 commit `da749ad`。
+  搬的是同一批位元組，不是重新打包的版本。
 
 ## 顯名、時效與權利
 
@@ -36,4 +41,4 @@
 
 本 repo 目前沒有 `LICENSE`。台電資料的 OGL 1.0 不會自動延伸至專案程式或自寫文件，發布也不代表台灣電力公司為本專案背書。
 
-如需完整撤回此公開發行，先以 GitHub Release 管理介面刪除 Release 與 tag，再回退 `chore: prepare Taipower data release` 與後續進度紀錄 commit；不需、也不應改動使用者原有的未提交檔案。
+如需完整撤回此公開發行，兩個帳號的 Release 與 tag 都要刪（先 `lee851104`，再 `chenliyu0410`），再回退 `chore: prepare Taipower data release` 與後續進度紀錄 commit；不需、也不應改動使用者原有的未提交檔案。

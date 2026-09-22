@@ -2,6 +2,48 @@
 
 > 這份檔案在每個可驗證、可回退的儲存點更新。回退前需保留使用者原有的未提交變更。
 
+## CP-065 — 資料 Release 搬到現在的 repo
+
+- 時間：2026-09-22 19:30 +08:00
+- 狀態：已完成
+- 分支：`docs/mirror-data-release`
+- 起點：CP-064 收尾時發現 `docs/releases/taipower-data-2026-09-13.md` 記的 Release 掛在舊帳號
+  `chenliyu0410/text2sql_project`，現在的 `lee851104/text2sql_project` 有 0 個 Release、0 個 tag。
+  `.gitignore` 寫「原始快照由 GitHub Releases 保存」，而這個 repo 的 Releases 是空的 —— 文件承諾的東西
+  不在它說的地方。
+
+### 搬的是同一批位元組，不是重新打包
+
+三個 ZIP 從舊 Release 取回時驗一次，上傳完再從新 Release 下載一次重驗：
+
+| 檔案 | 大小 (bytes) | SHA-256 對版控清單 |
+| --- | ---: | --- |
+| `powerquery-documentation-20260913.zip` | 48,127 | 取回 OK／重下 OK |
+| `powerquery-ready-dataset-20260913.zip` | 1,216,918 | 取回 OK／重下 OK |
+| `taipower-open-data-snapshot-20260913.zip` | 182,029,567 | 取回 OK／重下 OK |
+
+比對基準是版控裡的 `releases/taipower-data-2026-09-13/SHA256SUMS.txt`（CP-011 當初就提交了），舊 Release
+附的那份與它內容完全相同。重新打包會換掉 checksum，文件上那三行 SHA-256 就全部作廢；用搬的，CP-011
+記的每一個數字今天都還驗得過。
+
+tag `taipower-data-2026-09-13` 照文件記的 commit `da749ad` 建在這個 repo（原本 0 個 tag），Release 掛在
+那個 tag 上。
+
+### 驗收
+
+- 新 Release 四個 asset 狀態均為 `uploaded`，大小與舊 Release 逐檔相同。
+- 從新 Release 重新下載三個 ZIP，`sha256sum -c` 三行全 OK；上傳的 `SHA256SUMS.txt` 與版控那份內容相同。
+- `git ls-remote --tags origin` 顯示 tag 指向 `da749ad6f93eae7d949b47e1d291c690a0e4cb29`。
+- 這次只改文件，沒有動程式或測試。
+- 回退方式：刪掉 `lee851104` 的 Release 與 tag，再回退本分支的 commit。舊帳號的 Release 沒有動過，
+  資料在那裡仍然拿得到。
+
+### 順手清掉的分支
+
+遠端 8 支、本機 12 支已併入 `main` 的分支都刪了（內容都在 `main` 的歷史裡）。遠端現在只剩 `main` 與
+`feat/offline-outage-routing`；本機另有 `fix/per-view-date-bounds`、`fix/provider-errors-and-response-checks`
+兩支未推的工作分支，這次都把 `main` 併了進去，各自跑完乾淨樹全套 647 passed 與 679 passed。
+
 ## CP-064 — CI 連紅 13 次，是測試自己去讀了產品資料庫
 
 - 時間：2026-09-22 18:35 +08:00
