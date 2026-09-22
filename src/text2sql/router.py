@@ -408,7 +408,7 @@ def classify_intent(question: str, entities: Entities | None = None) -> str:
     if ranking_shape and any(word in question for word in ("出力", "功率", "欄位")):
         return "daily_ranking"
 
-    fuel_words = ("燃料", "煤機", "燃煤", "水力", "天然氣", "燃氣", "重油", "輕柴油")
+    fuel_words = ("燃料", "煤機", "燃煤", "水力", "天然氣", "燃氣", "重油", "輕柴油", "火力")
     statistic_words = (
         "容量",
         "幾台",
@@ -420,6 +420,16 @@ def classify_intent(question: str, entities: Entities | None = None) -> str:
         "平均",
         "合計",
     )
+    # 「哪些機組使用燃煤」是依燃料列機組，也屬 fuel_stats。這條要求同時出現燃料與
+    # 「機組」，不能只看「哪些」—— 否則「總共有哪些燃料別」這種問資料範圍的句子
+    # 會被搶走（它靠的是後面的模糊 scope 比對）。
+    lists_units_by_fuel = (
+        any(word in question for word in fuel_words)
+        and any(word in question for word in ("機組", "機台"))
+        and any(word in question for word in ("哪些", "使用", "列出"))
+    )
+    if lists_units_by_fuel:
+        return "fuel_stats"
     if any(word in question for word in fuel_words) and any(
         word in question for word in statistic_words
     ):
@@ -571,6 +581,27 @@ def _renewable_filters(question: str, entities: Entities) -> tuple[str, tuple[ob
     return (" WHERE " + " AND ".join(clauses) if clauses else ""), tuple(params)
 
 
+def _generation_cost_pair(question: str) -> tuple[str, str] | None:
+    """「A 與 B 差多少」要兩個口徑。只回第一個會變成「查了燃煤、沒查天然氣」。"""
+
+    compact = re.sub(r"\s+", "", question)
+    if not any(word in compact for word in ("差多少", "差距", "相差", "與", "和")):
+        return None
+    found: list[str] = []
+    for phrase, name in (
+        ("燃煤", "燃煤"),
+        ("天然氣", "燃氣"),
+        ("燃氣", "燃氣"),
+        ("燃油", "燃油"),
+        ("核能", "核能發電"),
+        ("抽蓄", "抽蓄發電"),
+        ("慣常水力", "慣常水力"),
+    ):
+        if phrase in compact and name not in found:
+            found.append(name)
+    return (found[0], found[1]) if len(found) >= 2 else None
+
+
 def _generation_cost_type(question: str) -> str | None:
     compact = re.sub(r"\s+", "", question)
     return next(
@@ -593,6 +624,9 @@ def _generation_cost_type(question: str) -> str | None:
                 ("燃油", "燃油"),
                 ("燃煤", "燃煤"),
                 ("燃氣", "燃氣"),
+                # 成本表用「燃氣」，但使用者講「天然氣」。對不上就變成「請指定發電方式」，
+                # 而那個追問對一個已經指名了燃料的問句沒有意義。
+                ("天然氣", "燃氣"),
                 ("再生能源", "再生能源發電"),
             )
             if phrase in compact
@@ -614,6 +648,34 @@ def route(
 
     if intent == "generation_cost":
         generation_type = _generation_cost_type(question)
+        compact_cost = re.sub(r"\s+", "", question)
+        ascending = any(
+            word in compact_cost for word in ("由低到高", "由小到大", "最低", "由便宜")
+        )
+
+        # 成本表沒有「水力」這個值，只有慣常水力與抽蓄發電 —— 2025 年分別是 1.32 與
+        # 4.69 元/度，差三倍多。合併成一個數字會把這個差異藏起來，所以兩種都回。
+        if generation_type is None and "水力" in compact_cost:
+            return RoutedQuery(
+                intent,
+                'SELECT "年度", "電力來源", "發電方式", "成本_元每度", "決算類型" '
+                'FROM v_generation_cost WHERE "發電方式" IN (?, ?) '
+                'ORDER BY "年度" DESC, "發電方式" LIMIT 20',
+                ("慣常水力", "抽蓄發電"),
+            )
+
+        # 「A 與 B 差多少」：兩種口徑都要查，而且要固定在同一年度、同一電力來源才可比。
+        pair = _generation_cost_pair(question)
+        if pair is not None:
+            first, second = pair
+            return RoutedQuery(
+                intent,
+                'SELECT "年度", "電力來源", "發電方式", "成本_元每度" '
+                'FROM v_generation_cost WHERE "發電方式" IN (?, ?) '
+                'ORDER BY "年度" DESC, "發電方式" LIMIT 40',
+                (first, second),
+            )
+
         year = int(entities.date_range.start[:4]) if entities.date_range else None
         if generation_type and year:
             return RoutedQuery(
@@ -638,19 +700,30 @@ def route(
         if excluded and wants_overview(question):
             placeholders = ", ".join("?" * len(excluded))
             columns = '"年度", "電力來源", "發電方式", "成本_元每度", "決算類型"'
+            # 問「平均」要回平均。注意這是各發電方式的**算術平均**，與資料表裡那一列
+            # 「平均發購電成本」（加權）是兩回事，所以欄名寫清楚是哪一種。
+            if "平均" in compact_cost:
+                return RoutedQuery(
+                    intent,
+                    'SELECT "年度", ROUND(AVG("成本_元每度"), 4) AS "各發電方式算術平均_元每度" '
+                    f'FROM v_generation_cost WHERE "發電方式" NOT IN ({placeholders}) '
+                    'GROUP BY "年度" ORDER BY "年度" DESC LIMIT 20',
+                    excluded,
+                )
+            direction = "ASC" if ascending else "DESC"
             if year:
                 return RoutedQuery(
                     intent,
                     f"SELECT {columns} FROM v_generation_cost "
                     f'WHERE "年度" = ? AND "發電方式" NOT IN ({placeholders}) '
-                    'ORDER BY "電力來源", "成本_元每度" DESC LIMIT 200',
+                    f'ORDER BY "電力來源", "成本_元每度" {direction} LIMIT 200',
                     (year, *excluded),
                 )
             return RoutedQuery(
                 intent,
                 f"SELECT {columns} FROM v_generation_cost "
                 f'WHERE "發電方式" NOT IN ({placeholders}) '
-                'ORDER BY "年度" DESC, "電力來源", "成本_元每度" DESC LIMIT 200',
+                f'ORDER BY "年度" DESC, "電力來源", "成本_元每度" {direction} LIMIT 200',
                 excluded,
             )
 
@@ -785,8 +858,43 @@ def route(
             return RoutedQuery(intent, sql + ' ORDER BY "機組名" LIMIT 50', tuple(params))
 
     if intent == "fuel_stats":
+        compact_fuel = re.sub(r"\s+", "", question)
+        capacity_cap = re.search(
+            r"(?:超過|大於|高於)\s*([0-9][0-9,]*(?:\.[0-9]+)?)\s*(MW|mw|萬瓩|瓩)", compact_fuel
+        )
+        # 「哪些火力電廠裝置容量超過 N」：依電廠加總再篩門檻。沒有這條的話，
+        # 這句在 route() 一路到底都沒人認領，離線回不出東西。
+        if capacity_cap is not None and "電廠" in compact_fuel:
+            amount = float(capacity_cap.group(1).replace(",", ""))
+            wan_kw = {"MW": amount / 10, "mw": amount / 10, "瓩": amount / 10000}.get(
+                capacity_cap.group(2), amount
+            )
+            fuels = (
+                (entities.fuel,)
+                if entities.fuel
+                else ("煤", "天然氣", "重油", "輕柴油")
+            )
+            placeholders = ", ".join("?" * len(fuels))
+            return RoutedQuery(
+                intent,
+                'SELECT "電廠", SUM("裝置容量_萬瓩") AS "總容量_萬瓩" FROM v_unit '
+                f'WHERE "燃料" IN ({placeholders}) GROUP BY "電廠" '
+                'HAVING SUM("裝置容量_萬瓩") > ? ORDER BY "總容量_萬瓩" DESC LIMIT 50',
+                (*fuels, wan_kw),
+            )
+
         if entities.fuel:
             params = (entities.fuel,)
+            # 「哪些機組使用燃煤」問的是清單，不是總容量。這一條要在彙總分支之前。
+            if any(word in compact_fuel for word in ("哪些", "使用", "列出")) and any(
+                word in compact_fuel for word in ("機組", "機台")
+            ):
+                return RoutedQuery(
+                    intent,
+                    'SELECT "電廠", "機組名", "燃料", "裝置容量_萬瓩" FROM v_unit '
+                    'WHERE "燃料" = ? ORDER BY "電廠", "機組名" LIMIT 200',
+                    params,
+                )
             if any(word in question for word in ("幾台", "台數", "數量", "共有")):
                 return RoutedQuery(
                     intent,

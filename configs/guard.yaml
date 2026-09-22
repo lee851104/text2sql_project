@@ -15,5 +15,6 @@ semantic:
     KNOWN_CAPACITY_GAP: true
     ZERO_PERIOD_AMBIGUOUS: true
     AMBIGUOUS_UNIT_NAME: true
+    NO_GENERATION_FOR_COST: true
     DATA_RANGE_OUT_OF_BOUNDS: true
 

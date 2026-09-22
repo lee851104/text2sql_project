@@ -538,6 +538,91 @@ def test_a_single_nuclear_plant_is_filtered() -> None:
         assert prefix in routed.params, question
 
 
+# ---------------------------------------------------------------------------
+# 發電成本：口徑用語、排序方向、彙總方式
+# ---------------------------------------------------------------------------
+
+
+def test_natural_gas_maps_to_the_value_the_data_uses() -> None:
+    """成本表用「燃氣」，使用者講「天然氣」。對不上就變成「請指定發電方式」。"""
+
+    routed = _route("天然氣發電成本是多少")
+    assert routed.intent == "generation_cost"
+    assert routed.sql and "燃氣" in routed.params
+
+
+def test_hydro_cost_keeps_the_two_kinds_apart() -> None:
+    """成本表沒有「水力」，只有慣常水力與抽蓄發電，兩者成本差三倍多。
+
+    合併成一個數字會掩蓋差異，所以兩種都回、各自標示。
+    """
+
+    routed = _route("水力發電成本是多少")
+    assert routed.sql
+    assert "慣常水力" in routed.params
+    assert "抽蓄發電" in routed.params
+    assert SqlGuard().validate(routed.sql, routed.params).allowed
+
+
+def test_cost_overview_sorts_the_way_the_question_asks() -> None:
+    """「由低到高」原本產生 ORDER BY 成本 DESC —— 方向剛好相反。"""
+
+    ascending = _route("各種發電方式的成本由低到高是多少")
+    assert ascending.sql and '"成本_元每度" ASC' in ascending.sql
+    descending = _route("各種發電方式的發電成本是多少")
+    assert descending.sql and "ASC" not in descending.sql.split("ORDER BY")[-1]
+
+
+def test_cost_average_is_actually_averaged() -> None:
+    """問「平均」要回平均，不是回 54 筆明細讓使用者自己算。"""
+
+    routed = _route("各種發電方式成本平均是多少")
+    assert routed.sql and "AVG(" in routed.sql
+    assert SqlGuard().validate(routed.sql, routed.params).allowed
+
+
+def test_cost_difference_covers_both_kinds() -> None:
+    """「燃煤與天然氣差多少」原本只查了燃煤，也沒算差額。"""
+
+    routed = _route("燃煤與天然氣發電成本差多少")
+    assert routed.sql
+    assert "燃煤" in routed.params and "燃氣" in routed.params
+    assert SqlGuard().validate(routed.sql, routed.params).allowed
+
+
+# ---------------------------------------------------------------------------
+# 依燃料列機組／電廠
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("question", "expected_fuel"),
+    [("哪些火力機組使用燃煤", "煤"), ("哪些火力機組使用天然氣", "天然氣")],
+)
+def test_units_by_fuel_are_listed_offline(question: str, expected_fuel: str) -> None:
+    """問「哪些機組」要的是清單。
+
+    原本落到 fuel_stats 的彙總分支，回 `SUM(裝置容量) AS 總容量` —— 一個數字，
+    而問句問的是哪些機組。筆數正常、沒有錯誤，答的卻是另一個問題。
+    """
+
+    routed = _route(question)
+    assert routed.sql, question
+    assert "v_unit" in routed.sql
+    assert "SUM(" not in routed.sql, "問「哪些」不該回加總"
+    assert '"機組名"' in routed.sql
+    assert expected_fuel in routed.params
+    assert SqlGuard().validate(routed.sql, routed.params).allowed
+
+
+def test_a_plant_capacity_threshold_question_is_answered_offline() -> None:
+    routed = _route("哪些火力電廠裝置容量超過2000MW")
+    assert routed.sql
+    assert "GROUP BY" in routed.sql and "HAVING" in routed.sql
+    assert 200.0 in routed.params, "2000 MW 要換算成 200 萬瓩"
+    assert SqlGuard().validate(routed.sql, routed.params).allowed
+
+
 def test_an_overhaul_list_only_adds_the_columns_the_question_is_about() -> None:
     """多給欄位不是免費的：它讓「回答了什麼」變得不精確，評測也照結果集比對。
 

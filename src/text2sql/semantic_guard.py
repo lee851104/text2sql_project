@@ -214,10 +214,31 @@ class SemanticGuard:
             "燃油",
             "燃煤",
             "燃氣",
+            # 成本表存的是「燃氣」「慣常水力」，但使用者講「天然氣」「水力」。
+            # 不收這兩個寫法，等於對一個已經指名口徑的問句追問「請指定發電方式」。
+            "天然氣",
+            "水力",
             "發購電",
             "自發電力小計",
             "購入電力小計",
         )
+        # 成本表只有元/度，資料庫沒有任何發電量欄位（fact_daily_peak 是功率不是能量），
+        # 所以「發電量 × 成本」算不出來。這條要排在口徑追問之前：真正的阻礙是缺發電量，
+        # 不是沒指定發電方式 —— 照那個追問改寫問法，改完還是答不出來。
+        wants_generation = any(
+            word in compact for word in ("發電量", "度數", "發了多少", "估算成本", "估算發電成本")
+        )
+        if "成本" in compact and wants_generation:
+            return self._decision(
+                "refuse",
+                "NO_GENERATION_FOR_COST",
+                "發電成本是元/度，但本資料集沒有發電量（每日資料是尖峰出力，"
+                "屬功率不是能量），兩者相乘算不出來。",
+                "2025年燃煤發電成本是多少？",
+                "各種發電方式的發電成本是多少？",
+                evidence={"missing": "generation_kwh", "have": "cost_per_kwh"},
+            )
+
         aggregates = aggregate_rows()
         if "成本" in compact and aggregates and wants_overview(compact):
             # 一覽式問句由 router 答出來，但**答案要帶著限制一起送到眼前**：排掉的那幾列

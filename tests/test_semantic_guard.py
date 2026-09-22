@@ -487,3 +487,43 @@ def test_nuclear_unit_capacity_is_answerable_but_the_unit_master_is_still_refuse
 
 def _cost_guard() -> SemanticGuard:
     return SemanticGuard(data_range=DATA_RANGE, peak_columns=PEAK_COLUMNS, pitfalls=())
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "去年燃煤發電量乘以發電成本是多少",
+        "去年天然氣發電量乘以發電成本是多少",
+        "去年各種能源的發電量與估算成本是多少",
+        "哪種能源去年估算發電成本最高",
+        "各火力電廠去年發電量及估算成本是多少",
+        "林口電廠去年發電量及估算成本是多少",
+    ],
+)
+def test_cost_times_generation_is_refused_for_the_right_reason(question: str) -> None:
+    decision = _cost_guard().check_question(question, extract_entities(question))
+    assert decision.code == "NO_GENERATION_FOR_COST", question
+    assert decision.severity == "refuse"
+
+
+@pytest.mark.parametrize(
+    "question",
+    ["天然氣發電成本是多少", "水力發電成本是多少"],
+)
+def test_a_named_cost_type_is_not_asked_back(question: str) -> None:
+    """成本表用「燃氣」「慣常水力」，但使用者講「天然氣」「水力」。
+
+    問句已經指名了口徑，再追問「請指定發電方式」等於沒有回答。
+    """
+
+    decision = _cost_guard().check_question(question, extract_entities(question))
+    assert decision.code != "GENERATION_COST_TYPE_REQUIRED", question
+
+
+@pytest.mark.parametrize(
+    "question",
+    ["2025年火力發電成本是多少", "各種發電方式的發電成本是多少", "燃煤發電成本是多少"],
+)
+def test_a_pure_cost_question_is_unaffected(question: str) -> None:
+    decision = _cost_guard().check_question(question, extract_entities(question))
+    assert decision.code != "NO_GENERATION_FOR_COST", question
