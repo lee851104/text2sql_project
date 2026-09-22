@@ -446,26 +446,25 @@ def test_an_overhaul_question_beyond_even_the_schedule_is_still_blocked() -> Non
     assert decision.code == "DATA_RANGE_OUT_OF_BOUNDS"
 
 
-def test_a_peak_question_is_still_refused_but_at_the_sql_stage() -> None:
-    """非大修的問句仍然擋得住，只是擋在看得到表名的那一關。
+def test_a_peak_question_still_uses_the_peak_range() -> None:
+    """非大修的問句不受影響，仍然以量到的資料為準，在問句層就擋。
 
-    `check_question` 跑在 route 之前，不知道最後會查哪個檢視，所以它只能判「所有資料都
-    涵蓋不到」—— v_outage 到 2028 年，2027 年的問句過得了那一關。真正的判斷落在
-    `check_sql`，它看得到 `FROM v_peak`，訊息也因此指得出是哪個檢視涵蓋不到。
+    `v_outage` 是前瞻性排程，涵蓋到 2028 年。它必須能回答未來的大修問句，但不能讓
+    `coverage_range` 跟著延伸 —— 否則「2027年一月尖峰負載」只因為那時有大修排程就過關，
+    要到 `check_sql` 才擋，而陷阱題釘的就是問句層這一關。`SCHEDULE_VIEWS` 就是這條界線。
     """
 
     question = "2027年3月台中#1的尖峰出力"
-    entities = extract_entities(question)
-    guard = _guard_with_outage_range()
-    assert guard.check_question(question, entities).code == "OK"
-
-    query = GeneratedQuery(
-        sql='SELECT "尖峰出力_萬瓩" FROM v_peak WHERE "日期" BETWEEN ? AND ? LIMIT 200',
-        params=["2027-03-01", "2027-03-31"],
-    )
-    decision = guard.check_sql(question, query, entities)
+    decision = _guard_with_outage_range().check_question(question, extract_entities(question))
     assert decision.code == "DATA_RANGE_OUT_OF_BOUNDS"
-    assert "v_peak" in decision.reason, "訊息要指出是哪個檢視涵蓋不到"
+
+
+def test_the_schedule_view_does_not_widen_the_coverage_union() -> None:
+    """排程檢視進得了 view_spans，但進不了 coverage_range。"""
+
+    guard = _guard_with_outage_range()
+    assert guard.view_spans["v_outage"] == OUTAGE_RANGE, "check_sql 與聚合附註仍然看得到它"
+    assert guard.coverage_range[1] == DATA_RANGE[1], "聯集的結尾不該被排程拉到 2028"
 
 
 @pytest.fixture(scope="module")

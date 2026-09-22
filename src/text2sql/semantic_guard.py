@@ -17,6 +17,7 @@ from text2sql.aliases import resolve_peak_column
 from text2sql.entities import Entities, compact_question, unparsed_date
 from text2sql.generation_cost import aggregate_rows, wants_overview
 from text2sql.llm import GeneratedQuery
+from text2sql.router import classify_intent
 
 # 後設問句：問的是「這個系統／資料庫有什麼」，而不是資料本身。這類沒有對應的 SQL，
 # 所以在守門就澄清，不進產生流程 —— 讓它一路失敗到 GENERATION_FAILED 只會給使用者
@@ -109,6 +110,12 @@ VIEW_TIME_SPANS: dict[str, tuple[str, tuple[str, ...]]] = {
         ("開始日期", "結束日期"),
     ),
 }
+
+
+# 前瞻性排程：它的期間是「未來會發生什麼」，不是「量到了什麼」。這種檢視可以回答未來的
+# 問句，但不該讓「資料涵蓋到哪裡」的聯集跟著延伸 —— 否則問 2027 年的尖峰負載會在問句層
+# 通過，只因為 2027 年有大修排程。
+SCHEDULE_VIEWS = {"v_outage"}
 
 
 def _view_time_spans(connection: sqlite3.Connection) -> dict[str, tuple[str, str]]:
@@ -226,6 +233,8 @@ class SemanticGuard:
         starts = [self.data_range[0]]
         ends = [self.data_range[1]]
         for view in self.view_spans:
+            if view in SCHEDULE_VIEWS:
+                continue
             bounds = self._view_bounds(view)
             if bounds is None:
                 continue
@@ -603,6 +612,13 @@ class SemanticGuard:
             )
 
         coverage = self.coverage_range
+        # 排程檢視不進聯集，但問的就是排程時要算進來 —— 「下個月有哪些機組大修」答得出來，
+        # 靠的是 v_outage 涵蓋到 2028，而不是量到的資料延伸到了那裡。
+        if classify_intent(question, entities) == "outage":
+            for view in SCHEDULE_VIEWS:
+                bounds = self._view_bounds(view)
+                if bounds is not None:
+                    coverage = (min(coverage[0], bounds[0]), max(coverage[1], bounds[1]))
         if (
             entities.date_range
             and (entities.date_range.end < coverage[0] or entities.date_range.start > coverage[1])
