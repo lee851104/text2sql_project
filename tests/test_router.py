@@ -335,3 +335,163 @@ def test_overview_words_do_not_catch_a_single_kind() -> None:
     assert wants_overview("各種發電方式成本")
     assert not wants_overview("2025年火力發電成本是多少")
     assert not wants_overview("核能發電成本")
+
+
+# ---------------------------------------------------------------------------
+# 大修（歲修）離線路由
+#
+# 測試集 100 題裡有 20 題問「大修」，原本全部掉到線上生成：classify_intent 的 outage
+# 關鍵字只收「歲修／維修／修復」，沒有「大修」。少了這個詞，問句要嘛落到 other，要嘛
+# 被 plant_units（「林口電廠…機組…」）或 fuel_stats（「燃煤…總裝置容量」）先搶走。
+# ---------------------------------------------------------------------------
+
+
+def _outage_route(question: str):
+    return route(question, extract_entities(question), peak_columns=set())
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "下個月有哪些機組要大修",
+        "今年有哪些機組安排大修",
+        "明年有哪些機組安排大修",
+        "未來兩年有哪些機組會進行大修",
+        "哪個月份安排的大修機組最多",
+        "同一月份同時大修的機組有哪些",
+    ],
+)
+def test_a_major_overhaul_question_is_routed_to_outage(question: str) -> None:
+    assert classify_intent(question) == "outage", question
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        # 這兩句原本被 plant_units 搶走，回的是機組主檔而不是大修排程
+        "林口電廠今年有哪些機組大修",
+        "台中電廠今年有哪些機組大修",
+        # 這兩句原本被 fuel_stats 搶走，回的是全部燃煤機組容量，完全忽略大修條件
+        "下個月大修的燃煤機組總裝置容量是多少",
+        "下個月大修的燃氣機組總裝置容量是多少",
+        # 這兩句原本被 unit_extreme 搶走
+        "哪個月份大修停機容量最大",
+        "哪個月份大修停機的火力裝置容量最大",
+    ],
+)
+def test_a_major_overhaul_question_beats_the_other_intents(question: str) -> None:
+    """「大修」在句中時，outage 必須贏過電廠／燃料／極值這幾個較早的分支。"""
+
+    assert classify_intent(question) == "outage", question
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "下個月有哪些機組要大修",
+        "今年有哪些機組安排大修",
+        "明年有哪些機組安排大修",
+        "未來兩年有哪些機組會進行大修",
+        "林口電廠今年有哪些機組大修",
+        "下個月大修的燃煤機組有哪些",
+        "下個月大修的燃氣機組有哪些",
+        "下個月大修的燃煤機組總裝置容量是多少",
+        "哪個月份大修停機容量最大",
+        "哪個月份安排的大修機組最多",
+    ],
+)
+def test_a_major_overhaul_question_now_has_an_offline_answer(question: str) -> None:
+    routed = _outage_route(question)
+    assert routed.sql, question
+    assert SqlGuard().validate(routed.sql, routed.params).allowed, question
+
+
+def test_next_month_overhaul_uses_an_overlap_window() -> None:
+    """「下個月大修」是區間重疊，不是開始日落在下個月 —— 三月開工修到十月的機組也算。"""
+
+    routed = _outage_route("下個月有哪些機組要大修")
+    assert routed.intent == "outage"
+    assert '"開始日期" <=' in routed.sql
+    assert '"結束日期" >=' in routed.sql
+
+
+def test_overhaul_capacity_is_summed_over_distinct_units() -> None:
+    """大修表同一部機有重複列（通霄#2 同一起日 4 筆），不去重會把容量灌大好幾倍。"""
+
+    routed = _outage_route("下個月大修的燃煤機組總裝置容量是多少")
+    assert routed.intent == "outage"
+    assert "SUM(" in routed.sql
+    assert "DISTINCT" in routed.sql
+
+
+def test_overhaul_questions_keep_the_fuel_filter() -> None:
+    """燃煤與燃氣必須查出不同結果；大修表用的是「燃煤／燃氣」不是機組主檔的「煤／天然氣」。"""
+
+    coal = _outage_route("下個月大修的燃煤機組有哪些")
+    gas = _outage_route("下個月大修的燃氣機組有哪些")
+    assert "燃煤" in coal.params
+    assert "燃氣" in gas.params
+    assert coal.params != gas.params
+
+
+def test_an_overhaul_threshold_question_lists_units_instead_of_summing() -> None:
+    """「哪些…超過 500 MW」要的是清單，不是一個總和。
+
+    原本 `"容量" in question` 就走加總分支，於是這句回了 1402.1075 —— 一個數字，
+    而問句問的是「哪些機組」。筆數正常、沒有錯誤提示，但答的是另一個問題。
+    """
+
+    routed = _outage_route("今年有哪些大修機組裝置容量超過500MW")
+    assert routed.intent == "outage"
+    assert "SUM(" not in routed.sql
+    assert '"機組名"' in routed.sql
+    # 500 MW 要換算成 50 萬瓩，資料欄位的單位是萬瓩
+    assert 50.0 in routed.params
+    assert SqlGuard().validate(routed.sql, routed.params).allowed
+
+
+@pytest.mark.parametrize(
+    "question",
+    ["某機組預計何時開始大修", "某機組預計何時恢復運轉"],
+)
+def test_a_templated_overhaul_question_asks_which_unit(question: str) -> None:
+    """範本句沒指名機組，該追問是哪一部，而不是掉到線上生成。"""
+
+    missing = missing_parameter_clarification(
+        question,
+        extract_entities(question),
+        peak_columns={"台中#1"},
+        plants={"台中發電廠"},
+        data_range=("2025-01-01", "2026-07-31"),
+    )
+    assert missing is not None, question
+    assert missing.missing == "unit"
+
+
+# ---------------------------------------------------------------------------
+# 核能
+#
+# 核能不在 dim_unit 機組主檔裡，所以問「核一有哪些機組」原本一路掉到線上生成。
+# 但 v_peak 的「核能」類別有**完整**的 6 部單機（核一/二/三各 2 部，沒有彙總欄），
+# 容量也在「對應裝置容量_萬瓩」欄 —— 資料查得到，只是規則沒接。
+# ---------------------------------------------------------------------------
+
+
+def _nuclear_route(question: str):
+    return route(question, extract_entities(question), peak_columns=set())
+
+
+def test_an_overhaul_list_only_adds_the_columns_the_question_is_about() -> None:
+    """多給欄位不是免費的：它讓「回答了什麼」變得不精確，評測也照結果集比對。
+
+    eval-outage-01「2026年2月仍在維修的機組」期望三欄；多帶電廠與燃料會判為不符。
+    """
+
+    plain = _outage_route("2026年2月仍在維修的機組")
+    assert '"電廠"' not in plain.sql and '"燃料"' not in plain.sql
+
+    by_fuel = _outage_route("下個月大修的燃煤機組有哪些")
+    assert '"燃料"' in by_fuel.sql, "問燃煤就要看得到燃料欄，才知道篩選生效"
+
+    by_plant = _outage_route("林口電廠今年有哪些機組大修")
+    assert '"電廠"' in by_plant.sql

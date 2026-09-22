@@ -16,6 +16,7 @@ from text2sql.aliases import resolve_peak_column
 from text2sql.entities import Entities, compact_question, unparsed_date
 from text2sql.generation_cost import aggregate_rows, wants_overview
 from text2sql.llm import GeneratedQuery
+from text2sql.router import classify_intent
 
 # 後設問句：問的是「這個系統／資料庫有什麼」，而不是資料本身。這類沒有對應的 SQL，
 # 所以在守門就澄清，不進產生流程 —— 讓它一路失敗到 GENERATION_FAILED 只會給使用者
@@ -86,6 +87,23 @@ class SemanticPitfall:
     evidence: dict[str, Any]
 
 
+def load_outage_range(database: Path) -> tuple[str, str] | None:
+    """大修排程的涵蓋期間。
+
+    meta_manifest 的 data_end 來自日尖峰資料，但 dim_outage 是前瞻性排程，本來就
+    延伸到未來（實測 2025-07～2028-06）。兩者共用一個範圍，會把答得出來的大修問句
+    擋掉，而且理由指向錯的那張表。
+    """
+
+    uri = f"{database.resolve().as_uri()}?mode=ro"
+    with sqlite3.connect(uri, uri=True) as connection:
+        row = connection.execute(
+            "SELECT MIN(start_date), MAX(end_date) FROM dim_outage "
+            "WHERE date_status = 'valid'"
+        ).fetchone()
+    return (row[0], row[1]) if row and row[0] and row[1] else None
+
+
 def load_semantic_context(database: Path) -> tuple[tuple[str, str], list[SemanticPitfall]]:
     """Load the dynamic date range and alignment-derived rules from SQLite."""
 
@@ -115,15 +133,23 @@ class SemanticGuard:
         data_range: tuple[str, str],
         peak_columns: set[str],
         pitfalls: list[PitfallLike] | tuple[PitfallLike, ...] = (),
+        outage_range: tuple[str, str] | None = None,
     ):
         self.data_range = data_range
         self.peak_columns = peak_columns
         self.pitfalls = tuple(pitfalls)
+        # None 表示不知道大修的範圍，退回 data_range —— 少一張表的資訊不該讓守門失效。
+        self.outage_range = outage_range
 
     @classmethod
     def from_database(cls, database: Path, *, peak_columns: set[str]) -> SemanticGuard:
         data_range, pitfalls = load_semantic_context(database)
-        return cls(data_range=data_range, peak_columns=peak_columns, pitfalls=pitfalls)
+        return cls(
+            data_range=data_range,
+            peak_columns=peak_columns,
+            pitfalls=pitfalls,
+            outage_range=load_outage_range(database),
+        )
 
     @staticmethod
     def _decision(
@@ -381,11 +407,18 @@ class SemanticGuard:
                 evidence={"fragment": fragment, "available_range": list(self.data_range)},
             )
 
+        # 問大修就拿大修的範圍比，問尖峰就拿尖峰的範圍比。用 classify_intent 而不是
+        # 在這裡再寫一份關鍵字：同一件事的判斷散在兩個地方，補一邊沒補另一邊就會出現
+        # 難查的半殘狀態。
+        applicable_range = self.data_range
+        if self.outage_range is not None and classify_intent(question, entities) == "outage":
+            applicable_range = self.outage_range
+
         if (
             entities.date_range
             and (
-                entities.date_range.end < self.data_range[0]
-                or entities.date_range.start > self.data_range[1]
+                entities.date_range.end < applicable_range[0]
+                or entities.date_range.start > applicable_range[1]
             )
             or "資料開始日前一天" in compact
         ):
@@ -393,8 +426,8 @@ class SemanticGuard:
                 "clarify",
                 "DATA_RANGE_OUT_OF_BOUNDS",
                 "問句的日期超出目前資料涵蓋範圍。",
-                f"請改查 {self.data_range[0]} 至 {self.data_range[1]} 之間。",
-                evidence={"available_range": list(self.data_range)},
+                f"請改查 {applicable_range[0]} 至 {applicable_range[1]} 之間。",
+                evidence={"available_range": list(applicable_range)},
             )
         return SemanticDecision()
 

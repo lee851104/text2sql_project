@@ -396,3 +396,80 @@ def test_a_cost_question_with_no_kind_and_no_overview_still_asks(
     decision = semantic_guard.check_question(question, extract_entities(question))
     assert decision.code == "GENERATION_COST_TYPE_REQUIRED"
     assert decision.severity == "clarify"
+
+
+# ---------------------------------------------------------------------------
+# 大修排程的涵蓋期間與日尖峰不同
+#
+# meta_manifest 的 data_end 來自日尖峰資料（2026-07-31），但 dim_outage 是**前瞻性
+# 排程**，實測涵蓋到 2028-06。拿日尖峰的範圍去擋大修問句，會把「下個月有哪些機組要
+# 大修」這種完全答得出來的題目擋掉，而且理由寫成「日期超出資料涵蓋範圍」—— 指向錯
+# 的那張表。
+# ---------------------------------------------------------------------------
+
+OUTAGE_RANGE = ("2025-07-01", "2028-06-23")
+
+
+def _guard_with_outage_range() -> SemanticGuard:
+    return SemanticGuard(
+        data_range=DATA_RANGE,
+        peak_columns=PEAK_COLUMNS,
+        pitfalls=(),
+        outage_range=OUTAGE_RANGE,
+    )
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "下個月有哪些機組要大修",
+        "明年有哪些機組安排大修",
+        "未來兩年有哪些機組會進行大修",
+        "下個月大修的燃煤機組總裝置容量是多少",
+    ],
+)
+def test_a_future_overhaul_question_is_not_blocked_by_the_peak_data_range(question: str) -> None:
+    decision = _guard_with_outage_range().check_question(question, extract_entities(question))
+    assert decision.code != "DATA_RANGE_OUT_OF_BOUNDS", question
+
+
+def test_an_overhaul_question_beyond_even_the_schedule_is_still_blocked() -> None:
+    """放寬的是「換一張表的範圍」，不是「不檢查」。2030 年仍然該擋。"""
+
+    question = "2030年有哪些機組安排大修"
+    decision = _guard_with_outage_range().check_question(question, extract_entities(question))
+    assert decision.code == "DATA_RANGE_OUT_OF_BOUNDS"
+
+
+def test_a_peak_question_still_uses_the_peak_range() -> None:
+    """非大修的問句不受影響，仍然以日尖峰的範圍為準。"""
+
+    question = "2027年3月台中#1的尖峰出力"
+    decision = _guard_with_outage_range().check_question(question, extract_entities(question))
+    assert decision.code == "DATA_RANGE_OUT_OF_BOUNDS"
+
+
+def test_the_outage_range_is_read_from_the_database() -> None:
+    database = ROOT / "data" / "processed" / "power.db"
+    if not database.is_file():
+        pytest.skip("尚未建庫")
+    guard = SemanticGuard.from_database(database, peak_columns=PEAK_COLUMNS)
+    assert guard.outage_range is not None
+    assert guard.outage_range[1] > guard.data_range[1], "大修排程應該比日尖峰更晚結束"
+
+
+# ---------------------------------------------------------------------------
+# 「發電量 × 成本」：擋，但要用對的理由
+#
+# 成本表只有元/度，資料庫沒有任何發電量欄位（fact_daily_peak 是功率不是能量）。
+# 所以「去年燃煤發電量乘以發電成本」算不出來。
+#
+# 原本這幾題有兩種下場，兩種都不對：
+#   1. 回 GENERATION_COST_TYPE_REQUIRED「請指定發電方式」—— 理由指向錯的東西，
+#      使用者照建議改問了還是答不出來
+#   2. 成功但只回成本表，沒有乘上發電量 —— 數字看起來正常，答的卻是另一個問題
+# ---------------------------------------------------------------------------
+
+
+def _cost_guard() -> SemanticGuard:
+    return SemanticGuard(data_range=DATA_RANGE, peak_columns=PEAK_COLUMNS, pitfalls=())
