@@ -2,6 +2,176 @@
 
 > 這份檔案在每個可驗證、可回退的儲存點更新。回退前需保留使用者原有的未提交變更。
 
+## CP-065 — 資料 Release 搬到現在的 repo
+
+- 時間：2026-09-22 19:30 +08:00
+- 狀態：已完成
+- 分支：`docs/mirror-data-release`
+- 起點：CP-064 收尾時發現 `docs/releases/taipower-data-2026-09-13.md` 記的 Release 掛在舊帳號
+  `chenliyu0410/text2sql_project`，現在的 `lee851104/text2sql_project` 有 0 個 Release、0 個 tag。
+  `.gitignore` 寫「原始快照由 GitHub Releases 保存」，而這個 repo 的 Releases 是空的 —— 文件承諾的東西
+  不在它說的地方。
+
+### 搬的是同一批位元組，不是重新打包
+
+三個 ZIP 從舊 Release 取回時驗一次，上傳完再從新 Release 下載一次重驗：
+
+| 檔案 | 大小 (bytes) | SHA-256 對版控清單 |
+| --- | ---: | --- |
+| `powerquery-documentation-20260913.zip` | 48,127 | 取回 OK／重下 OK |
+| `powerquery-ready-dataset-20260913.zip` | 1,216,918 | 取回 OK／重下 OK |
+| `taipower-open-data-snapshot-20260913.zip` | 182,029,567 | 取回 OK／重下 OK |
+
+比對基準是版控裡的 `releases/taipower-data-2026-09-13/SHA256SUMS.txt`（CP-011 當初就提交了），舊 Release
+附的那份與它內容完全相同。重新打包會換掉 checksum，文件上那三行 SHA-256 就全部作廢；用搬的，CP-011
+記的每一個數字今天都還驗得過。
+
+tag `taipower-data-2026-09-13` 照文件記的 commit `da749ad` 建在這個 repo（原本 0 個 tag），Release 掛在
+那個 tag 上。
+
+### 驗收
+
+- 新 Release 四個 asset 狀態均為 `uploaded`，大小與舊 Release 逐檔相同。
+- 從新 Release 重新下載三個 ZIP，`sha256sum -c` 三行全 OK；上傳的 `SHA256SUMS.txt` 與版控那份內容相同。
+- `git ls-remote --tags origin` 顯示 tag 指向 `da749ad6f93eae7d949b47e1d291c690a0e4cb29`。
+- 這次只改文件，沒有動程式或測試。
+- 回退方式：刪掉 `lee851104` 的 Release 與 tag，再回退本分支的 commit。舊帳號的 Release 沒有動過，
+  資料在那裡仍然拿得到。
+
+### 順手清掉的分支
+
+遠端 8 支、本機 12 支已併入 `main` 的分支都刪了（內容都在 `main` 的歷史裡）。遠端現在只剩 `main` 與
+`feat/offline-outage-routing`；本機另有 `fix/per-view-date-bounds`、`fix/provider-errors-and-response-checks`
+兩支未推的工作分支，這次都把 `main` 併了進去，各自跑完乾淨樹全套 647 passed 與 679 passed。
+
+## CP-064 — CI 連紅 13 次，是測試自己去讀了產品資料庫
+
+- 時間：2026-09-22 18:35 +08:00
+- 狀態：已完成
+- 分支：`fix/offline-ci-database-dependency`（從 `main` 4e42c58 開出）
+- 編號：CP-062、CP-063 還在未合併的分支上，這裡接著往後編，避免合併時撞號。
+- 起點：使用者回報 GitHub Actions 很多失敗，判斷是 `power.db` 沒進版控，想用 GitHub Release 解決。
+
+### 一、紅的是 13 次 run，不是 13 個測試
+
+`offline-ci` 連續 13 次失敗（run #49–#61，2026-09-20 07:51Z 起到 2026-09-22 06:22Z），`merge-gate` 3 次全綠。
+每一次紅的都只有 `Offline tests` 這一步，`Format check`、`Lint` 全過 —— 不是格式、也不是環境問題。
+
+把 `main` 展開成乾淨 checkout（`git archive` 出去，等同 CI 拿到的樹）跑全套：**636 passed, 1 failed**。
+唯一失敗的是 `tests/test_runtime_modes.py::test_the_runtime_takes_the_retrieval_floors_from_config`，
+錯誤是 `FileNotFoundError: data/processed/power.db`。未合併的分支與 run #61 那個 commit 也一樣只紅這一個
+（數字見驗收）。從頭到尾就這一個測試，紅了 13 次。
+
+### 二、原因不在資料沒進版控，在那一行少了一個參數
+
+那一行是整個檔案 14 個 `build_runtime(...)` 呼叫裡，**唯一沒帶 `database=` 的**：
+其他 13 個都吃模組 fixture 現建的快照，只有它落回 `configs/config.yaml` 的預設路徑 `data/processed/power.db`。
+本機那個檔存在，所以看起來是綠的；CI 的樹裡沒有，於是每次都紅。
+
+第一次紅的 run #49（2026-09-20 07:51Z）對應的 commit，正是把這個測試加進來的 `3b416f3`
+（`feat: drop the retrieval noise instead of prompting with it`，2026-09-20 15:48 +08:00 ＝ 07:48Z）。
+時間對得上，中間沒有第二個原因。
+
+修法是補上 fixture：`build_runtime(database=database, mode="offline")`，並在該處留一行註解說明為什麼不能省。
+
+### 三、為什麼沒有走 Release
+
+`data/processed/power.db` 是衍生物，不是素材。乾淨 checkout 裡直接跑 `python -m ingest.build_db`：
+
+| 項目 | 結果 |
+| --- | --- |
+| 耗時 | 2.8 秒 |
+| 產物 | `data/processed/power.db`，3,063,808 bytes（與本機同大小） |
+| 來源 | `taipower_align/*.csv`，全部都在版控裡 |
+| 網路 | 不需要 |
+
+而合併門檻自己把 `data/` 與 `*.db` 列為禁入路徑（`gate_rules.json`），資料庫本來就不該進版控。
+Release 這條路能讓 CI 綠，但 Release 是為了「別人要拿得到 182 MB 原始快照」而存在的（CP-011），
+不是 CI 的資料來源：CI 缺的不是資料，是那個測試不該去碰產品資料庫。
+
+**也沒有在 `ci.yml` 加一步 `make db`。** 那樣同樣會綠，但會把「測試偷用產品資料庫」這種錯誤一起蓋掉 ——
+下一個忘了帶 `database=` 的測試就不會在 CI 被抓到。而既有 fixture 本來就用同一批 CSV 建過庫，
+加這一步不會多驗到任何東西。
+
+### 驗收
+
+乾淨樹＝只有版控裡的檔案、沒有 `data/`，等同 CI checkout 拿到的樹。三棵不同的樹跑下來，
+失敗的都是同一個測試：
+
+| 乾淨樹 | 修正前 | 修正後 |
+| --- | --- | --- |
+| `main` `4e42c58` | 636 passed, **1 failed** | **637 passed** |
+| `fix/provider-errors-and-response-checks` `8716d39` | 678 passed, **1 failed** | － |
+| `feat/offline-outage-routing` `82d9f1ca`（run #61 的 commit） | 693 passed, 1 skipped, **1 failed** | － |
+
+- `ruff format --check .`（110 files）、`ruff check .` 通過。
+- 這次沒有動 `src/`，只改測試與本檔。
+- 回退方式：回退 `fix/offline-ci-database-dependency` 這個分支的單一 commit。回退後 CI 會回到同一個測試上紅，其餘行為不變。
+
+### 尚未處理
+
+`docs/releases/taipower-data-2026-09-13.md` 記的 Release 掛在舊帳號 `chenliyu0410/text2sql_project` 底下；
+現在的 `lee851104/text2sql_project` 有 0 個 Release。資料要能從這個 repo 下載得另外發一次，這次沒動。
+
+`feat/offline-outage-routing` 還帶著舊的那一行，要等它併上 `main`（或 rebase）才會跟著綠。
+
+## CP-061 — 把資料的語意交出去：粒度、期間、同名不同值
+
+- 時間：2026-09-21 09:56 +08:00
+- 狀態：已完成（服務需重啟才套用）
+- 起點：接上 GMI 之後實測三個問句，兩個答錯或缺脈絡。三個案例裡**模型一次都沒錯**，錯的是沒有人把資料的語意告訴它。
+
+### 三個案例，同一個病
+
+| 問句 | 誰算的 | 結果 | 病因 |
+|---|---|---|---|
+| 哪些電廠同時有燃煤和燃氣機組 | LLM | ✅ 大林、興達 | CP-060 的 value linking 生效了 |
+| 最多發電廠是哪個縣市 | LLM | ❌ 回「南投 2 個」 | 不知道欄位粒度是鄉鎮 |
+| 離岸風力的發電量 | **規則路由** | ⚠️ 數字對、沒說期間 | 揭露漏了時間範圍 |
+
+第二題模型寫了 `GROUP BY "縣市"` —— 任何人都會這樣寫。但 `v_unit."縣市"` 存的是「南投縣水里鄉」，於是變成按鄉鎮分組：高雄四座電廠散在美濃、永安、小港、前鎮各算一座，輸給擠在同一個鄉的南投兩座。**正確答案是高雄市 4 座**。SQL 合法、有結果、數字看起來合理，這種錯不會自己浮出來。
+
+第三題根本不是模型算的，`intent=renewable_generation`，SQL 寫死在 router 裡。它跟 GMI、跟 Gemini 都沒有關係。
+
+### 一、縣市粒度寫進語料
+
+`documentation` 第 13 條：v_unit 的縣市含鄉鎮、v_re_generation 只到縣市，問哪個縣市要用 `SUBSTR("縣市",1,3)`。
+
+### 二、聚合揭露它涵蓋的期間
+
+「離岸風力 794,751,440 度」看起來像年度數字，實際是 2024-01 到 2026-07 共 31 個月的合計，而 2026 只有 7 個月 —— 拿去跟前兩年比會得到錯的結論。數字本身沒錯，錯在少了讀懂它需要的那一句話。
+
+新增 `describe_aggregate_scope()`：有聚合、而且 WHERE 沒有框時間，就把該檢視實際涵蓋的範圍講出來。
+
+期間是**逐檢視量**的。`meta_manifest` 的全域 data_range 是 2025-01-01～2026-07-31，但 v_re_generation 實際是 2024-01～2026-07、v_generation_cost 是 2023～2025 —— 用全域那組去描述再生能源的合計會講錯期間。
+
+它跟 `check_sql` 分開回報，因為後者一次只回一個 decision：再生能源的查詢會先撞上 `RENEWABLE_SELF_BUILT_ONLY`，期間就永遠輪不到。兩件事都該說，所以各自回報，pipeline 收集時一併帶上。
+
+### 三、同名欄位、不同值
+
+列出值還不夠 —— 模型沒有理由去比對兩個同名欄位的值長得不一樣。`column_value_conflicts()` 把那個比對做掉並明講。實測抓到三組，其中一組比縣市更嚴重：
+
+```
+「燃料」  v_outage 用「水力、燃煤、燃油、燃氣」；v_unit 用「水、重油、天然氣、輕柴油、煤」
+「縣市」  v_re_generation 用「桃園市、澎湖縣」；v_unit 用「苗栗縣卓蘭鎮、基隆市」
+「電廠」  v_peak 有「桂山發電廠|石門發電廠|…」這種殘差桶複合值
+```
+
+**同一個「燃料」概念，兩個檢視用完全不同的詞彙。** 這正好解釋了模型當初為什麼會猜「燃煤」：那個詞在這份資料裡真的存在，只是在另一張表。
+
+只報「同名而值不同」這個事實，不猜誰比較細：`v_unit` 有「基隆市」這種本身就沒有鄉鎮的值，任何「A 的值都以 B 為前綴」的規則都會在這裡判錯。與其給一句可能錯的推論，不如把兩邊樣本並排讓模型自己看。
+
+### 驗收
+
+- `ruff format --check .`（110 files）、`ruff check .` 通過；`pytest -q` **636 passed, 1 skipped**（CP-060 後為 627，本次新增 9 筆；skip 是 port 8765 被執行中的服務占用）。
+- 新測試：期間揭露 4 筆（沒限時間要說、已限時間不說、沒有聚合不說、量不到範圍的檢視不硬掰）；同名衝突 3 筆（值不同要報、值相同不報、只有一個檢視不報）；prompt 2 筆（衝突有進 payload、沒有衝突時不出現該區塊）。
+- `load_semantic_context()` 的回傳從 2 個值變 3 個，既有測試同步。
+- 回退方式：回退 `feat: tell the model what the data means, not just what it contains` 這個 commit。回退後 prompt 不再帶同名欄位的差異、聚合不再說明期間、語料少第 13 條規則。
+
+### 尚未驗證
+
+**需要重啟服務**才會套用（重啟會清掉記憶體裡的 API key，要重新輸入）。重啟後值得回頭再問一次「最多發電廠是哪個縣市」，看模型會不會改用 `SUBSTR`，答出高雄市 4 座。那是這三項唯一能端到端驗證的一項 —— 另外兩項是揭露，看得到就是有效。
+
 ## CP-060 — 接上 GMI 的路上撿到的四件事
 
 - 時間：2026-09-21 01:30 +08:00

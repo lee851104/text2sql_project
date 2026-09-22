@@ -190,3 +190,9 @@
 ### 查詢結果的資料出處
 
 `POST /api/query` 成功時，`data.data_provenance` 附上該次查詢用到的來源檔。作用中快照缺少某個 slot 時（版本 id 不含 schema 版本，見 `docs/SPEC.md` 的「已知待修」），該筆出處會**略過而不是捏造**，`data_sources` 可能因此是空陣列。查詢結果本身不受影響 —— 出處是補充說明，不該讓一個已經成功的查詢失敗。
+
+### 彙總的時間範圍
+
+查詢含聚合（`SUM`／`AVG`／`COUNT`／`MAX`／`MIN`）而 `WHERE` 沒有限制時間欄位時，`data.disclosures` 會多一筆 `AGGREGATE_OVER_FULL_RANGE`，說明該檢視實際涵蓋的期間。範圍是逐檢視量的，不是 `meta_manifest` 的全域 data_range —— 兩者不同：全域是 2025-01-01～2026-07-31，而 `v_re_generation` 從 2024-01 開始、`v_generation_cost` 是 2023 起的年度資料。
+
+沒有這一筆時，「離岸風力 794,751,440 度」看起來像年度數字，實際上是 31 個月的合計，其中 2026 只有 7 個月。數字正確，但少了讀懂它需要的那句話。`disclosures` 可以同時出現多筆：這一筆與 `RENEWABLE_SELF_BUILT_ONLY` 之類的範圍說明並存，不會互相取代。

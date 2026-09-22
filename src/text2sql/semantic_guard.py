@@ -103,8 +103,42 @@ def load_outage_range(database: Path) -> tuple[str, str] | None:
     return (row[0], row[1]) if row and row[0] and row[1] else None
 
 
-def load_semantic_context(database: Path) -> tuple[tuple[str, str], list[SemanticPitfall]]:
-    """Load the dynamic date range and alignment-derived rules from SQLite."""
+# 每個檢視自己的時間欄位與量出範圍的查詢。`meta_manifest` 的 data_range 是全域的
+# （2025-01-01～2026-07-31），但 v_re_generation 實際是 2024-01～2026-07 —— 用全域那組
+# 去描述再生能源的合計會講錯期間，所以逐個檢視量。
+VIEW_TIME_SPANS: dict[str, tuple[str, tuple[str, ...]]] = {
+    "v_peak": ('SELECT MIN("日期"), MAX("日期") FROM v_peak', ("日期",)),
+    "v_system": ('SELECT MIN("日期"), MAX("日期") FROM v_system', ("日期",)),
+    "v_re_generation": (
+        "SELECT MIN(\"年度\" || '-' || SUBSTR('0' || \"月份\", -2)),"
+        " MAX(\"年度\" || '-' || SUBSTR('0' || \"月份\", -2)) FROM v_re_generation",
+        ("年度", "月份"),
+    ),
+    "v_generation_cost": (
+        'SELECT MIN("年度"), MAX("年度") FROM v_generation_cost',
+        ("年度",),
+    ),
+}
+
+
+def _view_time_spans(connection: sqlite3.Connection) -> dict[str, tuple[str, str]]:
+    """量出每個檢視實際涵蓋的時間範圍；讀不到的檢視略過，不要讓整個 guard 建不起來。"""
+
+    spans: dict[str, tuple[str, str]] = {}
+    for view, (sql, _columns) in VIEW_TIME_SPANS.items():
+        try:
+            row = connection.execute(sql).fetchone()
+        except sqlite3.Error:
+            continue
+        if row and row[0] is not None and row[1] is not None:
+            spans[view] = (str(row[0]), str(row[1]))
+    return spans
+
+
+def load_semantic_context(
+    database: Path,
+) -> tuple[tuple[str, str], list[SemanticPitfall], dict[str, tuple[str, str]]]:
+    """Load the dynamic date range, alignment-derived rules, and per-view time spans."""
 
     uri = f"{database.resolve().as_uri()}?mode=ro"
     with sqlite3.connect(uri, uri=True) as connection:
@@ -116,13 +150,14 @@ def load_semantic_context(database: Path) -> tuple[tuple[str, str], list[Semanti
                       reason, suggestion, evidence
                FROM meta_pitfall ORDER BY id"""
         ).fetchall()
+        view_spans = _view_time_spans(connection)
     pitfalls = [
         SemanticPitfall(
             code, kind, name or "", severity, reason, suggestion or "", json.loads(data)
         )
         for code, kind, name, severity, reason, suggestion, data in rows
     ]
-    return (start, end), pitfalls
+    return (start, end), pitfalls, view_spans
 
 
 class SemanticGuard:
@@ -133,21 +168,72 @@ class SemanticGuard:
         peak_columns: set[str],
         pitfalls: list[PitfallLike] | tuple[PitfallLike, ...] = (),
         outage_range: tuple[str, str] | None = None,
+        view_spans: dict[str, tuple[str, str]] | None = None,
     ):
         self.data_range = data_range
         self.peak_columns = peak_columns
         self.pitfalls = tuple(pitfalls)
         # None 表示不知道大修的範圍，退回 data_range —— 少一張表的資訊不該讓守門失效。
         self.outage_range = outage_range
+        self.view_spans = dict(view_spans or {})
 
     @classmethod
     def from_database(cls, database: Path, *, peak_columns: set[str]) -> SemanticGuard:
-        data_range, pitfalls = load_semantic_context(database)
+        data_range, pitfalls, view_spans = load_semantic_context(database)
         return cls(
             data_range=data_range,
             peak_columns=peak_columns,
             pitfalls=pitfalls,
             outage_range=load_outage_range(database),
+            view_spans=view_spans,
+        )
+
+    def describe_aggregate_scope(self, query: GeneratedQuery) -> SemanticDecision | None:
+        """聚合沒有限制時間時，把它實際涵蓋的期間講出來。
+
+        「離岸風力的發電量 794,751,440 度」看起來像個年度數字，實際上是 2024-01 到
+        2026-07 共 31 個月的合計，而 2026 只有 7 個月 —— 拿去跟前兩年比會得到錯的結論。
+        數字本身沒錯，錯在少了讀懂它需要的那一句話。
+
+        這裡與 `check_sql` 分開，因為後者一次只回一個 decision：再生能源的查詢會先撞上
+        `RENEWABLE_SELF_BUILT_ONLY`，期間就永遠輪不到。兩件事都該說，所以各自回報。
+        """
+
+        try:
+            tree = parse_one(query.sql, read="sqlite")
+        except ParseError:
+            return None
+        if not any(
+            True
+            for aggregate in (exp.Sum, exp.Avg, exp.Count, exp.Max, exp.Min)
+            for _node in tree.find_all(aggregate)
+        ):
+            return None
+
+        tables = {table.name for table in tree.find_all(exp.Table)}
+        spans = {view: span for view, span in self.view_spans.items() if view in tables}
+        if not spans:
+            return None
+
+        # 問句已經框了時間就不必再說一次 —— WHERE 提到任何一個時間欄位就算數。
+        where = tree.args.get("where")
+        if where is not None:
+            constrained = {column.name for column in where.find_all(exp.Column)}
+            time_columns = {
+                name for view in tables for name in VIEW_TIME_SPANS.get(view, ("", ()))[1]
+            }
+            if constrained & time_columns:
+                return None
+
+        described = "；".join(
+            f"{view} 涵蓋 {start} 至 {end}" for view, (start, end) in spans.items()
+        )
+        return self._decision(
+            "disclose",
+            "AGGREGATE_OVER_FULL_RANGE",
+            f"這個彙總沒有限制時間，涵蓋資料庫內的全部期間（{described}）。",
+            "要特定期間請在問句裡指明年月。",
+            evidence={"spans": {view: list(span) for view, span in spans.items()}},
         )
 
     @staticmethod

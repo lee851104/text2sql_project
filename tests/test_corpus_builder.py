@@ -10,6 +10,7 @@ import text2sql.corpus_builder as corpus_builder
 from text2sql.corpus import (
     DEFAULT_NGRAM_RANGE,
     build_index,
+    column_value_conflicts,
     column_values,
     load_corpus,
     ngram_range,
@@ -373,3 +374,36 @@ def test_blank_values_do_not_become_an_enum() -> None:
     run = _fake_sql({"v_outage.原因": ["", "   ", None]})
 
     assert column_values(run, {"v_outage": ["原因"]}) == {}
+
+
+def test_same_column_name_with_different_values_is_flagged() -> None:
+    """列出值還不夠：模型沒有理由去比對兩個同名欄位的值長得不一樣。
+
+    實測問「最多發電廠是哪個縣市」，模型寫了 GROUP BY "縣市" —— 任何人都會這樣寫，
+    但 v_unit 的那一欄存的是「南投縣水里鄉」，於是它變成按鄉鎮分組，答案錯了而且
+    看起來很合理。
+    """
+
+    collected = {
+        "v_unit.縣市": ["南投縣水里鄉", "基隆市"],
+        "v_re_generation.縣市": ["南投縣", "桃園市"],
+    }
+
+    conflicts = column_value_conflicts(collected)
+
+    assert set(conflicts) == {"縣市"}
+    assert "v_unit" in conflicts["縣市"] and "v_re_generation" in conflicts["縣市"]
+    assert "南投縣水里鄉" in conflicts["縣市"]
+
+
+def test_identical_values_across_views_are_not_a_conflict() -> None:
+    collected = {
+        "v_unit.燃料": ["煤", "天然氣"],
+        "v_outage.燃料": ["天然氣", "煤"],
+    }
+
+    assert column_value_conflicts(collected) == {}
+
+
+def test_a_column_in_only_one_view_is_not_a_conflict() -> None:
+    assert column_value_conflicts({"v_unit.燃料": ["煤", "天然氣"]}) == {}

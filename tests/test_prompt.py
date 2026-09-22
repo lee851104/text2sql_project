@@ -108,3 +108,22 @@ def test_a_prompt_without_column_values_is_unchanged() -> None:
 
     assert "column_values" not in _payload()
     assert "column_values" not in _payload(column_values={})
+
+
+def test_same_name_columns_with_different_values_are_called_out() -> None:
+    """同名欄位的值不同時要明講，光把值列出來模型不會自己去比對。"""
+
+    payload = _payload(
+        column_values={"v_unit.縣市": ["南投縣水里鄉"], "v_re_generation.縣市": ["南投縣"]},
+        column_value_conflicts={
+            "縣市": "v_unit 用「南投縣水里鄉」；v_re_generation 用「南投縣」。"
+        },
+    )
+
+    assert "縣市" in payload["column_value_conflicts"]
+    assert "南投縣水里鄉" in payload["column_value_conflicts"]["縣市"]
+
+
+def test_no_conflicts_means_no_such_block() -> None:
+    assert "column_value_conflicts" not in _payload()
+    assert "column_value_conflicts" not in _payload(column_value_conflicts={})

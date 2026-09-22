@@ -29,6 +29,8 @@ class SemanticGuardProtocol(Protocol):
         self, question: str, query: GeneratedQuery, entities: Entities
     ) -> SemanticDecision: ...
 
+    def describe_aggregate_scope(self, query: GeneratedQuery) -> SemanticDecision | None: ...
+
 
 class AllowAllSemanticGuard:
     def check_question(self, question: str, entities: Entities) -> SemanticDecision:
@@ -38,6 +40,10 @@ class AllowAllSemanticGuard:
         self, question: str, query: GeneratedQuery, entities: Entities
     ) -> SemanticDecision:
         return SemanticDecision()
+
+    def describe_aggregate_scope(self, query: GeneratedQuery) -> SemanticDecision | None:
+        del query
+        return None
 
 
 @dataclass(frozen=True)
@@ -66,6 +72,7 @@ class Text2SQLPipeline:
         peak_columns: set[str],
         plants: set[str] | None = None,
         column_values: Mapping[str, Sequence[str]] | None = None,
+        column_value_conflicts: Mapping[str, str] | None = None,
         semantic_guard: SemanticGuardProtocol | None = None,
         scope_guard: ScopeGuard | None = None,
         max_attempts: int = 3,
@@ -93,6 +100,7 @@ class Text2SQLPipeline:
         self.plants = plants or set()
         # 封閉集合欄位的值。空的時候 prompt 就少這一段，行為與先前相同。
         self.column_values = {key: list(values) for key, values in (column_values or {}).items()}
+        self.column_value_conflicts = dict(column_value_conflicts or {})
         self.semantic_guard = semantic_guard or AllowAllSemanticGuard()
         self.scope_guard = scope_guard
         self.max_attempts = max_attempts
@@ -209,6 +217,7 @@ class Text2SQLPipeline:
                     examples=retrieved,
                     data_range=self.data_range,
                     column_values=self.column_values,
+                    column_value_conflicts=self.column_value_conflicts,
                     prior_error=prior_error,
                     prior_sql=prior_sql,
                 )
@@ -284,7 +293,12 @@ class Text2SQLPipeline:
             self._trace(trace, "execute", started, attempt=attempt, record_count=len(rows))
             disclosures = []
             disclosed_codes: set[str] = set()
-            for decision in (question_decision, semantic):
+            # 期間另外問，因為 check_sql 一次只回一個 decision：再生能源的查詢會先撞上
+            # RENEWABLE_SELF_BUILT_ONLY，期間就永遠輪不到，而那兩件事都該說。
+            scope_note = self.semantic_guard.describe_aggregate_scope(generated)
+            for decision in (question_decision, semantic, scope_note):
+                if decision is None:
+                    continue
                 if decision.severity == "disclose" and decision.code not in disclosed_codes:
                     disclosures.append(
                         {
