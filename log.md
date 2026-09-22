@@ -98,6 +98,18 @@ main 帶進了 `VIEW_TIME_SPANS`（逐檢視量時間範圍），跟本分支的
 線上模式一次都沒跑過 —— 這三組分流是離線規則，接上 provider 之後模型會不會照樣被這些規則接住，
 還沒驗過。
 
+### 尚未處理：`guard.yaml` 的規則開關是死設定
+
+這次在 `configs/guard.yaml` 加的 `NO_GENERATION_FOR_COST: true` **不起作用**。全 repo 只有
+`build_runtime()` 讀 `guard.yaml`，而且只取 `sql.timeout_seconds` 與 `sql.max_rows`；
+`semantic.rules` 整段沒有任何程式讀它。既有那九條開關同樣不起作用 —— 把任何一條設成 `false`
+都不會關掉那條規則。設計規格寫「`guard.yaml` 的每條語意規則開關 —— ablation 要能整層關掉」，
+那個能力目前不存在。
+
+要嘛把開關接到 `SemanticGuard`，要嘛把這段從 `guard.yaml` 拿掉；這次兩件都沒做，只在
+`docs/SEMANTIC_GUARD.md` 把現況寫明，順帶補上文件漏掉的 code（`AGGREGATE_OVER_FULL_RANGE`、
+`GENERATION_COST_TYPE_REQUIRED` 等七個）。
+
 ## CP-066 — `make db` 不會下載，README 說它會
 
 - 時間：2026-09-22 19:45 +08:00
