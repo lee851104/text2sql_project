@@ -649,9 +649,7 @@ def route(
     if intent == "generation_cost":
         generation_type = _generation_cost_type(question)
         compact_cost = re.sub(r"\s+", "", question)
-        ascending = any(
-            word in compact_cost for word in ("由低到高", "由小到大", "最低", "由便宜")
-        )
+        ascending = any(word in compact_cost for word in ("由低到高", "由小到大", "最低", "由便宜"))
 
         # 成本表沒有「水力」這個值，只有慣常水力與抽蓄發電 —— 2025 年分別是 1.32 與
         # 4.69 元/度，差三倍多。合併成一個數字會把這個差異藏起來，所以兩種都回。
@@ -869,11 +867,7 @@ def route(
             wan_kw = {"MW": amount / 10, "mw": amount / 10, "瓩": amount / 10000}.get(
                 capacity_cap.group(2), amount
             )
-            fuels = (
-                (entities.fuel,)
-                if entities.fuel
-                else ("煤", "天然氣", "重油", "輕柴油")
-            )
+            fuels = (entities.fuel,) if entities.fuel else ("煤", "天然氣", "重油", "輕柴油")
             placeholders = ", ".join("?" * len(fuels))
             return RoutedQuery(
                 intent,
@@ -928,9 +922,7 @@ def route(
     if intent == "nuclear":
         # v_peak 一天一列，六部機各有數百天，所以一律先 DISTINCT 取出「機組欄位 →
         # 容量」再彙總；直接對明細列 SUM 會把容量乘上天數。
-        inner = (
-            'SELECT DISTINCT "機組欄位", "對應裝置容量_萬瓩" FROM v_peak WHERE "類別" = ?'
-        )
+        inner = 'SELECT DISTINCT "機組欄位", "對應裝置容量_萬瓩" FROM v_peak WHERE "類別" = ?'
         params: list[object] = ["核能"]
         plant_match = re.search(r"核[一二三](?![0-9])", question)
         single_plant = plant_match and "各" not in question and "哪一座" not in question
@@ -1000,14 +992,12 @@ def route(
         if wants_total or (single_plant and "容量" in question and "哪些" not in question):
             return RoutedQuery(
                 intent,
-                'SELECT SUM("對應裝置容量_萬瓩") AS "總裝置容量_萬瓩" '
-                f'FROM ({inner}) LIMIT 1',
+                f'SELECT SUM("對應裝置容量_萬瓩") AS "總裝置容量_萬瓩" FROM ({inner}) LIMIT 1',
                 tuple(params),
             )
         return RoutedQuery(
             intent,
-            f'SELECT "機組欄位", "對應裝置容量_萬瓩" FROM ({inner}) '
-            'ORDER BY "機組欄位" LIMIT 20',
+            f'SELECT "機組欄位", "對應裝置容量_萬瓩" FROM ({inner}) ORDER BY "機組欄位" LIMIT 20',
             tuple(params),
         )
 
@@ -1090,7 +1080,7 @@ def route(
             wan_kw = {"MW": amount / 10, "mw": amount / 10, "瓩": amount / 10000}.get(
                 unit_word, amount
             )
-            fuel_sql, fuel_params = _fuel_clause('o.')
+            fuel_sql, fuel_params = _fuel_clause("o.")
             date_sql, date_params = "", []
             if entities.date_range:
                 date_sql = ' AND o."開始日期" <= ? AND o."結束日期" >= ?'

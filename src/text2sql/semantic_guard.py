@@ -98,8 +98,7 @@ def load_outage_range(database: Path) -> tuple[str, str] | None:
     uri = f"{database.resolve().as_uri()}?mode=ro"
     with sqlite3.connect(uri, uri=True) as connection:
         row = connection.execute(
-            "SELECT MIN(start_date), MAX(end_date) FROM dim_outage "
-            "WHERE date_status = 'valid'"
+            "SELECT MIN(start_date), MAX(end_date) FROM dim_outage WHERE date_status = 'valid'"
         ).fetchone()
     return (row[0], row[1]) if row and row[0] and row[1] else None
 
