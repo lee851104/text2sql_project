@@ -428,8 +428,203 @@ def _write_svg(report: dict[str, Any], path: Path) -> None:
     path.write_text(svg, encoding="utf-8")
 
 
+_ACCEPTANCE_LABELS = {
+    "intent_at_least_90pct": "黃金題庫意圖準確率 ≥ 90%",
+    "out_of_corpus_execution_at_least_60pct": "語料外執行正確率 ≥ 60%",
+    "attack_blocking_100pct": "SQL 攻擊全數攔截",
+    "semantic_traps_at_least_95pct": "語意陷阱守門判斷 ≥ 95%",
+    "semantic_traps_end_to_end_no_regression": "語意陷阱端到端不低於已達到的水準",
+    "semantic_false_positive_at_most_5pct": "守門誤攔率 ≤ 5%",
+}
+
+
+def _rate(value: float | None) -> str:
+    """``None`` 是「沒有跑」，不是 0 分。混在一起會讓沒量到的東西看起來像量到了。"""
+
+    return "未執行" if value is None else f"{value:.1%}"
+
+
+def _counts(block: dict[str, Any]) -> str:
+    return f"{block['passed']}／{block['total']}"
+
+
+def _recent_history(path: Path, limit: int = 5) -> list[dict[str, Any]]:
+    if not path.exists():
+        return []
+    lines = [line for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    return [json.loads(line) for line in lines[-limit:]]
+
+
+def _write_markdown(report: dict[str, Any], path: Path, *, history_path: Path) -> None:
+    """同一份報告的人看版本，給審查用。
+
+    數字全部取自 ``report``，沒有一個是手寫的 —— 手寫的那些遲早會跟 JSON 對不起來，
+    而對不起來的摘要比沒有摘要更糟：它讓人相信一件不再為真的事。
+    `tests/test_eval.py` 會比對本檔與 `eval_latest.json`，改了其中一個就會紅。
+    """
+
+    intent = report["intent"]
+    execution = report["execution"]
+    safety = report["safety"]
+    traps = safety["semantic_traps"]
+    end_to_end = traps["end_to_end"]
+    ablation = report["ablation"]
+    status = report["status"]
+
+    lines = [
+        "# 離線評測摘要",
+        "",
+        "<!-- 由 `python -m eval.run_eval`（或 `make eval`）產生，請勿手改。 -->",
+        "",
+        "| 項目 | 值 |",
+        "| --- | --- |",
+        f"| 驗收 | **{status.upper()}** |",
+        f"| 產出時間 | `{report['generated_at']}` |",
+        f"| 資料庫 | `{report['database']}` |",
+        f"| 資料期間 | {report['data_range']['start']} ～ {report['data_range']['end']} |",
+        "",
+        "## 涵蓋哪一種模式",
+        "",
+        "| 模式 | 誰產生 SQL | 這份報告 |",
+        "| --- | --- | --- |",
+        f"| 離線 `{report['mode']}` "
+        f"| 規則路由，覆蓋 {_rate(execution['rule_coverage'])} | ✅ 以下全部指標 |",
+        "| 線上（OpenAI Responses API） | 規則沒接才由 LLM 生成 "
+        f"| ❌ 未量測（`{ablation['routing']['disabled_status']}`） |",
+        "",
+        "兩種模式共用同一套守門，但線上的答題準確率要有 API key 才量得到，",
+        "因此不在 CI、也不在本表。**這一欄是空的，不是滿的。**",
+        "",
+        "## 驗收條件",
+        "",
+        "| 條件 | 這次 |",
+        "| --- | :--: |",
+    ]
+    for key, passed in report["acceptance"].items():
+        lines.append(f"| {_ACCEPTANCE_LABELS.get(key, key)} | {'✅' if passed else '❌'} |")
+
+    lines += [
+        "",
+        "## 指標",
+        "",
+        "| 指標 | 通過／總數 | 比率 | 題庫 |",
+        "| --- | ---: | ---: | --- |",
+        f"| 意圖分類 | {_counts(intent['golden'])} | {_rate(intent['golden']['accuracy'])} "
+        "| `golden_questions.json` |",
+        f"| 意圖分類（執行題庫） | {_counts(intent['eval'])} | {_rate(intent['eval']['accuracy'])} "
+        "| `eval_questions.json` |",
+        f"| 執行正確 | {_counts(execution)} | {_rate(execution['accuracy'])} "
+        "| `eval_questions.json` |",
+        f"| 　├ 語料內 | {_counts(execution['by_corpus_split']['true'])} "
+        f"| {_rate(execution['by_corpus_split']['true']['accuracy'])} | |",
+        f"| 　└ 語料外 | {_counts(execution['by_corpus_split']['false'])} "
+        f"| {_rate(execution['by_corpus_split']['false']['accuracy'])} | |",
+        f"| 語意陷阱（守門判斷） | {_counts(traps)} | {_rate(traps['accuracy'])} "
+        "| `trap_questions.json` |",
+        f"| 語意陷阱（端到端） | {_counts(end_to_end)} | {_rate(end_to_end['accuracy'])} "
+        "| `trap_questions.json` |",
+        f"| 守門誤攔 | {safety['semantic_false_positives']['count']}／"
+        f"{safety['semantic_false_positives']['total']} "
+        f"| {_rate(safety['semantic_false_positives']['rate'])} | 合法邊界反例 |",
+        f"| SQL 攻擊攔截 | {_counts(safety['sql_attack_blocking'])} "
+        f"| {_rate(safety['sql_attack_blocking']['accuracy'])} | `attack_questions.json` |",
+        f"| 規則覆蓋 | — | {_rate(execution['rule_coverage'])} | 由規則路由直接接走的比例 |",
+        "",
+        "## 陷阱題分級",
+        "",
+        "守門判斷量的是 `check_question()` 對不對，端到端量的是使用者實際看不看得到那個結論。",
+        "兩者不等價，理由見 [EVALUATION.md](../docs/EVALUATION.md)。",
+        "",
+        "| 嚴重度 | 守門判斷 | 端到端 |",
+        "| --- | ---: | ---: |",
+    ]
+    for severity in ("refuse", "disclose", "clarify"):
+        guard = traps["by_severity"].get(severity)
+        reached = end_to_end["by_severity"].get(severity)
+        if guard is None or reached is None:
+            continue
+        lines.append(f"| `{severity}` | {_counts(guard)} | {_counts(reached)} |")
+
+    lines += [
+        "",
+        "## 消融實驗",
+        "",
+        "| 關掉什麼 | 指標 | 開啟 | 關閉 |",
+        "| --- | --- | ---: | ---: |",
+        f"| 檢索（RAG） | `{ablation['rag']['metric']}` "
+        f"| {_rate(ablation['rag']['enabled']['accuracy'])} "
+        f"| {_rate(ablation['rag']['disabled_default_other']['accuracy'])} |",
+        f"| 語意守門 | `{ablation['semantic_guard']['metric']}` "
+        f"| {_rate(ablation['semantic_guard']['enabled'])} "
+        f"| {_rate(ablation['semantic_guard']['disabled'])} |",
+        f"| 規則路由 | `{ablation['routing']['metric']}` "
+        f"| {_rate(ablation['routing']['enabled'])} "
+        f"| {_rate(ablation['routing']['disabled'])}"
+        f"（`{ablation['routing']['disabled_status']}`） |",
+        "",
+        "重生上限（`max_attempts`）對離線規則沒有差別："
+        + "、".join(
+            f"{attempt} 次 {_rate(ablation['max_attempts'][attempt])}"
+            for attempt in ("1", "2", "3")
+        )
+        + "。規則在第一次就產生候選，重生的收益要有線上 LLM 才量得到。",
+        "",
+        "## 沒過的題目",
+        "",
+    ]
+    failures = report["failures"]
+    unreachable = end_to_end["unreachable"]
+    if not failures and not unreachable:
+        lines.append("執行題庫沒有失敗題目，陷阱題的結論也全部傳達得到。")
+    else:
+        for item in failures:
+            lines.append(f"- 執行失敗：`{item.get('id', '?')}` {item.get('question', '')}")
+        for item in unreachable:
+            lines.append(
+                f"- 傳達不到：{item['question']}（期望 `{item['code']}`／`{item['severity']}`，"
+                f"實際 `{item['outcome']}`）"
+            )
+
+    history = _recent_history(history_path)
+    if history:
+        lines += [
+            "",
+            "## 最近幾次",
+            "",
+            "| 時間 | 狀態 | 意圖 | 執行 | 語料外 | 陷阱判斷 | 陷阱端到端 | 誤攔 |",
+            "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |",
+        ]
+        for row in reversed(history):
+            lines.append(
+                f"| {row['generated_at'][:19].replace('T', ' ')} | {row['status']} "
+                f"| {_rate(row['intent_accuracy'])} | {_rate(row['execution_accuracy'])} "
+                f"| {_rate(row['out_of_corpus_accuracy'])} "
+                f"| {_rate(row['semantic_trap_accuracy'])} "
+                f"| {_rate(row.get('semantic_trap_end_to_end'))} "
+                f"| {_rate(row['semantic_false_positive_rate'])} |"
+            )
+
+    lines += [
+        "",
+        "## 這些數字的界線",
+        "",
+        "- 關閉規則路由的線上對照在沒有 API key 時不執行，不會拿標準答案假裝模型輸出。",
+        "- 本報告只涵蓋版控題庫。線上真實查詢目前只記錄失敗（`src/serving/query_log.py`），",
+        "  **成功但答錯的問句不在任何指標裡** —— 那類錯誤的結果看起來完全正常。",
+        "- 指標定義、陷阱雙數字的理由與離線結果的界線見 [EVALUATION.md](../docs/EVALUATION.md)。",
+        "",
+    ]
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("\n".join(lines), encoding="utf-8")
+
+
 def write_reports(
-    report: dict[str, Any], *, latest_path: Path, history_path: Path, figure_path: Path
+    report: dict[str, Any],
+    *,
+    latest_path: Path,
+    history_path: Path,
+    figure_path: Path,
+    summary_path: Path | None = None,
 ) -> None:
     latest_path.parent.mkdir(parents=True, exist_ok=True)
     latest_path.write_text(
@@ -451,6 +646,9 @@ def write_reports(
     with history_path.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(history, ensure_ascii=False, separators=(",", ":")) + "\n")
     _write_svg(report, figure_path)
+    # 摘要排在 history 之後：它要引用剛剛才寫進去的那一筆。
+    if summary_path is not None:
+        _write_markdown(report, summary_path, history_path=history_path)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -463,6 +661,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--figure", type=Path, default=PROJECT_ROOT / "reports/figures/eval_summary.svg"
     )
+    parser.add_argument("--summary", type=Path, default=PROJECT_ROOT / "reports/eval_summary.md")
     args = parser.parse_args(argv)
     report = run_evaluation(
         database=args.database,
@@ -474,6 +673,7 @@ def main(argv: list[str] | None = None) -> int:
         latest_path=args.latest,
         history_path=args.history,
         figure_path=args.figure,
+        summary_path=args.summary,
     )
     print(
         f"離線評測 {report['status']}：意圖 {report['intent']['golden']['accuracy']:.1%}，"

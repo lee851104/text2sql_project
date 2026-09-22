@@ -3,8 +3,13 @@
 `uv run python -m eval.run_eval` 在固定 SQLite 快照上執行四份版控題庫，不需要 API key；已安裝 `make` 的環境也可用 `make eval` 捷徑。評測會產生：
 
 - `reports/eval_latest.json`：當次完整指標、驗收條件、失敗清單與對照實驗。
+- [`reports/eval_summary.md`](../reports/eval_summary.md)：同一份報告的人看版本 —— 驗收條件、指標、陷阱分級、消融與最近幾次趨勢，一頁看完。**給審查用的第一頁。**
 - `reports/eval_history.jsonl`：只追加的歷史摘要，用於追蹤語料或規則更新是否退步。陷阱題記 `semantic_trap_accuracy`（守門判斷）與 `semantic_trap_end_to_end`（使用者實際看得到）兩欄。
 - `reports/figures/eval_summary.svg`：意圖、執行、語意守門、語意端到端與 SQL 攻擊防護五條簡表。
+
+摘要表裡沒有一個手寫的數字，全部取自同一份報告；`tests/test_eval.py` 逐行比對它與 `eval_latest.json`，手改表、或重跑評測後只 commit JSON 沒 commit 表，測試都會紅。**對不起來的摘要比沒有摘要更糟** —— 它讓審查相信一件不再為真的事，而且看起來完全正常。
+
+表的第一節是模式對照：離線那一列有全部指標，線上（OpenAI Responses API）那一列明寫未量測。缺口列在表上，不藏在文末。
 
 ## 指標定義
 
