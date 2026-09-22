@@ -307,6 +307,65 @@ Release 這條路能讓 CI 綠，但 Release 是為了「別人要拿得到 182 
 
 `feat/offline-outage-routing` 還帶著舊的那一行，要等它併上 `main`（或 rebase）才會跟著綠。
 
+## CP-063 — 錯誤分類看類別名稱，於是一個狀態碼都接不到
+
+- 時間：2026-09-22 00:50 +08:00
+- 狀態：已完成（服務需重啟才套用）
+- 分支：`fix/provider-errors-and-response-checks`
+- 起點：使用者提供《API 串接風險與 Claude 修改清單》（R01–R12）。第一批取 R03＋R04 —— 兩者都在 `src/text2sql/llm.py`，是同一層契約：從線路上收到什麼、怎麼分類。接上 key 的第一秒就會遇到。
+- 核對：文件基準 `bc6dc53` 到 HEAD 只差 CP-061，描述都還準。文件提到的 `.codex-reference/` 重現素材不在這個 repo，所以重現測試自己寫。
+
+### 一、R03：`APIStatusError` 在名單裡，卻一個子類別都接不到
+
+`is_unavailable()` 用 `type(error).__name__` **完全比對**。SDK 丟出來的全是 `APIStatusError` 的子類別，名稱對不上；名單裡的 `APIStatusError` 只在狀態碼對不到特定子類別時才派上用場。所以它看起來涵蓋了所有 HTTP 狀態錯誤，實際上一個都沒有。（名單裡還有 `"Timeout"`，openai 2.54.0 根本沒有這個類別。）
+
+實測（假 LLM 丟出真的 SDK 例外，問「哪些電廠同時有燃煤和燃氣機組」）：
+
+| 狀態 | 修正前 | 修正後 |
+|---|---|---|
+| 400 / 404 / 409 / 422 | **3 次**，`MISSING_PARAMETER` | 1 次，`LLM_REQUEST_REJECTED` |
+| 401 / 403 | 1 次，`LLM_AUTH_FAILED` | 1 次，`LLM_AUTH_FAILED`（訊息改） |
+| 429 | 1 次，`MISSING_PARAMETER` | 1 次，`MISSING_PARAMETER` + `evidence.llm_error` |
+| 500 / timeout / connection | 1 次，`MISSING_PARAMETER` | 同上 |
+
+兩件事比文件寫的更具體。
+
+**401／403 本來就有攔。** `pipeline.py` 在 `is_unavailable` 之前就用名稱攔下 `AuthenticationError`／`PermissionDeniedError`。文件只列 400／404／422 是對的。
+
+**使用者看到的不是 `GENERATION_FAILED`，是 `MISSING_PARAMETER`。** 尾端的缺參數反問排在 `unavailable` 檢查之前，所以「模型名稱打錯」「額度用盡」「服務掛掉」全部被講成**「這句沒有指名是哪一座電廠」**。使用者會照著改問句，然後繼續不能用，而真正該修的人不知道有事發生。
+
+分類改依 **HTTP 狀態碼**（`getattr(error, "status_code", None)`），名稱比對留作後備給沒有狀態碼的相容端點例外。這順帶讓測試不必 import openai —— CI 沒裝 online extra 也跑得動，而替身只要帶狀態碼就分得出來。另補一筆 `importorskip` 的測試釘住「SDK 真的有給這個屬性」，換版把它搬走就會紅。
+
+`classify_error()` 回傳 configuration／authentication／rate_limit／service／refused／incomplete／output，**只有 output 值得重送**。configuration 與 authentication 立刻回傳（換個問法不會變好，離線澄清只會指錯方向）；其餘仍走離線澄清優先，但把 `llm_error` 留在 evidence，不讓限流躲在缺參數反問後面。
+
+### 二、R04：文字剛好能解析，不代表模型講完了
+
+`_generate_responses` 直接取 `.output_text`，`_generate_chat_completions` 直接取 `choices[0].message.content` —— `status`、`incomplete_details`、`finish_reason`、`refusal` 一個都沒看，空 choices 還會 IndexError。截斷處若剛好落在合法 JSON 之後，文字看不出任何問題，那段 SQL 就跑下去了。
+
+新增 `LLMRefusedError`／`LLMIncompleteError`，兩者都不重送：拒答拿去跑 SQL 修復迴圈，是為一個不會改變的答案付三次錢。**缺 metadata 的相容端點不當成有問題** —— 沒有資訊跟有壞消息是兩件事，所以 `status` 不存在時照常放行。
+
+本地驗證原本只檢查 `params` 是不是 list。實測全部放行：巢狀 dict、巢狀 list、NaN、Infinity、50KB 字串。strict json_schema 只在支援它的端點上成立，關掉 structured output 的退路只剩這裡把關。現在要求純量、有限數值，並限制 SQL 長度、參數個數與單一參數長度。NaN／Infinity 用 `json.loads(parse_constant=...)` 擋下，`1e400` 這種溢位成 inf 的字面量則由 `isfinite` 接住 —— 它們進了 SQL 會讓比較全部為假而且不報錯，看起來就像「真的沒有符合的資料」。
+
+### 三、順手修掉的兩件
+
+`DisabledLLM` 的訊息寫死 `OPENAI_API_KEY`。用 GMI 的人會被指去設一個這個服務根本不讀的變數，照做，然後繼續不能用。改成跟著 provider 走，`build_runtime` 建構時傳入。憑證失敗的訊息同樣不再寫死「OpenAI API key」，改讀轉接層的 `api_key_env`。
+
+原本 `evidence={"reason": str(error)}` 會把上游錯誤原文原樣回傳（R06 重現過的那條）。這次重寫這段時只保留例外的**類別名稱**，不帶訊息。R06 的其餘路徑（`QueryErrorLog`、其他輸出邊界）沒有處理。
+
+### 驗收
+
+- `ruff format --check .`（111 files）、`ruff check .` 通過；`pytest -q` **678 passed, 1 skipped**（CP-062 後為 646，本次新增 32 筆）。
+- `make eval` pass：意圖 100%、執行 100%、語意陷阱 97.8%（端到端 100%），驗收條件全過。線上清單離線對照**零差異**。
+- 既有測試抓到我引入的一個 bug：`evidence.attempts` 回報計畫上限 3 而不是實際呼叫次數 1。`test_an_unreachable_service_is_not_retried_and_says_so` 釘住了它。
+- 另一筆既有測試釘的是「OpenAI API key 驗證失敗」這句寫死的文案，那正是要改的東西，改成釘 `evidence` 結構與不外洩 `sk-secret`，並新增一筆釘「訊息要指名這個 provider 讀的變數」。
+- 回退方式：回退 `fix/provider-errors-and-response-checks` 這個分支。回退後設定類錯誤會重新變成重送三次，截斷與拒答會重新進入 SQL 修復迴圈。
+
+### 尚未驗證
+
+**全部用替身重現，沒有對真實 provider 送過任何一次查詢。** 這批證明的是「管線對某種回應／例外的處理」，不是 GMI 或 OpenAI 一定會產生那種回應。GMI 實際接受的 `structured_output`、模型名稱與錯誤格式仍待實測。
+
+R01（封閉集合參數填錯仍回 success + 0 筆）、R02（設定已套用 ≠ API 可用）尚未處理，兩者都會直接影響線上清單的判讀。R05–R12 未動。
+
 ## CP-062 — 期間是逐檢視的，守門卻還在用全域那一組
 
 - 時間：2026-09-21 20:50 +08:00
