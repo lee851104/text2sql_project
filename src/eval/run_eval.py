@@ -14,9 +14,10 @@ from ingest.validate import PROJECT_ROOT
 from text2sql.corpus import load_corpus
 from text2sql.db import ReadOnlySQLite
 from text2sql.entities import Entities, extract_entities
+from text2sql.llm import GeneratedQuery
 from text2sql.retriever import TfidfRetriever
 from text2sql.router import classify_intent, route
-from text2sql.semantic_guard import SemanticGuard
+from text2sql.semantic_guard import SemanticDecision, SemanticGuard
 from text2sql.sql_guard import SqlGuard
 
 
@@ -149,6 +150,36 @@ def _answer_reaches_user(
     return True, "OK"
 
 
+def _delivered_decision(
+    question: str,
+    entities: Entities,
+    decision: SemanticDecision,
+    *,
+    semantic_guard: SemanticGuard,
+    peak_columns: set[str],
+    plants: set[str],
+    data_range: tuple[str, str],
+) -> SemanticDecision:
+    """離線路徑最終回給使用者的那個守門結論。
+
+    `check_question` 不是唯一的出口。它跑在 route 之前，看不到最後會查哪個檢視，所以
+    「2024年台中出力」這種「有的檢視有、有的沒有」的期間，得由 `check_sql`（看得到表名）
+    或 `explain_unanswerable_date`（router 接不住時）接手。只看第一關，會把後面兩關確實
+    擋下的題目誤記成使用者看不到。
+    """
+
+    if decision.code != "OK":
+        return decision
+    candidate = route(
+        question, entities, peak_columns=peak_columns, plants=plants, data_range=data_range
+    )
+    if candidate.sql:
+        return semantic_guard.check_sql(
+            question, GeneratedQuery(candidate.sql, candidate.params), entities
+        )
+    return semantic_guard.explain_unanswerable_date(entities) or SemanticDecision()
+
+
 def _safety_metrics(
     benchmark_dir: Path,
     semantic_guard: SemanticGuard,
@@ -177,10 +208,24 @@ def _safety_metrics(
         trap_outcomes.append(passed)
         severity_outcomes.setdefault(severity, []).append(passed)
 
-        # 守門判斷對，不代表使用者看得到。refuse／clarify 一判就短路回傳，結論就是回應；
-        # disclose 得等答案真的送出去，附註才跟著到。
+        # 守門判斷對，不代表使用者看得到。refuse／clarify 的結論就是回應本身，但出口不
+        # 只 check_question 一個 —— 逐檢視的期間是後面兩關擋的，所以要問到底。
+        # disclose 不同：它掛在成功答案上，答案產不出來附註就沒人看得到。
         if severity in {"refuse", "clarify"}:
-            reached, outcome = passed, decision.code
+            delivered_decision = _delivered_decision(
+                item["question"],
+                entities,
+                decision,
+                semantic_guard=semantic_guard,
+                peak_columns=peak_columns,
+                plants=plants,
+                data_range=data_range,
+            )
+            outcome = delivered_decision.code
+            reached = (delivered_decision.code, delivered_decision.severity) == (
+                item["expect"]["code"],
+                severity,
+            )
         else:
             delivered, outcome = _answer_reaches_user(
                 item["question"],
