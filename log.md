@@ -2,6 +2,77 @@
 
 > 這份檔案在每個可驗證、可回退的儲存點更新。回退前需保留使用者原有的未提交變更。
 
+## CP-064 — CI 連紅 13 次，是測試自己去讀了產品資料庫
+
+- 時間：2026-09-22 18:35 +08:00
+- 狀態：已完成
+- 分支：`fix/offline-ci-database-dependency`（從 `main` 4e42c58 開出）
+- 編號：CP-062、CP-063 還在未合併的分支上，這裡接著往後編，避免合併時撞號。
+- 起點：使用者回報 GitHub Actions 很多失敗，判斷是 `power.db` 沒進版控，想用 GitHub Release 解決。
+
+### 一、紅的是 13 次 run，不是 13 個測試
+
+`offline-ci` 連續 13 次失敗（run #49–#61，2026-09-20 07:51Z 起到 2026-09-22 06:22Z），`merge-gate` 3 次全綠。
+每一次紅的都只有 `Offline tests` 這一步，`Format check`、`Lint` 全過 —— 不是格式、也不是環境問題。
+
+把 `main` 展開成乾淨 checkout（`git archive` 出去，等同 CI 拿到的樹）跑全套：**636 passed, 1 failed**。
+唯一失敗的是 `tests/test_runtime_modes.py::test_the_runtime_takes_the_retrieval_floors_from_config`，
+錯誤是 `FileNotFoundError: data/processed/power.db`。未合併的分支與 run #61 那個 commit 也一樣只紅這一個
+（數字見驗收）。從頭到尾就這一個測試，紅了 13 次。
+
+### 二、原因不在資料沒進版控，在那一行少了一個參數
+
+那一行是整個檔案 14 個 `build_runtime(...)` 呼叫裡，**唯一沒帶 `database=` 的**：
+其他 13 個都吃模組 fixture 現建的快照，只有它落回 `configs/config.yaml` 的預設路徑 `data/processed/power.db`。
+本機那個檔存在，所以看起來是綠的；CI 的樹裡沒有，於是每次都紅。
+
+第一次紅的 run #49（2026-09-20 07:51Z）對應的 commit，正是把這個測試加進來的 `3b416f3`
+（`feat: drop the retrieval noise instead of prompting with it`，2026-09-20 15:48 +08:00 ＝ 07:48Z）。
+時間對得上，中間沒有第二個原因。
+
+修法是補上 fixture：`build_runtime(database=database, mode="offline")`，並在該處留一行註解說明為什麼不能省。
+
+### 三、為什麼沒有走 Release
+
+`data/processed/power.db` 是衍生物，不是素材。乾淨 checkout 裡直接跑 `python -m ingest.build_db`：
+
+| 項目 | 結果 |
+| --- | --- |
+| 耗時 | 2.8 秒 |
+| 產物 | `data/processed/power.db`，3,063,808 bytes（與本機同大小） |
+| 來源 | `taipower_align/*.csv`，全部都在版控裡 |
+| 網路 | 不需要 |
+
+而合併門檻自己把 `data/` 與 `*.db` 列為禁入路徑（`gate_rules.json`），資料庫本來就不該進版控。
+Release 這條路能讓 CI 綠，但 Release 是為了「別人要拿得到 182 MB 原始快照」而存在的（CP-011），
+不是 CI 的資料來源：CI 缺的不是資料，是那個測試不該去碰產品資料庫。
+
+**也沒有在 `ci.yml` 加一步 `make db`。** 那樣同樣會綠，但會把「測試偷用產品資料庫」這種錯誤一起蓋掉 ——
+下一個忘了帶 `database=` 的測試就不會在 CI 被抓到。而既有 fixture 本來就用同一批 CSV 建過庫，
+加這一步不會多驗到任何東西。
+
+### 驗收
+
+乾淨樹＝只有版控裡的檔案、沒有 `data/`，等同 CI checkout 拿到的樹。三棵不同的樹跑下來，
+失敗的都是同一個測試：
+
+| 乾淨樹 | 修正前 | 修正後 |
+| --- | --- | --- |
+| `main` `4e42c58` | 636 passed, **1 failed** | **637 passed** |
+| `fix/provider-errors-and-response-checks` `8716d39` | 678 passed, **1 failed** | － |
+| `feat/offline-outage-routing` `82d9f1ca`（run #61 的 commit） | 693 passed, 1 skipped, **1 failed** | － |
+
+- `ruff format --check .`（110 files）、`ruff check .` 通過。
+- 這次沒有動 `src/`，只改測試與本檔。
+- 回退方式：回退 `fix/offline-ci-database-dependency` 這個分支的單一 commit。回退後 CI 會回到同一個測試上紅，其餘行為不變。
+
+### 尚未處理
+
+`docs/releases/taipower-data-2026-09-13.md` 記的 Release 掛在舊帳號 `chenliyu0410/text2sql_project` 底下；
+現在的 `lee851104/text2sql_project` 有 0 個 Release。資料要能從這個 repo 下載得另外發一次，這次沒動。
+
+`feat/offline-outage-routing` 還帶著舊的那一行，要等它併上 `main`（或 rebase）才會跟著綠。
+
 ## CP-062 — 期間是逐檢視的，守門卻還在用全域那一組
 
 - 時間：2026-09-21 20:50 +08:00
