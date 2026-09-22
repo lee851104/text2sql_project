@@ -185,7 +185,7 @@ flowchart LR
 
 ```bash
 make setup   # 安裝相依套件（uv）
-make db      # 下載官方資料並建立 SQLite 快照
+make db      # 從版控裡的 taipower_align/ 建 SQLite 快照（離線，約 3 秒）
 make serve   # 啟動網頁服務 http://127.0.0.1:8000
 ```
 

@@ -2,6 +2,25 @@
 
 > 這份檔案在每個可驗證、可回退的儲存點更新。回退前需保留使用者原有的未提交變更。
 
+## CP-066 — `make db` 不會下載，README 說它會
+
+- 時間：2026-09-22 19:45 +08:00
+- 狀態：已完成
+- 分支：`docs/make-db-is-offline`
+- 起點：CP-064 追 CI 為什麼紅時量到的順帶結果 —— 在一棵只有版控檔案的乾淨樹裡跑
+  `python -m ingest.build_db`，**2.8 秒**就建出 `data/processed/power.db`（3,063,808 bytes），
+  全程不連網，來源是版控裡的 `taipower_align/*.csv`。
+
+README 的開發者區塊卻寫「`make db` # 下載官方資料並建立 SQLite 快照」。下載是 `make ingest`
+（`ingest.fetch`）做的事，`make db` 只讀已經對齊好、而且在版控裡的 CSV。照 README 的說法，
+新來的人會以為沒網路就建不了庫，或以為每次建庫都會去打台電的站台。
+
+### 驗收
+
+- 只改 README 一行註解，沒有動程式、測試或設定。
+- 量測見 CP-064：乾淨樹 + `python -m ingest.build_db` = 2.8 秒、3,063,808 bytes、零網路存取。
+- 回退方式：回退本分支的單一 commit。
+
 ## CP-065 — 資料 Release 搬到現在的 repo
 
 - 時間：2026-09-22 19:30 +08:00
