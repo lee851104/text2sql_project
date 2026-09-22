@@ -458,6 +458,20 @@ def test_the_outage_range_is_read_from_the_database() -> None:
     assert guard.outage_range[1] > guard.data_range[1], "大修排程應該比日尖峰更晚結束"
 
 
+def test_nuclear_unit_capacity_is_answerable_but_the_unit_master_is_still_refused() -> None:
+    """核能在 v_peak 有完整的 6 部單機，問容量明細答得出來；
+    但問「機組主檔」仍該擋 —— dim_unit 確實沒有核能。"""
+
+    guard = SemanticGuard(data_range=DATA_RANGE, peak_columns=PEAK_COLUMNS, pitfalls=())
+    answerable = guard.check_question(
+        "各核能電廠的機組與裝置容量明細", extract_entities("各核能電廠的機組與裝置容量明細")
+    )
+    assert answerable.code != "NO_UNIT_DETAIL"
+
+    refused = guard.check_question("核能機組主檔細節", extract_entities("核能機組主檔細節"))
+    assert refused.code == "NO_UNIT_DETAIL"
+
+
 # ---------------------------------------------------------------------------
 # 「發電量 × 成本」：擋，但要用對的理由
 #

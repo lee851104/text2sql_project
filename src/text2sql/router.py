@@ -362,6 +362,12 @@ def classify_intent(question: str, entities: Entities | None = None) -> str:
     ):
         return "other"
 
+    # 核能自成一類。它不在 dim_unit 機組主檔裡，但 v_peak 的「核能」類別有完整的
+    # 6 部單機與容量。放在 plant_units 之前，否則「哪一座核能電廠…最高」會被接走，
+    # 回的追問是「沒有指名是哪一座電廠」—— 而題目正是要找出那一座。
+    if "核能" in question or re.search(r"核[一二三](?![0-9])", question):
+        return "nuclear"
+
     # 大修／歲修要在電廠與燃料之前判。問句同時講「林口電廠」和「大修」時，
     # 問的是大修排程不是機組主檔；講「燃煤機組總裝置容量」加「大修」時，問的是
     # 停機容量不是全部燃煤容量。這兩種原本分別被 plant_units 與 fuel_stats 先搶走，
@@ -810,6 +816,92 @@ def route(
                 'SELECT "燃料", COUNT(*) AS "台數" FROM v_unit GROUP BY "燃料" '
                 'ORDER BY "台數" DESC LIMIT 20',
             )
+
+    if intent == "nuclear":
+        # v_peak 一天一列，六部機各有數百天，所以一律先 DISTINCT 取出「機組欄位 →
+        # 容量」再彙總；直接對明細列 SUM 會把容量乘上天數。
+        inner = (
+            'SELECT DISTINCT "機組欄位", "對應裝置容量_萬瓩" FROM v_peak WHERE "類別" = ?'
+        )
+        params: list[object] = ["核能"]
+        plant_match = re.search(r"核[一二三](?![0-9])", question)
+        single_plant = plant_match and "各" not in question and "哪一座" not in question
+        if single_plant:
+            inner += ' AND "機組欄位" LIKE ?'
+            params.append(f"{plant_match.group(0)}%")
+
+        threshold = re.search(
+            r"(?:超過|大於|高於)\s*([0-9][0-9,]*(?:\.[0-9]+)?)\s*(MW|mw|萬瓩|瓩)", question
+        )
+        if threshold is not None:
+            amount = float(threshold.group(1).replace(",", ""))
+            wan_kw = {"MW": amount / 10, "mw": amount / 10, "瓩": amount / 10000}.get(
+                threshold.group(2), amount
+            )
+            return RoutedQuery(
+                intent,
+                'SELECT DISTINCT "機組欄位", "對應裝置容量_萬瓩" FROM v_peak '
+                'WHERE "類別" = ? AND "對應裝置容量_萬瓩" > ? '
+                'ORDER BY "對應裝置容量_萬瓩" DESC LIMIT 20',
+                ("核能", wan_kw),
+            )
+
+        # 「核能電廠有哪些」問的是電廠不是機組。原本這句回 None，理由是「回一張空表
+        # 看起來像沒有核能電廠」—— 那個顧慮針對的是 v_unit。改由 v_peak 回答之後，
+        # 給的是核一／核二／核三三個真實的電廠，不再是空表。
+        if "電廠" in question and "機組" not in question and "容量" not in question:
+            return RoutedQuery(
+                intent,
+                'SELECT DISTINCT substr("機組欄位", 1, 2) AS "電廠" '
+                f'FROM ({inner}) ORDER BY "電廠" LIMIT 20',
+                tuple(params),
+            )
+
+        by_plant = "各" in question or "哪一座" in question or "哪座" in question
+        wants_count = any(word in question for word in ("幾部", "幾台", "幾個", "機組數"))
+        wants_total = any(word in question for word in ("總", "合計", "總和"))
+
+        if by_plant and wants_count:
+            return RoutedQuery(
+                intent,
+                'SELECT substr("機組欄位", 1, 2) AS "電廠", COUNT(*) AS "機組數" '
+                f'FROM ({inner}) GROUP BY "電廠" ORDER BY "電廠" LIMIT 20',
+                tuple(params),
+            )
+        if by_plant and ("明細" in question or "哪些機組" in question):
+            return RoutedQuery(
+                intent,
+                'SELECT substr("機組欄位", 1, 2) AS "電廠", "機組欄位", '
+                f'"對應裝置容量_萬瓩" FROM ({inner}) '
+                'ORDER BY "機組欄位" LIMIT 20',
+                tuple(params),
+            )
+        if by_plant:
+            order = (
+                'ORDER BY "總裝置容量_萬瓩" DESC LIMIT 1'
+                if ("哪一座" in question or "哪座" in question or "最高" in question)
+                else 'ORDER BY "電廠" LIMIT 20'
+            )
+            return RoutedQuery(
+                intent,
+                'SELECT substr("機組欄位", 1, 2) AS "電廠", '
+                'SUM("對應裝置容量_萬瓩") AS "總裝置容量_萬瓩" '
+                f'FROM ({inner}) GROUP BY "電廠" {order}',
+                tuple(params),
+            )
+        if wants_total or (single_plant and "容量" in question and "哪些" not in question):
+            return RoutedQuery(
+                intent,
+                'SELECT SUM("對應裝置容量_萬瓩") AS "總裝置容量_萬瓩" '
+                f'FROM ({inner}) LIMIT 1',
+                tuple(params),
+            )
+        return RoutedQuery(
+            intent,
+            f'SELECT "機組欄位", "對應裝置容量_萬瓩" FROM ({inner}) '
+            'ORDER BY "機組欄位" LIMIT 20',
+            tuple(params),
+        )
 
     if intent == "outage":
         if "未對齊" in question:

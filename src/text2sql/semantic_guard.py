@@ -279,8 +279,20 @@ class SemanticGuard:
                 evidence={"units": ["瓩", "萬瓩"]},
             )
 
-        unsupported = ("風力", "風光", "IPP", "ipp", "核能", "太陽能", "汽電共生")
+        # 核能不在這張清單裡：v_peak 的「核能」類別有**完整**的 6 部單機（核一/二/三
+        # 各 2 部，沒有彙總欄），容量查得到。其他幾類不是沒有單機欄就是只涵蓋一部分
+        # （IPP 有 9 欄單機但另有 3 欄彙總，列出來會少算而且看不出來）。
+        unsupported = ("風力", "風光", "IPP", "ipp", "太陽能", "汽電共生")
         detail_words = ("每一台", "各機組", "機組主檔", "每部設備", "單機", "明細")
+        # 「機組主檔」指的是 dim_unit，那裡確實沒有核能 —— 這一句仍然要擋。
+        if "核能" in compact and "主檔" in compact:
+            return self._decision(
+                "refuse",
+                "NO_UNIT_DETAIL",
+                "機組主檔不含核能；核能的單機容量在每日尖峰資料的核能類別裡。",
+                "各核能電廠的機組與裝置容量明細",
+                evidence={"unsupported_scope": "unit master"},
+            )
         if any(word in compact for word in unsupported) and any(
             word in compact for word in detail_words
         ):
@@ -472,7 +484,10 @@ class SemanticGuard:
 
         all_columns = {column.name for column in tree.find_all(exp.Column)}
         string_params = tuple(str(param) for param in query.params if isinstance(param, str))
-        unsupported = ("風力", "風光", "IPP", "ipp", "核能", "太陽能", "汽電共生")
+        # 核能不在這張清單裡，理由與上面問句層那條相同：v_peak 的核能類別是完整的
+        # 六部單機，沒有彙總欄，查單機明細不會少算。其餘幾類要嘛沒有單機欄，要嘛
+        # 單機只涵蓋一部分（IPP 9 欄單機之外另有 3 欄彙總）。
+        unsupported = ("風力", "風光", "IPP", "ipp", "太陽能", "汽電共生")
         asks_for_unit_detail = bool({"機組名", "機組欄位"} & all_columns)
         if asks_for_unit_detail and any(
             category in value for category in unsupported for value in string_params

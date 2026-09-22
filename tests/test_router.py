@@ -222,11 +222,27 @@ def test_a_fuel_qualified_plant_list_is_answered_offline(question: str) -> None:
     assert SqlGuard().validate(routed.sql, routed.params).allowed
 
 
-@pytest.mark.parametrize("question", ("核能電廠有哪些", "風力電廠有哪些", "太陽能電廠有哪些"))
+@pytest.mark.parametrize("question", ("風力電廠有哪些", "太陽能電廠有哪些"))
 def test_a_fuel_the_master_data_does_not_have_gets_no_sql(question: str) -> None:
-    """核能機組不在機組主檔。回一張空表看起來像「沒有核能電廠」，那是另一種騙人。"""
+    """這些燃料不在機組主檔，每日尖峰也只有多機彙總欄。
+
+    回一張空表看起來像「沒有風力電廠」，那是另一種騙人 —— 所以寧可不給 SQL。
+    """
 
     assert _route(question).sql is None
+
+
+def test_nuclear_plants_are_listed_from_the_peak_data() -> None:
+    """核能原本也在上面那條規則裡，理由同樣是「回空表會騙人」。
+
+    但那個顧慮針對的是 v_unit。v_peak 的核能類別有完整的六部機，
+    問「核能電廠有哪些」回得出核一／核二／核三 —— 據實回答比拒答誠實。
+    """
+
+    routed = _route("核能電廠有哪些")
+    assert routed.intent == "nuclear"
+    assert "v_peak" in routed.sql
+    assert SqlGuard().validate(routed.sql, routed.params).allowed
 
 
 def test_a_fuel_question_about_units_stays_with_its_own_handler() -> None:
@@ -479,6 +495,47 @@ def test_a_templated_overhaul_question_asks_which_unit(question: str) -> None:
 
 def _nuclear_route(question: str):
     return route(question, extract_entities(question), peak_columns=set())
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "核一有哪些機組",
+        "核三總裝置容量是多少",
+        "各核能電廠的裝置容量是多少",
+        "哪些核能機組裝置容量超過900MW",
+        "核一、核二、核三各有幾部機組",
+        "哪一座核能電廠機組總裝置容量最高",
+        "核能機組的裝置容量總和是多少",
+        "各核能電廠的機組與裝置容量明細",
+    ],
+)
+def test_a_nuclear_question_now_has_an_offline_answer(question: str) -> None:
+    routed = _nuclear_route(question)
+    assert routed.sql, question
+    assert "v_peak" in routed.sql, question
+    assert SqlGuard().validate(routed.sql, routed.params).allowed, question
+
+
+def test_a_nuclear_plant_question_is_not_taken_by_plant_units() -> None:
+    """「哪一座核能電廠…最高」問的是找出那一座，不該回頭追問是哪一座。"""
+
+    assert classify_intent("哪一座核能電廠機組總裝置容量最高") == "nuclear"
+    routed = _nuclear_route("哪一座核能電廠機組總裝置容量最高")
+    assert "ORDER BY" in routed.sql and "LIMIT 1" in routed.sql
+
+
+def test_nuclear_capacity_is_deduplicated_across_dates() -> None:
+    """v_peak 一天一列，六部機各有 577 天。不去重的話容量會被乘上天數。"""
+
+    routed = _nuclear_route("核能機組的裝置容量總和是多少")
+    assert "DISTINCT" in routed.sql
+
+
+def test_a_single_nuclear_plant_is_filtered() -> None:
+    for question, prefix in (("核一有哪些機組", "核一%"), ("核三總裝置容量是多少", "核三%")):
+        routed = _nuclear_route(question)
+        assert prefix in routed.params, question
 
 
 def test_an_overhaul_list_only_adds_the_columns_the_question_is_about() -> None:
