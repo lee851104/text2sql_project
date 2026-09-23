@@ -99,6 +99,134 @@ def test_a_capacity_audit_question_now_has_an_offline_answer(question: str) -> N
     assert SqlGuard().validate(routed.sql, routed.params).allowed
 
 
+# ── 再生能源查詢：月份/縣市/場站篩選與分組、比較題 ──────────────────────────
+
+RE_SITES = frozenset(
+    {"蘆竹風力", "林口風力", "台南鹽田太陽光電", "台中電廠太陽光電", "台中電廠風力"}
+)
+
+
+def _route_re(question: str):
+    return route(
+        question,
+        extract_entities(question),
+        peak_columns=set(),
+        plants=set(),
+        data_range=("2025-01-01", "2026-07-31"),
+        sites=RE_SITES,
+    )
+
+
+def test_renewable_generation_filters_to_a_single_named_month() -> None:
+    routed = _route_re("2026 年 2 月各種再生能源發電量？")
+    assert routed.intent == "renewable_generation"
+    assert routed.sql and '"月份" = ?' in routed.sql
+    assert routed.params == (2026, 2)
+    assert SqlGuard().validate(routed.sql, routed.params).allowed
+
+
+def test_renewable_generation_filters_to_a_month_range() -> None:
+    routed = _route_re("2026 年 1 月到 3 月再生能源總共發多少電？")
+    assert routed.intent == "renewable_generation"
+    assert routed.sql and '"月份" BETWEEN ? AND ?' in routed.sql
+    assert routed.params == (2026, 1, 3)
+    assert SqlGuard().validate(routed.sql, routed.params).allowed
+
+
+def test_renewable_generation_tilde_month_range_is_also_recognised() -> None:
+    routed = _route_re("2026 年 1～3 月太陽光電總發電量？")
+    assert routed.intent == "renewable_generation"
+    assert routed.sql and '"月份" BETWEEN ? AND ?' in routed.sql
+    assert routed.params == ("太陽能", 2026, 1, 3)
+
+
+def test_renewable_generation_groups_by_month_when_breakdown_requested() -> None:
+    routed = _route_re("2025 年每個月再生能源發電量是多少？")
+    assert routed.intent == "renewable_generation"
+    assert routed.sql
+    assert 'GROUP BY "年度", "月份"' in routed.sql
+    assert '"月份" = ?' not in routed.sql, "問每個月是要逐月列出，不是篩選成單一個月"
+    assert routed.params == (2025,)
+    assert SqlGuard().validate(routed.sql, routed.params).allowed
+
+
+def test_renewable_generation_filters_to_a_named_county() -> None:
+    routed = _route_re("台南的再生能源 2026 年 1 月發多少電？")
+    assert routed.intent == "renewable_generation"
+    assert routed.sql and '"縣市" = ?' in routed.sql
+    assert routed.params == (2026, 1, "台南市")
+    assert SqlGuard().validate(routed.sql, routed.params).allowed
+
+
+def test_renewable_generation_groups_by_county_when_breakdown_requested() -> None:
+    routed = _route_re("2026 年 2 月各縣市再生能源發電量？")
+    assert routed.intent == "renewable_generation"
+    assert routed.sql and 'GROUP BY "縣市"' in routed.sql
+    assert '"縣市" = ?' not in routed.sql, "問各縣市是要逐縣市列出，不是篩選成單一縣市"
+    assert routed.params == (2026, 2)
+
+
+def test_renewable_generation_groups_by_site_when_breakdown_requested() -> None:
+    routed = _route_re("2026 年 1 月再生能源各場發電量是多少？")
+    assert routed.intent == "renewable_generation"
+    assert routed.sql and 'GROUP BY "發電站"' in routed.sql
+    assert routed.params == (2026, 1)
+    assert SqlGuard().validate(routed.sql, routed.params).allowed
+
+
+def test_renewable_generation_wins_over_site_keyword_when_both_present() -> None:
+    """「各太陽光電場站發電量」問的是度數，不能因為「場站」兩字被判成裝置容量清單。"""
+
+    routed = _route_re("2026 年 1 月各太陽光電場站發電量？")
+    assert routed.intent == "renewable_generation"
+    assert routed.sql and '"發電量_度"' in routed.sql
+    assert "裝置容量_瓩" not in routed.sql
+
+
+def test_renewable_site_route_defaults_to_fifty_without_an_explicit_count() -> None:
+    routed = _route_re("再生能源各場的場站規模多少？")
+    assert routed.intent == "renewable_site"
+    assert routed.sql and "LIMIT 50" in routed.sql
+
+
+def test_renewable_generation_ranks_by_generation_when_question_says_場站() -> None:
+    """「發電量最高的前10個場站」問的是逐場站發電量排行，不是裝置容量排行。"""
+
+    routed = _route_re("歷年再生能源發電量最高的前 10 個場站？")
+    assert routed.intent == "renewable_generation"
+    assert routed.sql
+    assert 'GROUP BY "發電站"' in routed.sql
+    assert '"發電量_度"' in routed.sql
+    assert "裝置容量_瓩" not in routed.sql
+    assert "LIMIT 10" in routed.sql
+    assert SqlGuard().validate(routed.sql, routed.params).allowed
+
+
+def test_renewable_site_filters_to_a_named_station() -> None:
+    routed = _route_re("再生能源的蘆竹(#1~#8)裝置容量多少?")
+    assert routed.intent == "renewable_site"
+    assert routed.sql and '"發電站" = ?' in routed.sql
+    assert routed.params == ("蘆竹風力",)
+    assert SqlGuard().validate(routed.sql, routed.params).allowed
+
+
+def test_renewable_route_is_silent_on_an_ambiguous_station_name() -> None:
+    """撞名場站不猜；沒有 SQL 才輪得到 missing_parameter_clarification 反問。"""
+
+    routed = _route_re("台中電廠再生能源發電量")
+    assert routed.sql is None
+
+
+def test_renewable_comparison_computes_both_periods_and_the_difference_in_sql() -> None:
+    routed = _route_re("2026 年 4 月比 2025 年 4 月再生能源發電量多發多少？")
+    assert routed.intent == "renewable_generation"
+    assert routed.sql
+    assert routed.sql.count("SUM(CASE") == 4  # 期間A、期間B，加上差額欄重用兩次同樣的條件式
+    assert "差額_度" in routed.sql
+    assert routed.params == (2026, 4, 2025, 4, 2026, 4, 2025, 4, 2026, 2025)
+    assert SqlGuard().validate(routed.sql, routed.params).allowed
+
+
 def test_the_fallback_does_not_take_questions_an_existing_handler_already_answers() -> None:
     """這一段排在 route() 最後，所以任何已經有 SQL 的題目都到不了它。
 
@@ -168,6 +296,24 @@ def test_every_suggestion_can_itself_be_answered() -> None:
         )
         assert routed.sql, suggestion
         assert SqlGuard().validate(routed.sql, routed.params).allowed, suggestion
+
+
+def test_an_ambiguous_renewable_site_name_is_asked_back_not_guessed() -> None:
+    """route() 對撞名場站保持沉默；真正的反問內容要由這裡接手，列出候選。"""
+
+    question = "台中電廠再生能源發電量"
+    clarification = missing_parameter_clarification(
+        question,
+        extract_entities(question),
+        peak_columns=set(),
+        plants=set(),
+        data_range=("2025-01-01", "2026-07-31"),
+        sites={"台中電廠太陽光電", "台中電廠風力", "台南鹽田太陽光電"},
+    )
+    assert clarification is not None
+    assert clarification.missing == "site"
+    assert "台中電廠太陽光電" in clarification.reason
+    assert "台中電廠風力" in clarification.reason
 
 
 def test_a_question_with_every_parameter_is_never_asked_back() -> None:

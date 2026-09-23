@@ -35,10 +35,15 @@ def _query_result(
     return QueryResult(tuple(columns), tuple(rows))
 
 
-def _catalog(executor: ReadOnlySQLite) -> tuple[set[str], set[str]]:
+def _catalog(executor: ReadOnlySQLite) -> tuple[set[str], set[str], set[str]]:
     _, peak_rows = executor.execute('SELECT DISTINCT "機組欄位" FROM v_peak LIMIT 200', ())
     _, plant_rows = executor.execute('SELECT DISTINCT "電廠" FROM v_unit LIMIT 200', ())
-    return {str(row[0]) for row in peak_rows}, {str(row[0]) for row in plant_rows}
+    _, site_rows = executor.execute('SELECT DISTINCT "發電站" FROM v_re_generation LIMIT 200', ())
+    return (
+        {str(row[0]) for row in peak_rows},
+        {str(row[0]) for row in plant_rows},
+        {str(row[0]) for row in site_rows},
+    )
 
 
 def _intent_metrics(benchmark_dir: Path) -> dict[str, Any]:
@@ -69,6 +74,7 @@ def _execution_metrics(
     data_range: tuple[str, str],
     peak_columns: set[str],
     plants: set[str],
+    sites: set[str],
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     guard = SqlGuard()
     reference_date = date.fromisoformat(data_range[1])
@@ -81,6 +87,7 @@ def _execution_metrics(
             peak_columns=peak_columns,
             plants=plants,
             data_range=data_range,
+            sites=sites,
         )
         outcome = {
             "id": item["id"],
@@ -124,6 +131,7 @@ def _answer_reaches_user(
     peak_columns: set[str],
     plants: set[str],
     data_range: tuple[str, str],
+    sites: set[str],
 ) -> tuple[bool, str]:
     """走一次離線路徑，回報答案送不送得出去。
 
@@ -137,6 +145,7 @@ def _answer_reaches_user(
         peak_columns=peak_columns,
         plants=plants,
         data_range=data_range,
+        sites=sites,
     )
     if not candidate.sql:
         return False, "NO_OFFLINE_CANDIDATE"
@@ -159,6 +168,7 @@ def _delivered_decision(
     peak_columns: set[str],
     plants: set[str],
     data_range: tuple[str, str],
+    sites: set[str],
 ) -> SemanticDecision:
     """離線路徑最終回給使用者的那個守門結論。
 
@@ -171,7 +181,12 @@ def _delivered_decision(
     if decision.code != "OK":
         return decision
     candidate = route(
-        question, entities, peak_columns=peak_columns, plants=plants, data_range=data_range
+        question,
+        entities,
+        peak_columns=peak_columns,
+        plants=plants,
+        data_range=data_range,
+        sites=sites,
     )
     if candidate.sql:
         return semantic_guard.check_sql(
@@ -189,6 +204,7 @@ def _safety_metrics(
     data_range: tuple[str, str],
     peak_columns: set[str],
     plants: set[str],
+    sites: set[str],
 ) -> dict[str, Any]:
     sql_guard = SqlGuard()
     attacks = _load(benchmark_dir / "attack_questions.json")
@@ -220,6 +236,7 @@ def _safety_metrics(
                 peak_columns=peak_columns,
                 plants=plants,
                 data_range=data_range,
+                sites=sites,
             )
             outcome = delivered_decision.code
             reached = (delivered_decision.code, delivered_decision.severity) == (
@@ -235,6 +252,7 @@ def _safety_metrics(
                 peak_columns=peak_columns,
                 plants=plants,
                 data_range=data_range,
+                sites=sites,
             )
             reached = passed and delivered
         reached_outcomes.append(reached)
@@ -334,7 +352,7 @@ def run_evaluation(
     corpus_path: Path,
 ) -> dict[str, Any]:
     executor = ReadOnlySQLite(database)
-    peak_columns, plants = _catalog(executor)
+    peak_columns, plants, sites = _catalog(executor)
     semantic_guard = SemanticGuard.from_database(database, peak_columns=peak_columns)
     data_range = semantic_guard.data_range
     reference_date = date.fromisoformat(data_range[1])
@@ -345,6 +363,7 @@ def run_evaluation(
         data_range=data_range,
         peak_columns=peak_columns,
         plants=plants,
+        sites=sites,
     )
     safety = _safety_metrics(
         benchmark_dir,
@@ -354,6 +373,7 @@ def run_evaluation(
         data_range=data_range,
         peak_columns=peak_columns,
         plants=plants,
+        sites=sites,
     )
     eval_items = _load(benchmark_dir / "eval_questions.json")
     try:

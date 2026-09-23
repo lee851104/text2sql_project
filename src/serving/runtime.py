@@ -36,6 +36,7 @@ class ServiceRuntime:
     data_range: tuple[str, str]
     peak_columns: set[str]
     plants: set[str]
+    sites: set[str]
     online_llm: bool
     root: Path = PROJECT_ROOT
     mode: ActiveRuntimeMode = "offline"
@@ -165,6 +166,7 @@ def build_runtime(
     executor = ReadOnlySQLite(database, timeout_seconds=timeout)
     peak_columns = _single_column(executor, 'SELECT DISTINCT "機組欄位" FROM v_peak LIMIT 200')
     plants = _single_column(executor, 'SELECT DISTINCT "電廠" FROM v_unit LIMIT 200')
+    sites = _single_column(executor, 'SELECT DISTINCT "發電站" FROM v_re_generation LIMIT 200')
     semantic_guard = SemanticGuard.from_database(database, peak_columns=peak_columns)
     scope_guard = _optional_scope_guard(database)
 
@@ -218,6 +220,7 @@ def build_runtime(
         data_range=semantic_guard.data_range,
         peak_columns=peak_columns,
         plants=plants,
+        sites=sites,
         semantic_guard=semantic_guard,
         scope_guard=scope_guard,
         max_attempts=int(llm_config["max_attempts"]),
@@ -235,6 +238,7 @@ def build_runtime(
         data_range=semantic_guard.data_range,
         peak_columns=peak_columns,
         plants=plants,
+        sites=sites,
         online_llm=active_mode == "online",
         root=root,
         mode=active_mode,
