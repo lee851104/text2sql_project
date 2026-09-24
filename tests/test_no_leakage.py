@@ -33,7 +33,9 @@ def test_corpus_and_benchmarks_meet_minimum_sample_sizes() -> None:
     traps = _load("trap_questions.json")
     attacks = _load("attack_questions.json")
 
-    assert 40 <= len(corpus["examples"]) <= 60
+    # 設計規格原訂 40～60 筆。CP-071 加入 T2 語料內 30 題後是 77 筆，上限放寬到 80；
+    # 再往上加之前，先檢討語料要不要精簡。
+    assert 40 <= len(corpus["examples"]) <= 80
     assert min(Counter(item["intent"] for item in golden).values()) >= 8
     assert len(evaluation) >= 60
     assert Counter(item["in_corpus"] for item in evaluation)[True] >= 20
