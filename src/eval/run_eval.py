@@ -177,7 +177,9 @@ def _delivered_decision(
         return semantic_guard.check_sql(
             question, GeneratedQuery(candidate.sql, candidate.params), entities
         )
-    return semantic_guard.explain_unanswerable_date(entities) or SemanticDecision()
+    return (
+        semantic_guard.explain_unanswerable_date(entities, question=question) or SemanticDecision()
+    )
 
 
 def _safety_metrics(
