@@ -1,6 +1,6 @@
 {
   "corpus_version": "corpus-v1",
-  "corpus_checksum": "c736c2e7fe47e50b75b77bb9957f6a092f3d2aa0dad765e15d6436c2498acb23",
+  "corpus_checksum": "44f9c9330178d73d211ba3b2635a1867064ba8818e5e53a3ea79f370899b7ec1",
   "character_ngram": {
     "min": 2,
     "max": 4

@@ -67,283 +67,454 @@
       "id": "generation-cost-01",
       "question": "2025年火力發電成本是多少",
       "intent": "generation_cost",
-      "sql": "SELECT \"年度\", \"電力來源\", \"發電方式\", \"成本_元每度\", \"決算類型\" FROM v_generation_cost WHERE \"年度\" = 2025 AND \"發電方式\" = '火力發電' LIMIT 20"
+      "sql": "SELECT \"年度\", \"電力來源\", \"發電方式\", \"成本_元每度\", \"決算類型\" FROM v_generation_cost WHERE \"年度\" = 2025 AND \"發電方式\" = ? LIMIT 20",
+      "params": [
+        "火力發電"
+      ]
     },
     {
       "id": "unit-day-01",
       "question": "查詢台中#1在2026年7月1日的尖峰出力",
       "intent": "unit_day",
-      "sql": "SELECT \"日期\", \"機組欄位\", \"尖峰出力_萬瓩\" FROM v_peak WHERE \"機組欄位\" = '台中#1' AND \"日期\" = '2026-07-01' LIMIT 1"
+      "sql": "SELECT \"日期\", \"機組欄位\", \"尖峰出力_萬瓩\" FROM v_peak WHERE \"機組欄位\" = ? AND \"日期\" = ? LIMIT 1",
+      "params": [
+        "台中#1",
+        "2026-07-01"
+      ]
     },
     {
       "id": "unit-day-02",
       "question": "林口#2於2026年6月20日尖峰時出力多少",
       "intent": "unit_day",
-      "sql": "SELECT \"日期\", \"機組欄位\", \"尖峰出力_萬瓩\" FROM v_peak WHERE \"機組欄位\" = '林口#2' AND \"日期\" = '2026-06-20' LIMIT 1"
+      "sql": "SELECT \"日期\", \"機組欄位\", \"尖峰出力_萬瓩\" FROM v_peak WHERE \"機組欄位\" = ? AND \"日期\" = ? LIMIT 1",
+      "params": [
+        "林口#2",
+        "2026-06-20"
+      ]
     },
     {
       "id": "unit-day-03",
       "question": "看2025年12月3日德基的尖峰出力",
       "intent": "unit_day",
-      "sql": "SELECT \"日期\", \"機組欄位\", \"尖峰出力_萬瓩\" FROM v_peak WHERE \"機組欄位\" = '德基' AND \"日期\" = '2025-12-03' LIMIT 1"
+      "sql": "SELECT \"日期\", \"機組欄位\", \"尖峰出力_萬瓩\" FROM v_peak WHERE \"機組欄位\" = ? AND \"日期\" = ? LIMIT 1",
+      "params": [
+        "德基",
+        "2025-12-03"
+      ]
     },
     {
       "id": "unit-day-04",
       "question": "大林#1在2025年8月15日出力幾萬瓩",
       "intent": "unit_day",
-      "sql": "SELECT \"日期\", \"機組欄位\", \"尖峰出力_萬瓩\" FROM v_peak WHERE \"機組欄位\" = '大林#1' AND \"日期\" = '2025-08-15' LIMIT 1"
+      "sql": "SELECT \"日期\", \"機組欄位\", \"尖峰出力_萬瓩\" FROM v_peak WHERE \"機組欄位\" = ? AND \"日期\" = ? LIMIT 1",
+      "params": [
+        "大林#1",
+        "2025-08-15"
+      ]
     },
     {
       "id": "unit-extreme-01",
       "question": "台中#3在2026年的最高尖峰出力",
       "intent": "unit_extreme",
-      "sql": "SELECT MAX(\"尖峰出力_萬瓩\") AS \"最高尖峰出力_萬瓩\" FROM v_peak WHERE \"機組欄位\" = '台中#3' AND \"日期\" BETWEEN '2026-01-01' AND '2026-07-31' LIMIT 1"
+      "sql": "SELECT MAX(\"尖峰出力_萬瓩\") AS \"最高尖峰出力_萬瓩\" FROM v_peak WHERE \"機組欄位\" = ? AND \"日期\" BETWEEN ? AND ? LIMIT 1",
+      "params": [
+        "台中#3",
+        "2026-01-01",
+        "2026-07-31"
+      ]
     },
     {
       "id": "unit-extreme-02",
       "question": "林口#1於2025年最低的非零尖峰出力",
       "intent": "unit_extreme",
-      "sql": "SELECT MIN(\"尖峰出力_萬瓩\") AS \"最低尖峰出力_萬瓩\" FROM v_peak WHERE \"機組欄位\" = '林口#1' AND \"日期\" BETWEEN '2025-01-01' AND '2025-12-31' AND \"尖峰出力_萬瓩\" > 0 LIMIT 1"
+      "sql": "SELECT MIN(\"尖峰出力_萬瓩\") AS \"最低尖峰出力_萬瓩\" FROM v_peak WHERE \"機組欄位\" = ? AND \"日期\" BETWEEN ? AND ? AND \"尖峰出力_萬瓩\" > 0 LIMIT 1",
+      "params": [
+        "林口#1",
+        "2025-01-01",
+        "2025-12-31"
+      ]
     },
     {
       "id": "unit-extreme-03",
       "question": "2026上半年大潭機組彙總最高出力是哪天",
       "intent": "unit_extreme",
-      "sql": "SELECT \"日期\", \"尖峰出力_萬瓩\" FROM v_peak WHERE \"機組欄位\" = '大潭 (#1-#9)' AND \"日期\" BETWEEN '2026-01-01' AND '2026-06-30' ORDER BY \"尖峰出力_萬瓩\" DESC LIMIT 1"
+      "sql": "SELECT \"日期\", \"尖峰出力_萬瓩\" FROM v_peak WHERE \"機組欄位\" = ? AND \"日期\" BETWEEN ? AND ? ORDER BY \"尖峰出力_萬瓩\" DESC LIMIT 1",
+      "params": [
+        "大潭 (#1-#9)",
+        "2026-01-01",
+        "2026-06-30"
+      ]
     },
     {
       "id": "unit-extreme-04",
       "question": "興達#4歷來最高尖峰出力",
       "intent": "unit_extreme",
-      "sql": "SELECT \"日期\", \"尖峰出力_萬瓩\" FROM v_peak WHERE \"機組欄位\" = '興達#4' ORDER BY \"尖峰出力_萬瓩\" DESC LIMIT 1"
+      "sql": "SELECT \"日期\", \"尖峰出力_萬瓩\" FROM v_peak WHERE \"機組欄位\" = ? ORDER BY \"尖峰出力_萬瓩\" DESC LIMIT 1",
+      "params": [
+        "興達#4"
+      ]
     },
     {
       "id": "daily-ranking-01",
       "question": "2026年7月20日尖峰出力前五名欄位",
       "intent": "daily_ranking",
-      "sql": "SELECT \"機組欄位\", \"尖峰出力_萬瓩\" FROM v_peak WHERE \"日期\" = '2026-07-20' ORDER BY \"尖峰出力_萬瓩\" DESC LIMIT 5"
+      "sql": "SELECT \"機組欄位\", \"尖峰出力_萬瓩\" FROM v_peak WHERE \"日期\" = ? ORDER BY \"尖峰出力_萬瓩\" DESC LIMIT 5",
+      "params": [
+        "2026-07-20"
+      ]
     },
     {
       "id": "daily-ranking-02",
       "question": "2025年5月1日哪些機組欄位出力最高前三",
       "intent": "daily_ranking",
-      "sql": "SELECT \"機組欄位\", \"尖峰出力_萬瓩\" FROM v_peak WHERE \"日期\" = '2025-05-01' ORDER BY \"尖峰出力_萬瓩\" DESC LIMIT 3"
+      "sql": "SELECT \"機組欄位\", \"尖峰出力_萬瓩\" FROM v_peak WHERE \"日期\" = ? ORDER BY \"尖峰出力_萬瓩\" DESC LIMIT 3",
+      "params": [
+        "2025-05-01"
+      ]
     },
     {
       "id": "daily-ranking-03",
       "question": "列出2026年1月10日非零出力最低的五個欄位",
       "intent": "daily_ranking",
-      "sql": "SELECT \"機組欄位\", \"尖峰出力_萬瓩\" FROM v_peak WHERE \"日期\" = '2026-01-10' AND \"尖峰出力_萬瓩\" > 0 ORDER BY \"尖峰出力_萬瓩\" ASC LIMIT 5"
+      "sql": "SELECT \"機組欄位\", \"尖峰出力_萬瓩\" FROM v_peak WHERE \"日期\" = ? AND \"尖峰出力_萬瓩\" > 0 ORDER BY \"尖峰出力_萬瓩\" ASC LIMIT 5",
+      "params": [
+        "2026-01-10"
+      ]
     },
     {
       "id": "daily-ranking-04",
       "question": "2025年9月9日燃煤機組尖峰出力排行",
       "intent": "daily_ranking",
-      "sql": "SELECT \"機組欄位\", \"尖峰出力_萬瓩\" FROM v_peak WHERE \"日期\" = '2025-09-09' AND \"類別\" = '燃煤' ORDER BY \"尖峰出力_萬瓩\" DESC LIMIT 20"
+      "sql": "SELECT \"機組欄位\", \"尖峰出力_萬瓩\" FROM v_peak WHERE \"日期\" = ? AND \"類別\" = ? ORDER BY \"尖峰出力_萬瓩\" DESC LIMIT 20",
+      "params": [
+        "2025-09-09",
+        "燃煤"
+      ]
     },
     {
       "id": "system-metric-01",
       "question": "2026年7月備轉容量率最低是哪一天",
       "intent": "system_metric",
-      "sql": "SELECT \"日期\", \"備轉容量率_pct\" FROM v_system WHERE \"日期\" BETWEEN '2026-07-01' AND '2026-07-31' ORDER BY \"備轉容量率_pct\" ASC LIMIT 1"
+      "sql": "SELECT \"日期\", \"備轉容量率_pct\" FROM v_system WHERE \"日期\" BETWEEN ? AND ? ORDER BY \"備轉容量率_pct\" ASC LIMIT 1",
+      "params": [
+        "2026-07-01",
+        "2026-07-31"
+      ]
     },
     {
       "id": "system-metric-02",
       "question": "2025年全年尖峰負載最高日",
       "intent": "system_metric",
-      "sql": "SELECT \"日期\", \"尖峰負載_萬瓩\" FROM v_system WHERE \"日期\" BETWEEN '2025-01-01' AND '2025-12-31' ORDER BY \"尖峰負載_萬瓩\" DESC LIMIT 1"
+      "sql": "SELECT \"日期\", \"尖峰負載_萬瓩\" FROM v_system WHERE \"日期\" BETWEEN ? AND ? ORDER BY \"尖峰負載_萬瓩\" DESC LIMIT 1",
+      "params": [
+        "2025-01-01",
+        "2025-12-31"
+      ]
     },
     {
       "id": "system-metric-03",
       "question": "列出2026年6月每日備轉容量",
       "intent": "system_metric",
-      "sql": "SELECT \"日期\", \"備轉容量_萬瓩\" FROM v_system WHERE \"日期\" BETWEEN '2026-06-01' AND '2026-06-30' ORDER BY \"日期\" LIMIT 30"
+      "sql": "SELECT \"日期\", \"備轉容量_萬瓩\" FROM v_system WHERE \"日期\" BETWEEN ? AND ? ORDER BY \"日期\" LIMIT 30",
+      "params": [
+        "2026-06-01",
+        "2026-06-30"
+      ]
     },
     {
       "id": "system-metric-04",
       "question": "2025年每月平均尖峰負載",
       "intent": "system_metric",
-      "sql": "SELECT SUBSTR(\"日期\", 1, 7) AS \"月份\", AVG(\"尖峰負載_萬瓩\") AS \"平均尖峰負載_萬瓩\" FROM v_system WHERE \"日期\" BETWEEN '2025-01-01' AND '2025-12-31' GROUP BY SUBSTR(\"日期\", 1, 7) ORDER BY \"月份\" LIMIT 12"
+      "sql": "SELECT SUBSTR(\"日期\", 1, 7) AS \"月份\", AVG(\"尖峰負載_萬瓩\") AS \"平均尖峰負載_萬瓩\" FROM v_system WHERE \"日期\" BETWEEN ? AND ? GROUP BY SUBSTR(\"日期\", 1, 7) ORDER BY \"月份\" LIMIT 12",
+      "params": [
+        "2025-01-01",
+        "2025-12-31"
+      ]
     },
     {
       "id": "plant-units-01",
       "question": "興達發電廠有哪些機組",
       "intent": "plant_units",
-      "sql": "SELECT \"機組名\", \"燃料\", \"裝置容量_萬瓩\" FROM v_unit WHERE \"電廠\" = '興達發電廠' ORDER BY \"機組名\" LIMIT 50"
+      "sql": "SELECT \"機組名\", \"燃料\", \"裝置容量_萬瓩\" FROM v_unit WHERE \"電廠\" = ? ORDER BY \"機組名\" LIMIT 50",
+      "params": [
+        "興達發電廠"
+      ]
     },
     {
       "id": "plant-units-02",
       "question": "列出大甲溪發電廠機組清單",
       "intent": "plant_units",
-      "sql": "SELECT \"機組名\", \"裝置容量_萬瓩\", \"商轉日期\" FROM v_unit WHERE \"電廠\" = '大甲溪發電廠' ORDER BY \"機組名\" LIMIT 50"
+      "sql": "SELECT \"機組名\", \"裝置容量_萬瓩\", \"商轉日期\" FROM v_unit WHERE \"電廠\" = ? ORDER BY \"機組名\" LIMIT 50",
+      "params": [
+        "大甲溪發電廠"
+      ]
     },
     {
       "id": "plant-units-03",
       "question": "台中發電廠各機組容量",
       "intent": "plant_units",
-      "sql": "SELECT \"機組名\", \"燃料\", \"裝置容量_萬瓩\" FROM v_unit WHERE \"電廠\" = '台中發電廠' ORDER BY \"裝置容量_萬瓩\" DESC LIMIT 50"
+      "sql": "SELECT \"機組名\", \"燃料\", \"裝置容量_萬瓩\" FROM v_unit WHERE \"電廠\" = ? ORDER BY \"裝置容量_萬瓩\" DESC LIMIT 50",
+      "params": [
+        "台中發電廠"
+      ]
     },
     {
       "id": "plant-units-04",
       "question": "哪些機組屬於明潭發電廠",
       "intent": "plant_units",
-      "sql": "SELECT \"機組名\", \"燃料\" FROM v_unit WHERE \"電廠\" = '明潭發電廠' ORDER BY \"機組名\" LIMIT 50"
+      "sql": "SELECT \"機組名\", \"燃料\" FROM v_unit WHERE \"電廠\" = ? ORDER BY \"機組名\" LIMIT 50",
+      "params": [
+        "明潭發電廠"
+      ]
     },
     {
       "id": "fuel-stats-01",
       "question": "燃煤機組總裝置容量多少萬瓩",
       "intent": "fuel_stats",
-      "sql": "SELECT SUM(\"裝置容量_萬瓩\") AS \"總裝置容量_萬瓩\" FROM v_unit WHERE \"燃料\" = '煤' LIMIT 1"
+      "sql": "SELECT SUM(\"裝置容量_萬瓩\") AS \"總裝置容量_萬瓩\" FROM v_unit WHERE \"燃料\" = ? LIMIT 1",
+      "params": [
+        "煤"
+      ]
     },
     {
       "id": "fuel-stats-02",
       "question": "各燃料有幾台機組",
       "intent": "fuel_stats",
-      "sql": "SELECT \"燃料\", COUNT(*) AS \"機組數\" FROM v_unit GROUP BY \"燃料\" ORDER BY \"機組數\" DESC LIMIT 20"
+      "sql": "SELECT \"燃料\", COUNT(*) AS \"機組數\" FROM v_unit GROUP BY \"燃料\" ORDER BY \"機組數\" DESC LIMIT 20",
+      "params": []
     },
     {
       "id": "fuel-stats-03",
       "question": "天然氣機組平均裝置容量",
       "intent": "fuel_stats",
-      "sql": "SELECT AVG(\"裝置容量_萬瓩\") AS \"平均裝置容量_萬瓩\" FROM v_unit WHERE \"燃料\" = '天然氣' LIMIT 1"
+      "sql": "SELECT AVG(\"裝置容量_萬瓩\") AS \"平均裝置容量_萬瓩\" FROM v_unit WHERE \"燃料\" = ? LIMIT 1",
+      "params": [
+        "天然氣"
+      ]
     },
     {
       "id": "fuel-stats-04",
       "question": "水力機組裝置容量前十名",
       "intent": "fuel_stats",
-      "sql": "SELECT \"電廠\", \"機組名\", \"裝置容量_萬瓩\" FROM v_unit WHERE \"燃料\" = '水' ORDER BY \"裝置容量_萬瓩\" DESC LIMIT 10"
+      "sql": "SELECT \"電廠\", \"機組名\", \"裝置容量_萬瓩\" FROM v_unit WHERE \"燃料\" = ? ORDER BY \"裝置容量_萬瓩\" DESC LIMIT 10",
+      "params": [
+        "水"
+      ]
     },
     {
       "id": "outage-01",
       "question": "2026年3月有哪些機組在歲修",
       "intent": "outage",
-      "sql": "SELECT \"機組名\", \"開始日期\", \"結束日期\", \"原因\" FROM v_outage WHERE \"日期狀態\" = 'valid' AND \"開始日期\" <= '2026-03-31' AND \"結束日期\" >= '2026-03-01' ORDER BY \"開始日期\" LIMIT 100"
+      "sql": "SELECT \"機組名\", \"開始日期\", \"結束日期\", \"原因\" FROM v_outage WHERE \"日期狀態\" = ? AND \"開始日期\" <= ? AND \"結束日期\" >= ? ORDER BY \"開始日期\" LIMIT 100",
+      "params": [
+        "valid",
+        "2026-03-31",
+        "2026-03-01"
+      ]
     },
     {
       "id": "outage-02",
       "question": "立霧停機到什麼時候",
       "intent": "outage",
-      "sql": "SELECT \"機組名\", \"開始日期\", \"結束日期\", \"原因\", \"對齊狀態\" FROM v_outage WHERE \"機組名\" LIKE '立霧%' ORDER BY \"結束日期\" DESC LIMIT 10"
+      "sql": "SELECT \"機組名\", \"開始日期\", \"結束日期\", \"原因\", \"對齊狀態\" FROM v_outage WHERE \"機組名\" LIKE ? ORDER BY \"結束日期\" DESC LIMIT 10",
+      "params": [
+        "立霧%"
+      ]
     },
     {
       "id": "outage-03",
       "question": "查台中#8的歲修排程",
       "intent": "outage",
-      "sql": "SELECT \"機組名\", \"開始日期\", \"結束日期\", \"日期狀態\" FROM v_outage WHERE \"機組名\" = '中八機' ORDER BY \"開始日期\" LIMIT 20"
+      "sql": "SELECT \"機組名\", \"開始日期\", \"結束日期\", \"日期狀態\" FROM v_outage WHERE \"機組名\" = ? ORDER BY \"開始日期\" LIMIT 20",
+      "params": [
+        "中八機"
+      ]
     },
     {
       "id": "outage-04",
       "question": "2025年底仍在進行的歲修",
       "intent": "outage",
-      "sql": "SELECT \"機組名\", \"開始日期\", \"結束日期\" FROM v_outage WHERE \"日期狀態\" = 'valid' AND \"開始日期\" <= '2025-12-31' AND \"結束日期\" >= '2025-12-31' LIMIT 100"
+      "sql": "SELECT \"機組名\", \"開始日期\", \"結束日期\" FROM v_outage WHERE \"日期狀態\" = ? AND \"開始日期\" <= ? AND \"結束日期\" >= ? LIMIT 100",
+      "params": [
+        "valid",
+        "2025-12-31",
+        "2025-12-31"
+      ]
     },
     {
       "id": "zero-days-01",
       "question": "立霧在2026年有幾天尖峰出力為零",
       "intent": "zero_days",
-      "sql": "SELECT COUNT(*) AS \"零出力天數\" FROM v_peak WHERE \"機組欄位\" = '立霧' AND \"日期\" BETWEEN '2026-01-01' AND '2026-07-31' AND \"尖峰出力_萬瓩\" = 0 LIMIT 1"
+      "sql": "SELECT COUNT(*) AS \"零出力天數\" FROM v_peak WHERE \"機組欄位\" = ? AND \"日期\" BETWEEN ? AND ? AND \"尖峰出力_萬瓩\" = 0 LIMIT 1",
+      "params": [
+        "立霧",
+        "2026-01-01",
+        "2026-07-31"
+      ]
     },
     {
       "id": "zero-days-02",
       "question": "台中#1於2025年零出力日數",
       "intent": "zero_days",
-      "sql": "SELECT COUNT(*) AS \"零出力天數\" FROM v_peak WHERE \"機組欄位\" = '台中#1' AND \"日期\" BETWEEN '2025-01-01' AND '2025-12-31' AND \"尖峰出力_萬瓩\" = 0 LIMIT 1"
+      "sql": "SELECT COUNT(*) AS \"零出力天數\" FROM v_peak WHERE \"機組欄位\" = ? AND \"日期\" BETWEEN ? AND ? AND \"尖峰出力_萬瓩\" = 0 LIMIT 1",
+      "params": [
+        "台中#1",
+        "2025-01-01",
+        "2025-12-31"
+      ]
     },
     {
       "id": "zero-days-03",
       "question": "2026年上半年大觀二有出力的天數",
       "intent": "zero_days",
-      "sql": "SELECT COUNT(*) AS \"有出力天數\" FROM v_peak WHERE \"機組欄位\" = '大觀二' AND \"日期\" BETWEEN '2026-01-01' AND '2026-06-30' AND \"尖峰出力_萬瓩\" > 0 LIMIT 1"
+      "sql": "SELECT COUNT(*) AS \"有出力天數\" FROM v_peak WHERE \"機組欄位\" = ? AND \"日期\" BETWEEN ? AND ? AND \"尖峰出力_萬瓩\" > 0 LIMIT 1",
+      "params": [
+        "大觀二",
+        "2026-01-01",
+        "2026-06-30"
+      ]
     },
     {
       "id": "zero-days-04",
       "question": "林口#3在2025年沒有出力的日期",
       "intent": "zero_days",
-      "sql": "SELECT \"日期\" FROM v_peak WHERE \"機組欄位\" = '林口#3' AND \"日期\" BETWEEN '2025-01-01' AND '2025-12-31' AND \"尖峰出力_萬瓩\" = 0 ORDER BY \"日期\" LIMIT 200"
+      "sql": "SELECT \"日期\" FROM v_peak WHERE \"機組欄位\" = ? AND \"日期\" BETWEEN ? AND ? AND \"尖峰出力_萬瓩\" = 0 ORDER BY \"日期\" LIMIT 200",
+      "params": [
+        "林口#3",
+        "2025-01-01",
+        "2025-12-31"
+      ]
     },
     {
       "id": "comparison-01",
       "question": "比較2026年7月林口#1與林口#2平均尖峰出力",
       "intent": "comparison",
-      "sql": "SELECT \"機組欄位\", AVG(\"尖峰出力_萬瓩\") AS \"平均尖峰出力_萬瓩\" FROM v_peak WHERE \"機組欄位\" IN ('林口#1', '林口#2') AND \"日期\" BETWEEN '2026-07-01' AND '2026-07-31' GROUP BY \"機組欄位\" LIMIT 2"
+      "sql": "SELECT \"機組欄位\", AVG(\"尖峰出力_萬瓩\") AS \"平均尖峰出力_萬瓩\" FROM v_peak WHERE \"機組欄位\" IN (?, ?) AND \"日期\" BETWEEN ? AND ? GROUP BY \"機組欄位\" LIMIT 2",
+      "params": [
+        "林口#1",
+        "林口#2",
+        "2026-07-01",
+        "2026-07-31"
+      ]
     },
     {
       "id": "comparison-02",
       "question": "台中#1和台中#2在2025年誰的最高出力較高",
       "intent": "comparison",
-      "sql": "SELECT \"機組欄位\", MAX(\"尖峰出力_萬瓩\") AS \"最高尖峰出力_萬瓩\" FROM v_peak WHERE \"機組欄位\" IN ('台中#1', '台中#2') AND \"日期\" BETWEEN '2025-01-01' AND '2025-12-31' GROUP BY \"機組欄位\" ORDER BY \"最高尖峰出力_萬瓩\" DESC LIMIT 2"
+      "sql": "SELECT \"機組欄位\", MAX(\"尖峰出力_萬瓩\") AS \"最高尖峰出力_萬瓩\" FROM v_peak WHERE \"機組欄位\" IN (?, ?) AND \"日期\" BETWEEN ? AND ? GROUP BY \"機組欄位\" ORDER BY \"最高尖峰出力_萬瓩\" DESC LIMIT 2",
+      "params": [
+        "台中#1",
+        "台中#2",
+        "2025-01-01",
+        "2025-12-31"
+      ]
     },
     {
       "id": "comparison-03",
       "question": "比較大觀與大觀二在2026上半年的出力趨勢",
       "intent": "comparison",
-      "sql": "SELECT \"日期\", \"機組欄位\", \"尖峰出力_萬瓩\" FROM v_peak WHERE \"機組欄位\" IN ('大觀', '大觀二') AND \"日期\" BETWEEN '2026-01-01' AND '2026-06-30' ORDER BY \"日期\", \"機組欄位\" LIMIT 400"
+      "sql": "SELECT SUBSTR(\"日期\", 1, 7) AS \"月份\", \"機組欄位\", AVG(\"尖峰出力_萬瓩\") AS \"平均尖峰出力_萬瓩\" FROM v_peak WHERE \"機組欄位\" IN (?, ?) AND \"日期\" BETWEEN ? AND ? GROUP BY SUBSTR(\"日期\", 1, 7), \"機組欄位\" ORDER BY \"月份\", \"機組欄位\" LIMIT 24",
+      "params": [
+        "大觀",
+        "大觀二",
+        "2026-01-01",
+        "2026-06-30"
+      ]
     },
     {
       "id": "comparison-04",
       "question": "南部與興達燃氣彙總在2026年6月的最大出力",
       "intent": "comparison",
-      "sql": "SELECT \"機組欄位\", MAX(\"尖峰出力_萬瓩\") AS \"最高尖峰出力_萬瓩\" FROM v_peak WHERE \"機組欄位\" IN ('南部 (#1-#4)', '興達 (#1-#5)') AND \"日期\" BETWEEN '2026-06-01' AND '2026-06-30' GROUP BY \"機組欄位\" LIMIT 2"
+      "sql": "SELECT \"機組欄位\", MAX(\"尖峰出力_萬瓩\") AS \"最高尖峰出力_萬瓩\" FROM v_peak WHERE \"機組欄位\" IN (?, ?) AND \"日期\" BETWEEN ? AND ? GROUP BY \"機組欄位\" LIMIT 2",
+      "params": [
+        "南部 (#1-#4)",
+        "興達 (#1-#5)",
+        "2026-06-01",
+        "2026-06-30"
+      ]
     },
     {
       "id": "other-01",
       "question": "2026年7月尖峰負載與備轉容量率的每日資料",
       "intent": "other",
-      "sql": "SELECT \"日期\", \"尖峰負載_萬瓩\", \"備轉容量率_pct\" FROM v_system WHERE \"日期\" BETWEEN '2026-07-01' AND '2026-07-31' ORDER BY \"日期\" LIMIT 31"
+      "sql": "SELECT \"日期\", \"尖峰負載_萬瓩\", \"備轉容量率_pct\" FROM v_system WHERE \"日期\" BETWEEN ? AND ? ORDER BY \"日期\" LIMIT 31",
+      "params": [
+        "2026-07-01",
+        "2026-07-31"
+      ]
     },
     {
       "id": "other-02",
       "question": "裝置容量與歷史最大尖峰出力的機組欄位比較",
       "intent": "other",
-      "sql": "SELECT \"機組欄位\", \"對應裝置容量_萬瓩\", MAX(\"尖峰出力_萬瓩\") AS \"歷史最大出力_萬瓩\" FROM v_peak WHERE \"有機組主檔\" = 1 GROUP BY \"機組欄位\", \"對應裝置容量_萬瓩\" LIMIT 100"
+      "sql": "SELECT \"機組欄位\", \"對應裝置容量_萬瓩\", MAX(\"尖峰出力_萬瓩\") AS \"歷史最大出力_萬瓩\" FROM v_peak WHERE \"有機組主檔\" = 1 GROUP BY \"機組欄位\", \"對應裝置容量_萬瓩\" LIMIT 100",
+      "params": []
     },
     {
       "id": "other-03",
       "question": "2025年各月平均備轉容量率",
       "intent": "other",
-      "sql": "SELECT SUBSTR(\"日期\", 1, 7) AS \"月份\", AVG(\"備轉容量率_pct\") AS \"平均備轉容量率_pct\" FROM v_system WHERE \"日期\" BETWEEN '2025-01-01' AND '2025-12-31' GROUP BY SUBSTR(\"日期\", 1, 7) ORDER BY \"月份\" LIMIT 12"
+      "sql": "SELECT SUBSTR(\"日期\", 1, 7) AS \"月份\", AVG(\"備轉容量率_pct\") AS \"平均備轉容量率_pct\" FROM v_system WHERE \"日期\" BETWEEN ? AND ? GROUP BY SUBSTR(\"日期\", 1, 7) ORDER BY \"月份\" LIMIT 12",
+      "params": [
+        "2025-01-01",
+        "2025-12-31"
+      ]
     },
     {
       "id": "other-04",
       "question": "找出有容量缺口揭露的欄位",
       "intent": "other",
-      "sql": "SELECT DISTINCT \"機組欄位\", \"對應裝置容量_萬瓩\" FROM v_peak WHERE \"機組欄位\" IN ('大潭 (#1-#9)', '大林(#5-#6)') LIMIT 10"
+      "sql": "SELECT DISTINCT \"機組欄位\", \"對應裝置容量_萬瓩\" FROM v_peak WHERE \"機組欄位\" IN (?, ?) LIMIT 10",
+      "params": [
+        "大潭 (#1-#9)",
+        "大林(#5-#6)"
+      ]
     },
     {
       "id": "renewable-01",
       "question": "台電自建太陽能2025年總發電量",
       "intent": "renewable_generation",
-      "sql": "SELECT SUM(\"發電量_度\") FROM v_re_generation WHERE \"能源別\" = '太陽能' AND \"年度\" = 2025 LIMIT 20"
+      "sql": "SELECT SUM(\"發電量_度\") FROM v_re_generation WHERE \"能源別\" = ? AND \"年度\" = 2025 LIMIT 20",
+      "params": [
+        "太陽能"
+      ]
     },
     {
       "id": "renewable-02",
       "question": "台電自建風力哪個發電站裝置容量最大",
       "intent": "renewable_site",
-      "sql": "SELECT DISTINCT \"發電站\", \"縣市\", \"裝置容量_瓩\" FROM v_re_generation WHERE \"能源別\" = '陸域風力' ORDER BY \"裝置容量_瓩\" DESC LIMIT 20"
+      "sql": "SELECT DISTINCT \"發電站\", \"縣市\", \"裝置容量_瓩\" FROM v_re_generation WHERE \"能源別\" = ? ORDER BY \"裝置容量_瓩\" DESC LIMIT 20",
+      "params": [
+        "陸域風力"
+      ]
     },
     {
       "id": "coverage-01",
       "question": "有哪些電廠",
       "intent": "plant_units",
-      "sql": "SELECT DISTINCT \"電廠\" FROM v_unit ORDER BY \"電廠\" LIMIT 200"
+      "sql": "SELECT DISTINCT \"電廠\" FROM v_unit ORDER BY \"電廠\" LIMIT 200",
+      "params": []
     },
     {
       "id": "coverage-02",
       "question": "有哪些燃料別",
       "intent": "fuel_stats",
-      "sql": "SELECT DISTINCT \"燃料\" FROM v_unit ORDER BY \"燃料\" LIMIT 200"
+      "sql": "SELECT DISTINCT \"燃料\" FROM v_unit ORDER BY \"燃料\" LIMIT 200",
+      "params": []
     },
     {
       "id": "coverage-03",
       "question": "資料涵蓋到什麼時候",
       "intent": "system_metric",
-      "sql": "SELECT MIN(\"日期\") AS \"最早\", MAX(\"日期\") AS \"最晚\" FROM v_system LIMIT 1"
+      "sql": "SELECT MIN(\"日期\") AS \"最早\", MAX(\"日期\") AS \"最晚\" FROM v_system LIMIT 1",
+      "params": []
     },
     {
       "id": "coverage-04",
       "question": "總共有幾台機組",
       "intent": "fuel_stats",
-      "sql": "SELECT COUNT(*) AS \"機組數\" FROM v_unit LIMIT 1"
+      "sql": "SELECT COUNT(*) AS \"機組數\" FROM v_unit LIMIT 1",
+      "params": []
     }
   ]
 }
