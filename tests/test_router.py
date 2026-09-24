@@ -783,3 +783,32 @@ def test_an_overhaul_list_only_adds_the_columns_the_question_is_about() -> None:
 
     by_plant = _outage_route("林口電廠今年有哪些機組大修")
     assert '"電廠"' in by_plant.sql
+
+
+def test_ranking_days_by_a_system_metric_is_a_system_question() -> None:
+    """「前三天」是排名，但排的是系統負載，不是某一天的機組出力。
+
+    歸成 daily_ranking 的話，離線會反問「排名要先指定是哪一天」—— 問句要的正是日期。
+    """
+
+    question = "尖峰負載最高的前三天"
+
+    assert classify_intent(question) == "system_metric"
+
+
+def test_system_metric_extreme_returns_as_many_days_as_asked() -> None:
+    # LIMIT 1 會回一天，而畫面上看不出少了兩天。
+    question = "2025年尖峰負載最高的前三天"
+
+    routed = route(question, extract_entities(question), peak_columns=set())
+
+    assert routed.intent == "system_metric"
+    assert routed.sql and "DESC LIMIT 3" in routed.sql
+
+
+def test_installed_capacity_by_plant_is_not_a_unit_output_extreme() -> None:
+    """裝置容量在 v_unit，不是某部機組的尖峰出力；反問「是哪一部機組」問錯了方向。"""
+
+    question = "哪個電廠的裝置容量最大"
+
+    assert classify_intent(question) != "unit_extreme"
