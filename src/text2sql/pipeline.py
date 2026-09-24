@@ -50,7 +50,9 @@ class SemanticGuardProtocol(Protocol):
 
     def describe_aggregate_scope(self, query: GeneratedQuery) -> SemanticDecision | None: ...
 
-    def explain_unanswerable_date(self, entities: Entities) -> SemanticDecision | None: ...
+    def explain_unanswerable_date(
+        self, entities: Entities, *, question: str = ""
+    ) -> SemanticDecision | None: ...
 
 
 class AllowAllSemanticGuard:
@@ -66,8 +68,10 @@ class AllowAllSemanticGuard:
         del query
         return None
 
-    def explain_unanswerable_date(self, entities: Entities) -> SemanticDecision | None:
-        del entities
+    def explain_unanswerable_date(
+        self, entities: Entities, *, question: str = ""
+    ) -> SemanticDecision | None:
+        del entities, question
         return None
 
 
@@ -392,7 +396,7 @@ class Text2SQLPipeline:
         # 體的規則接走了。線上模式同理：LLM 答得出來就走不到這裡。
         # 日期先問。「2024年台中出力」答不出來的原因就是 2024 沒有出力資料，回一句
         # 「缺少參數」或「線上生成用不了」都是把使用者指向錯的方向。
-        out_of_range = self.semantic_guard.explain_unanswerable_date(entities)
+        out_of_range = self.semantic_guard.explain_unanswerable_date(entities, question=question)
         if out_of_range is not None:
             return self._semantic_error(out_of_range, trace)
 
