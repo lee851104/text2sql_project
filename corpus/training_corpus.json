@@ -344,6 +344,186 @@
       "question": "總共有幾台機組",
       "intent": "fuel_stats",
       "sql": "SELECT COUNT(*) AS \"機組數\" FROM v_unit LIMIT 1"
+    },
+    {
+      "id": "t2-nuclear-01",
+      "question": "核二有哪些機組？",
+      "intent": "nuclear",
+      "sql": "SELECT DISTINCT \"機組欄位\", \"對應裝置容量_萬瓩\" FROM v_peak WHERE \"機組欄位\" LIKE '核二#%' ORDER BY \"機組欄位\" LIMIT 10"
+    },
+    {
+      "id": "t2-nuclear-02",
+      "question": "核三總裝置容量是多少？",
+      "intent": "nuclear",
+      "sql": "SELECT SUM(\"對應裝置容量_萬瓩\") AS \"總裝置容量_萬瓩\" FROM (SELECT DISTINCT \"機組欄位\", \"對應裝置容量_萬瓩\" FROM v_peak WHERE \"機組欄位\" LIKE '核三#%') LIMIT 1"
+    },
+    {
+      "id": "t2-nuclear-03",
+      "question": "各核能電廠的裝置容量是多少？",
+      "intent": "nuclear",
+      "sql": "SELECT \"電廠\", SUM(\"對應裝置容量_萬瓩\") AS \"總裝置容量_萬瓩\" FROM (SELECT DISTINCT SUBSTR(\"機組欄位\", 1, 2) AS \"電廠\", \"機組欄位\", \"對應裝置容量_萬瓩\" FROM v_peak WHERE \"類別\" = '核能') GROUP BY \"電廠\" ORDER BY \"電廠\" LIMIT 10"
+    },
+    {
+      "id": "t2-nuclear-04",
+      "question": "哪些核能機組裝置容量超過 900 MW？",
+      "intent": "nuclear",
+      "sql": "SELECT DISTINCT \"機組欄位\", \"對應裝置容量_萬瓩\" FROM v_peak WHERE \"類別\" = '核能' AND \"對應裝置容量_萬瓩\" > 90 ORDER BY \"機組欄位\" LIMIT 10"
+    },
+    {
+      "id": "t2-nuclear-05",
+      "question": "核一、核二、核三各有幾部機組？",
+      "intent": "nuclear",
+      "sql": "SELECT SUBSTR(\"機組欄位\", 1, 2) AS \"電廠\", COUNT(DISTINCT \"機組欄位\") AS \"機組數\" FROM v_peak WHERE \"類別\" = '核能' GROUP BY SUBSTR(\"機組欄位\", 1, 2) ORDER BY \"電廠\" LIMIT 10"
+    },
+    {
+      "id": "t2-nuclear-06",
+      "question": "哪一座核能電廠機組總裝置容量最高？",
+      "intent": "nuclear",
+      "sql": "SELECT \"電廠\", SUM(\"對應裝置容量_萬瓩\") AS \"總裝置容量_萬瓩\" FROM (SELECT DISTINCT SUBSTR(\"機組欄位\", 1, 2) AS \"電廠\", \"機組欄位\", \"對應裝置容量_萬瓩\" FROM v_peak WHERE \"類別\" = '核能') GROUP BY \"電廠\" ORDER BY \"總裝置容量_萬瓩\" DESC LIMIT 1"
+    },
+    {
+      "id": "t2-nuclear-07",
+      "question": "核能機組的裝置容量總和是多少？",
+      "intent": "nuclear",
+      "sql": "SELECT SUM(\"對應裝置容量_萬瓩\") AS \"總裝置容量_萬瓩\" FROM (SELECT DISTINCT \"機組欄位\", \"對應裝置容量_萬瓩\" FROM v_peak WHERE \"類別\" = '核能') LIMIT 1"
+    },
+    {
+      "id": "t2-nuclear-08",
+      "question": "各核能電廠的機組與裝置容量明細？",
+      "intent": "nuclear",
+      "sql": "SELECT DISTINCT SUBSTR(\"機組欄位\", 1, 2) AS \"電廠\", \"機組欄位\", \"對應裝置容量_萬瓩\" FROM v_peak WHERE \"類別\" = '核能' ORDER BY \"機組欄位\" LIMIT 10"
+    },
+    {
+      "id": "t2-fuel_stats-01",
+      "question": "哪些火力機組使用燃煤？",
+      "intent": "fuel_stats",
+      "sql": "SELECT \"電廠\", \"機組名\", \"燃料\", \"裝置容量_萬瓩\" FROM v_unit WHERE \"燃料\" = '煤' ORDER BY \"電廠\", \"機組名\" LIMIT 50"
+    },
+    {
+      "id": "t2-fuel_stats-02",
+      "question": "哪座水力電廠的裝置容量最大？",
+      "intent": "fuel_stats",
+      "sql": "SELECT \"電廠\", SUM(\"裝置容量_萬瓩\") AS \"總容量_萬瓩\" FROM v_unit WHERE \"燃料\" = '水' GROUP BY \"電廠\" ORDER BY \"總容量_萬瓩\" DESC LIMIT 1"
+    },
+    {
+      "id": "t2-fuel_stats-03",
+      "question": "哪些火力電廠裝置容量超過 2,000 MW？",
+      "intent": "fuel_stats",
+      "sql": "SELECT \"電廠\", SUM(\"裝置容量_萬瓩\") AS \"總容量_萬瓩\" FROM v_unit WHERE \"燃料\" IN ('煤', '天然氣', '重油', '輕柴油') GROUP BY \"電廠\" HAVING SUM(\"裝置容量_萬瓩\") > 200 ORDER BY \"總容量_萬瓩\" DESC LIMIT 20"
+    },
+    {
+      "id": "t2-other-01",
+      "question": "林口電廠目前有幾部機組正在發電？",
+      "intent": "other",
+      "sql": "SELECT COUNT(*) AS \"機組數\" FROM v_peak WHERE \"電廠\" = '林口發電廠' AND \"日期\" = (SELECT MAX(\"日期\") FROM v_peak) AND \"尖峰出力_萬瓩\" > 0 LIMIT 1"
+    },
+    {
+      "id": "t2-other-02",
+      "question": "林口電廠目前有幾部機組沒有發電？",
+      "intent": "other",
+      "sql": "SELECT COUNT(*) AS \"機組數\" FROM v_peak WHERE \"電廠\" = '林口發電廠' AND \"日期\" = (SELECT MAX(\"日期\") FROM v_peak) AND \"尖峰出力_萬瓩\" = 0 LIMIT 1"
+    },
+    {
+      "id": "t2-outage-01",
+      "question": "下個月有哪些機組要大修？",
+      "intent": "outage",
+      "sql": "SELECT DISTINCT \"機組名\", \"開始日期\", \"結束日期\" FROM v_outage WHERE \"日期狀態\" = 'valid' AND \"開始日期\" <= '2026-08-31' AND \"結束日期\" >= '2026-08-01' ORDER BY \"開始日期\", \"機組名\" LIMIT 200"
+    },
+    {
+      "id": "t2-outage-02",
+      "question": "今年有哪些機組安排大修？",
+      "intent": "outage",
+      "sql": "SELECT DISTINCT \"機組名\", \"開始日期\", \"結束日期\" FROM v_outage WHERE \"日期狀態\" = 'valid' AND \"開始日期\" <= '2026-12-31' AND \"結束日期\" >= '2026-01-01' ORDER BY \"開始日期\", \"機組名\" LIMIT 200"
+    },
+    {
+      "id": "t2-outage-03",
+      "question": "明年有哪些機組安排大修？",
+      "intent": "outage",
+      "sql": "SELECT DISTINCT \"機組名\", \"開始日期\", \"結束日期\" FROM v_outage WHERE \"日期狀態\" = 'valid' AND \"開始日期\" <= '2027-12-31' AND \"結束日期\" >= '2027-01-01' ORDER BY \"開始日期\", \"機組名\" LIMIT 200"
+    },
+    {
+      "id": "t2-outage-04",
+      "question": "台中電廠今年有哪些機組大修？",
+      "intent": "outage",
+      "sql": "SELECT DISTINCT \"機組名\", \"電廠\", \"開始日期\", \"結束日期\" FROM v_outage WHERE \"日期狀態\" = 'valid' AND \"電廠\" = '台中發電廠' AND \"開始日期\" <= '2026-12-31' AND \"結束日期\" >= '2026-01-01' ORDER BY \"開始日期\", \"機組名\" LIMIT 200"
+    },
+    {
+      "id": "t2-outage-05",
+      "question": "哪個月份安排的大修機組最多？",
+      "intent": "outage",
+      "sql": "SELECT SUBSTR(\"開始日期\", 1, 7) AS \"月份\", COUNT(DISTINCT \"機組名\") AS \"機組數\" FROM v_outage WHERE \"日期狀態\" = 'valid' GROUP BY SUBSTR(\"開始日期\", 1, 7) HAVING COUNT(DISTINCT \"機組名\") = (SELECT MAX(\"機組數\") FROM (SELECT COUNT(DISTINCT \"機組名\") AS \"機組數\" FROM v_outage WHERE \"日期狀態\" = 'valid' GROUP BY SUBSTR(\"開始日期\", 1, 7))) ORDER BY \"月份\" LIMIT 12"
+    },
+    {
+      "id": "t2-outage-06",
+      "question": "未來兩年有哪些機組會進行大修？",
+      "intent": "outage",
+      "sql": "SELECT DISTINCT \"機組名\", \"開始日期\", \"結束日期\" FROM v_outage WHERE \"日期狀態\" = 'valid' AND \"開始日期\" <= '2028-07-31' AND \"結束日期\" >= '2026-07-31' ORDER BY \"開始日期\", \"機組名\" LIMIT 200"
+    },
+    {
+      "id": "t2-outage-07",
+      "question": "下個月大修的燃煤機組有哪些？",
+      "intent": "outage",
+      "sql": "SELECT DISTINCT \"機組名\", \"燃料\", \"開始日期\", \"結束日期\" FROM v_outage WHERE \"日期狀態\" = 'valid' AND \"燃料\" = '燃煤' AND \"開始日期\" <= '2026-08-31' AND \"結束日期\" >= '2026-08-01' ORDER BY \"開始日期\", \"機組名\" LIMIT 200"
+    },
+    {
+      "id": "t2-outage-08",
+      "question": "下個月大修的燃氣機組有哪些？",
+      "intent": "outage",
+      "sql": "SELECT DISTINCT \"機組名\", \"燃料\", \"開始日期\", \"結束日期\" FROM v_outage WHERE \"日期狀態\" = 'valid' AND \"燃料\" = '燃氣' AND \"開始日期\" <= '2026-08-31' AND \"結束日期\" >= '2026-08-01' ORDER BY \"開始日期\", \"機組名\" LIMIT 200"
+    },
+    {
+      "id": "t2-outage-09",
+      "question": "同一月份同時大修的機組有哪些？",
+      "intent": "outage",
+      "sql": "SELECT SUBSTR(\"開始日期\", 1, 7) AS \"月份\", GROUP_CONCAT(DISTINCT \"機組名\") AS \"機組清單\", COUNT(DISTINCT \"機組名\") AS \"機組數\" FROM v_outage WHERE \"日期狀態\" = 'valid' GROUP BY \"月份\" HAVING COUNT(DISTINCT \"機組名\") > 1 ORDER BY \"月份\" LIMIT 200"
+    },
+    {
+      "id": "t2-outage-10",
+      "question": "某月份有哪些燃煤機組與燃氣機組同時大修？",
+      "intent": "outage",
+      "sql": "SELECT DISTINCT SUBSTR(\"開始日期\", 1, 7) AS \"月份\", \"燃料\", \"機組名\" FROM v_outage WHERE \"日期狀態\" = 'valid' AND \"燃料\" IN ('燃煤', '燃氣') AND SUBSTR(\"開始日期\", 1, 7) IN (SELECT SUBSTR(\"開始日期\", 1, 7) FROM v_outage WHERE \"日期狀態\" = 'valid' AND \"燃料\" IN ('燃煤', '燃氣') GROUP BY SUBSTR(\"開始日期\", 1, 7) HAVING COUNT(DISTINCT \"燃料\") = 2) ORDER BY \"月份\", \"燃料\", \"機組名\" LIMIT 200"
+    },
+    {
+      "id": "t2-outage-11",
+      "question": "哪個月份大修停機容量最大？",
+      "intent": "outage",
+      "sql": "SELECT \"月份\" AS \"月份\", SUM(\"裝置容量_萬瓩\") AS \"停機容量_萬瓩\" FROM (SELECT DISTINCT SUBSTR(o.\"開始日期\", 1, 7) AS \"月份\", u.\"機組名\", u.\"裝置容量_萬瓩\" FROM v_outage AS o JOIN v_unit AS u ON u.\"機組名\" = o.\"機組名\" WHERE o.\"日期狀態\" = 'valid') GROUP BY \"月份\" ORDER BY \"停機容量_萬瓩\" DESC LIMIT 1"
+    },
+    {
+      "id": "t2-outage-12",
+      "question": "下個月大修的火力機組總裝置容量是多少？",
+      "intent": "outage",
+      "sql": "SELECT COALESCE(SUM(\"裝置容量_萬瓩\"), 0) AS \"總裝置容量_萬瓩\" FROM (SELECT DISTINCT u.\"機組名\", u.\"裝置容量_萬瓩\" FROM v_outage AS o JOIN v_unit AS u ON u.\"機組名\" = o.\"機組名\" WHERE o.\"日期狀態\" = 'valid' AND o.\"燃料\" IN ('燃煤', '燃氣', '燃油') AND o.\"開始日期\" <= '2026-08-31' AND o.\"結束日期\" >= '2026-08-01') LIMIT 1"
+    },
+    {
+      "id": "t2-outage-13",
+      "question": "下個月大修的燃煤機組總裝置容量是多少？",
+      "intent": "outage",
+      "sql": "SELECT COALESCE(SUM(\"裝置容量_萬瓩\"), 0) AS \"總裝置容量_萬瓩\" FROM (SELECT DISTINCT u.\"機組名\", u.\"裝置容量_萬瓩\" FROM v_outage AS o JOIN v_unit AS u ON u.\"機組名\" = o.\"機組名\" WHERE o.\"日期狀態\" = 'valid' AND o.\"燃料\" = '燃煤' AND o.\"開始日期\" <= '2026-08-31' AND o.\"結束日期\" >= '2026-08-01') LIMIT 1"
+    },
+    {
+      "id": "t2-outage-14",
+      "question": "下個月大修的燃氣機組總裝置容量是多少？",
+      "intent": "outage",
+      "sql": "SELECT COALESCE(SUM(\"裝置容量_萬瓩\"), 0) AS \"總裝置容量_萬瓩\" FROM (SELECT DISTINCT u.\"機組名\", u.\"裝置容量_萬瓩\" FROM v_outage AS o JOIN v_unit AS u ON u.\"機組名\" = o.\"機組名\" WHERE o.\"日期狀態\" = 'valid' AND o.\"燃料\" = '燃氣' AND o.\"開始日期\" <= '2026-08-31' AND o.\"結束日期\" >= '2026-08-01') LIMIT 1"
+    },
+    {
+      "id": "t2-outage-15",
+      "question": "哪個月份大修停機的火力裝置容量最大？",
+      "intent": "outage",
+      "sql": "SELECT \"月份\" AS \"月份\", SUM(\"裝置容量_萬瓩\") AS \"停機容量_萬瓩\" FROM (SELECT DISTINCT SUBSTR(o.\"開始日期\", 1, 7) AS \"月份\", u.\"機組名\", u.\"裝置容量_萬瓩\" FROM v_outage AS o JOIN v_unit AS u ON u.\"機組名\" = o.\"機組名\" WHERE o.\"日期狀態\" = 'valid' AND o.\"燃料\" IN ('燃煤', '燃氣', '燃油')) GROUP BY \"月份\" ORDER BY \"停機容量_萬瓩\" DESC LIMIT 1"
+    },
+    {
+      "id": "t2-outage-16",
+      "question": "今年有哪些大修機組裝置容量超過 500 MW？",
+      "intent": "outage",
+      "sql": "SELECT DISTINCT o.\"機組名\", o.\"電廠\", u.\"裝置容量_萬瓩\", o.\"開始日期\", o.\"結束日期\" FROM v_outage AS o JOIN v_unit AS u ON u.\"機組名\" = o.\"機組名\" WHERE o.\"日期狀態\" = 'valid' AND u.\"裝置容量_萬瓩\" > 50 AND o.\"開始日期\" <= '2026-12-31' AND o.\"結束日期\" >= '2026-01-01' ORDER BY u.\"裝置容量_萬瓩\" DESC, o.\"機組名\" LIMIT 200"
+    },
+    {
+      "id": "t2-outage-17",
+      "question": "未來兩年大修期間可能涉及多少火力裝置容量？",
+      "intent": "outage",
+      "sql": "SELECT COALESCE(SUM(\"裝置容量_萬瓩\"), 0) AS \"總裝置容量_萬瓩\" FROM (SELECT DISTINCT u.\"機組名\", u.\"裝置容量_萬瓩\" FROM v_outage AS o JOIN v_unit AS u ON u.\"機組名\" = o.\"機組名\" WHERE o.\"日期狀態\" = 'valid' AND o.\"燃料\" IN ('燃煤', '燃氣', '燃油') AND o.\"開始日期\" <= '2028-07-31' AND o.\"結束日期\" >= '2026-07-31') LIMIT 1"
     }
   ]
 }
