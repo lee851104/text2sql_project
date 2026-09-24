@@ -446,7 +446,9 @@ def classify_intent(question: str, entities: Entities | None = None) -> str:
     )
     if comparison_shape:
         return "comparison"
-    if ranking_shape:
+    # 排的是系統指標（「尖峰負載最高的前三天」）就不是某一天的機組排行，交給下面的
+    # system_metric；否則離線會反問「是哪一天」，而那正是問句要的答案。
+    if ranking_shape and not any(word in question for word in system_words):
         return "daily_ranking"
 
     day_count_words = ("幾天", "日數", "天數", "日期數", "的天", "的日期")
@@ -494,7 +496,11 @@ def classify_intent(question: str, entities: Entities | None = None) -> str:
     )
     if explicit_day and unit_shape:
         return "unit_day"
-    if any(word in question for word in ("最高", "最低", "最大", "最小", "峰值", "極值")):
+    # 裝置容量在 v_unit；沒提到出力的話，問的不是某部機組的尖峰出力極值。
+    about_capacity_only = "裝置容量" in question and "出力" not in question
+    if not about_capacity_only and any(
+        word in question for word in ("最高", "最低", "最大", "最小", "峰值", "極值")
+    ):
         return "unit_extreme"
     # 最後一條。順序就是優先權：到這裡表示沒有任何具體規則認領這句話。
     if nearest_scope_topic(question) is not None:
@@ -767,7 +773,7 @@ def route(
                 return RoutedQuery(
                     intent,
                     f'SELECT "日期", "{metric}" FROM v_system WHERE 1 = 1{clause} '
-                    f'ORDER BY "{metric}" {direction} LIMIT 1',
+                    f'ORDER BY "{metric}" {direction} LIMIT {min(entities.top_n or 1, 200)}',
                     params,
                 )
             return RoutedQuery(
