@@ -7,8 +7,14 @@ from dataclasses import dataclass
 from functools import lru_cache
 
 from align.naming import chinese_number
-from text2sql.aliases import resolve_peak_column, resolve_peak_columns, resolve_plant
-from text2sql.entities import Entities, compact_question, extract_entities
+from text2sql.aliases import (
+    AliasResolution,
+    resolve_peak_column,
+    resolve_peak_columns,
+    resolve_plant,
+    resolve_re_site,
+)
+from text2sql.entities import NUMBER_TOKEN, Entities, compact_question, extract_entities
 from text2sql.generation_cost import aggregate_rows, wants_overview
 from text2sql.retriever import TfidfRetriever
 
@@ -238,6 +244,7 @@ def missing_parameter_clarification(
     peak_columns: set[str],
     plants: set[str],
     data_range: tuple[str, str] | None = None,
+    sites: set[str] | None = None,
 ) -> MissingParameter | None:
     """問句缺了哪個必要條件？答得出來的題目不會走到這裡。
 
@@ -259,6 +266,17 @@ def missing_parameter_clarification(
     named_unit = unit.value or (units[0] if units else None)
     plant = resolve_plant(question, plants)
     example_day = _example_date(data_range)
+
+    # 撞名場站不猜；route() 對這種問句保持沉默（沒有 SQL），這裡才是真正列出候選反問
+    # 的地方——只在真的撞名（ambiguous）時反問，沒點名場站的一般彙總問句不受影響。
+    if intent in {"renewable_generation", "renewable_site"}:
+        site = resolve_re_site(question, sites or set())
+        if site.ambiguous:
+            return MissingParameter(
+                "site",
+                f"「{'、'.join(site.candidates)}」對到多個場站，不確定是哪一個。",
+                f"{site.candidates[0]}的發電量",
+            )
 
     if intent == "comparison" and len(units) < 2:
         return MissingParameter(
@@ -333,11 +351,14 @@ def classify_intent(question: str, entities: Entities | None = None) -> str:
         return "data_scope"
     # 再生能源只有 v_re_generation 有電量資料；每日尖峰資料的風光欄位是瞬時出力，
     # 因此只在問句明講「發電量／度數」或「自建」時才走這條路，不搶尖峰出力的題目。
+    #
+    # 發電量關鍵字要先查：「各太陽光電場站發電量」同時有「場站」與「發電量」，
+    # 使用者明講要的是度數，不能因為先撞到「場站」就被判成裝置容量清單。
     if _renewable_words(question):
-        if any(word in question for word in ("裝置容量", "場站", "發電站", "幾座", "哪些站")):
-            return "renewable_site"
-        if any(word in question for word in ("發電量", "度數", "發了多少", "總發電")):
+        if any(word in question for word in _RENEWABLE_GENERATION_WORDS):
             return "renewable_generation"
+        if any(word in question for word in _RENEWABLE_SITE_WORDS):
+            return "renewable_site"
     system_words = ("負載", "備轉", "供電能力", "工業用電", "民生用電", "系統指標")
 
     if (
@@ -544,6 +565,70 @@ def _system_metric(question: str) -> str | None:
     )
 
 
+_RENEWABLE_GENERATION_WORDS = (
+    "發電量",
+    "度數",
+    "發了多少",
+    "總發電",
+    "發多少電",
+    "發了多少電",
+)
+_RENEWABLE_SITE_WORDS = ("裝置容量", "場站", "發電站", "幾座", "哪些站")
+# 問句只要提到「場站／發電站」這類站點字眼，就代表使用者要的是逐場站的數字，
+# 不是逐能源別的加總——即使 classify_intent 已經因為「發電量」判成 renewable_generation。
+_RENEWABLE_BY_SITE_WORDS = ("各場", "各站", "各場站", "逐場", "逐站", "場站", "發電站")
+_RENEWABLE_BY_COUNTY_WORDS = ("各縣市", "各縣", "分縣市")
+_RENEWABLE_BY_MONTH_WORDS = ("每個月", "各月", "逐月")
+_RENEWABLE_COMPARISON_WORDS = ("比", "相差", "差多少", "多發", "少發", "誰多", "誰少")
+
+# 台灣縣市固定 22 個，不像場站或電廠名稱會隨資料版本增減，直接列舉不必額外從資料庫查詢。
+_TAIWAN_COUNTIES = (
+    "台北市",
+    "新北市",
+    "桃園市",
+    "台中市",
+    "台南市",
+    "高雄市",
+    "基隆市",
+    "新竹市",
+    "嘉義市",
+    "新竹縣",
+    "苗栗縣",
+    "彰化縣",
+    "南投縣",
+    "雲林縣",
+    "嘉義縣",
+    "屏東縣",
+    "宜蘭縣",
+    "花蓮縣",
+    "台東縣",
+    "澎湖縣",
+    "金門縣",
+    "連江縣",
+)
+
+# 「2026年1月到3月」「2026年1～3月」這類月份區間，entities.date_range 目前只認得單一
+# 月份或整年（見 entities.py 的 extract_date_range），區間會靜默擴大成整年。這裡另外
+# 寫一段專供再生能源查詢使用的月份／月份區間解析，不動 entities.py 的共用邏輯——那份
+# 解析被四份題庫的既有行為緊密覆蓋，牽動範圍遠大於這次要修的再生能源查詢路徑。
+_MONTH_RANGE_RE = re.compile(rf"(\d{{3,4}})年({NUMBER_TOKEN})月?(?:[到至~～\-]({NUMBER_TOKEN})月)?")
+
+
+def _month_token(token: str) -> int | None:
+    if token.isdigit():
+        value = int(token)
+        return value if 1 <= value <= 12 else None
+    for month in range(1, 13):
+        if chinese_number(month) == token:
+            return month
+    return None
+
+
+def _calendar_year_token(token: str) -> int:
+    year = int(token)
+    return year + 1911 if year < 1911 else year
+
+
 def _renewable_words(question: str) -> bool:
     return "自建" in question or any(
         word in question
@@ -570,7 +655,74 @@ def _renewable_energy_type(question: str) -> str | None:
     )
 
 
-def _renewable_filters(question: str, entities: Entities) -> tuple[str, tuple[object, ...]]:
+def _renewable_period(
+    question: str, entities: Entities
+) -> tuple[int | None, int | None, int | None]:
+    """年度、起始月、結束月；沒有月份限定時起訖回 None、None。"""
+
+    compact = re.sub(r"\s+", "", question)
+    match = _MONTH_RANGE_RE.search(compact)
+    if match:
+        year_token, start_token, end_token = match.groups()
+        start = _month_token(start_token)
+        end = _month_token(end_token) if end_token else start
+        if start is not None and end is not None:
+            return _calendar_year_token(year_token), min(start, end), max(start, end)
+
+    if entities.date_range:
+        start_date, end_date = entities.date_range.start, entities.date_range.end
+        year = int(start_date[:4])
+        if start_date[5:] == "01-01" and end_date[5:] == "12-31":
+            return year, None, None
+        if start_date[:7] == end_date[:7]:
+            month = int(start_date[5:7])
+            return year, month, month
+    return None, None, None
+
+
+def _renewable_county(question: str) -> str | None:
+    """比照 resolve_plant()：去掉「市／縣」後綴才比對，使用者很少連著行政區劃講。
+
+    「新竹」「嘉義」同時是市與縣的簡稱，兩者撞名時取清單裡的第一個（直轄市／市優先），
+    不特別反問——這個邊界問題不在這次要修的場站／月份／比較題範圍內。
+    """
+
+    compact = re.sub(r"\s+", "", question)
+    return next(
+        (
+            county
+            for county in _TAIWAN_COUNTIES
+            if county.removesuffix("市").removesuffix("縣") in compact
+        ),
+        None,
+    )
+
+
+def _renewable_comparison(
+    question: str, entities: Entities
+) -> tuple[tuple[int, int], tuple[int, int]] | None:
+    """「A期間比B期間多發多少」要兩個口徑各自的年月，缺一個就不是比較題。"""
+
+    del entities
+    compact = re.sub(r"\s+", "", question)
+    if not any(word in compact for word in _RENEWABLE_COMPARISON_WORDS):
+        return None
+    periods: list[tuple[int, int]] = []
+    for match in _MONTH_RANGE_RE.finditer(compact):
+        year_token, start_token, _end_token = match.groups()
+        month = _month_token(start_token)
+        if month is None:
+            continue
+        periods.append((_calendar_year_token(year_token), month))
+    return (periods[0], periods[1]) if len(periods) >= 2 else None
+
+
+def _renewable_filters(
+    question: str,
+    entities: Entities,
+    *,
+    sites: set[str] = frozenset(),
+) -> tuple[str, list[object], AliasResolution]:
     clauses: list[str] = []
     params: list[object] = []
     energy = _renewable_energy_type(question)
@@ -581,10 +733,31 @@ def _renewable_filters(question: str, entities: Entities) -> tuple[str, tuple[ob
         # 只說「風力」時涵蓋陸域與離岸，不替使用者挑一種。
         clauses.append('"能源別" LIKE ?')
         params.append("%風力%")
-    if entities.date_range:
+
+    year, month_start, month_end = _renewable_period(question, entities)
+    if year is not None:
         clauses.append('"年度" = ?')
-        params.append(int(entities.date_range.start[:4]))
-    return (" WHERE " + " AND ".join(clauses) if clauses else ""), tuple(params)
+        params.append(year)
+        if month_start is not None and month_end is not None:
+            if month_start == month_end:
+                clauses.append('"月份" = ?')
+                params.append(month_start)
+            else:
+                clauses.append('"月份" BETWEEN ? AND ?')
+                params.extend((month_start, month_end))
+
+    county = _renewable_county(question)
+    if county:
+        clauses.append('"縣市" = ?')
+        params.append(county)
+
+    site = resolve_re_site(question, sites)
+    if site.value:
+        clauses.append('"發電站" = ?')
+        params.append(site.value)
+
+    where = " WHERE " + " AND ".join(clauses) if clauses else ""
+    return where, params, site
 
 
 def _generation_cost_pair(question: str) -> tuple[str, str] | None:
@@ -648,6 +821,7 @@ def route(
     peak_columns: set[str],
     plants: set[str] | None = None,
     data_range: tuple[str, str] | None = None,
+    sites: set[str] | None = None,
 ) -> RoutedQuery:
     intent = classify_intent(question, entities)
     bounded_range = _bounded_range(entities, data_range)
@@ -732,23 +906,83 @@ def route(
             )
 
     if intent == "renewable_generation":
-        where, params = _renewable_filters(question, entities)
+        comparison = _renewable_comparison(question, entities)
+        if comparison is not None:
+            (year_a, month_a), (year_b, month_b) = comparison
+            energy = _renewable_energy_type(question)
+            params: list[object] = [
+                year_a,
+                month_a,
+                year_b,
+                month_b,
+                year_a,
+                month_a,
+                year_b,
+                month_b,
+                year_a,
+                year_b,
+            ]
+            energy_clause = ""
+            if energy:
+                energy_clause = ' AND "能源別" = ?'
+                params.append(energy)
+            return RoutedQuery(
+                intent,
+                "SELECT "
+                'SUM(CASE WHEN "年度" = ? AND "月份" = ? THEN "發電量_度" ELSE 0 END) '
+                'AS "期間A_發電量_度", '
+                'SUM(CASE WHEN "年度" = ? AND "月份" = ? THEN "發電量_度" ELSE 0 END) '
+                'AS "期間B_發電量_度", '
+                'SUM(CASE WHEN "年度" = ? AND "月份" = ? THEN "發電量_度" ELSE 0 END) '
+                '- SUM(CASE WHEN "年度" = ? AND "月份" = ? THEN "發電量_度" ELSE 0 END) '
+                'AS "差額_度" '
+                f'FROM v_re_generation WHERE "年度" IN (?, ?){energy_clause} LIMIT 1',
+                tuple(params),
+            )
+
+        where, params, site = _renewable_filters(question, entities, sites=sites or set())
+        if site.ambiguous:
+            # 撞名場站不猜；不給 SQL，讓 missing_parameter_clarification 接手反問。
+            return RoutedQuery(intent)
+
+        compact = re.sub(r"\s+", "", question)
+        by_month = any(word in compact for word in _RENEWABLE_BY_MONTH_WORDS)
+        by_site = any(word in compact for word in _RENEWABLE_BY_SITE_WORDS)
+        by_county = any(word in compact for word in _RENEWABLE_BY_COUNTY_WORDS)
+
+        group_columns: list[str] = []
+        if by_month:
+            group_columns += ['"年度"', '"月份"']
+        if by_site:
+            group_columns.append('"發電站"')
+        elif by_county:
+            group_columns.append('"縣市"')
+        if not group_columns:
+            group_columns = ['"能源別"']
+
+        columns = ", ".join(group_columns)
+        chronological = by_month and not (by_site or by_county)
+        order_by = '"年度", "月份"' if chronological else '"發電量_度" DESC'
+        limit = entities.top_n or 50
         return RoutedQuery(
             intent,
-            'SELECT "能源別", SUM("發電量_度") AS "發電量_度" '
+            f'SELECT {columns}, SUM("發電量_度") AS "發電量_度" '
             f"FROM v_re_generation{where} "
-            'GROUP BY "能源別" ORDER BY "發電量_度" DESC LIMIT 20',
-            params,
+            f"GROUP BY {columns} ORDER BY {order_by} LIMIT {limit}",
+            tuple(params),
         )
 
     if intent == "renewable_site":
-        where, params = _renewable_filters(question, entities)
+        where, params, site = _renewable_filters(question, entities, sites=sites or set())
+        if site.ambiguous:
+            return RoutedQuery(intent)
+        limit = entities.top_n or 50
         return RoutedQuery(
             intent,
             'SELECT DISTINCT "發電站", "縣市", "能源別", "裝置容量_瓩", "主檔來源" '
             f"FROM v_re_generation{where} "
-            'ORDER BY "裝置容量_瓩" DESC LIMIT 20',
-            params,
+            f'ORDER BY "裝置容量_瓩" DESC LIMIT {limit}',
+            tuple(params),
         )
 
     if intent == "system_metric":
