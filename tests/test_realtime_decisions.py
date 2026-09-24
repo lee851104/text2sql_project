@@ -66,3 +66,10 @@ def test_invalid_row_is_skipped_with_a_warning(tmp_path: Path, row: str, reason:
 
     assert decisions.units == {}
     assert reason in decisions.warnings[0]
+
+
+def test_short_row_is_skipped_with_a_warning(tmp_path: Path) -> None:
+    decisions = _load(tmp_path, "燃氣,大潭CC#1,unit\n")
+
+    assert decisions.units == {}
+    assert "access_scope" in decisions.warnings[0]

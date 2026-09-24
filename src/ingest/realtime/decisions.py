@@ -64,11 +64,14 @@ def load_decisions(units_csv: Path, plants_csv: Path) -> Decisions:
                 f"{units_csv.name} 的欄位必須是 {','.join(DECISION_FIELDS)}，"
                 f"實際是 {reader.fieldnames}。"
             )
-        rows = list(reader)
+        # 少欄的列：缺的欄位填成 None，一律當成空字串。
+        rows = [
+            {field: (row.get(field) or "").strip() for field in DECISION_FIELDS} for row in reader
+        ]
     seen: set[tuple[str, str]] = set()
     repeated: list[tuple[str, str]] = []
     for row in rows:
-        key = (row["unit_type"].strip(), row["unit_name"].strip())
+        key = (row["unit_type"], row["unit_name"])
         if key in seen:
             repeated.append(key)
         seen.add(key)
@@ -79,11 +82,11 @@ def load_decisions(units_csv: Path, plants_csv: Path) -> Decisions:
     units: dict[tuple[str, str], UnitDecision] = {}
     warnings: list[str] = []
     for line, row in enumerate(rows, start=2):
-        key = (row["unit_type"].strip(), row["unit_name"].strip())
-        grain = row["grain"].strip()
-        scope = row["access_scope"].strip()
-        plant_text = (row["plant_id"] or "").strip()
-        note = (row["note"] or "").strip()
+        key = (row["unit_type"], row["unit_name"])
+        grain = row["grain"]
+        scope = row["access_scope"]
+        plant_text = row["plant_id"]
+        note = row["note"]
         label = f"第 {line} 列 {key[0]}|{key[1]}"
         if grain not in GRAINS:
             warnings.append(f"{label}：grain={grain!r} 不合法，視為未定。")
