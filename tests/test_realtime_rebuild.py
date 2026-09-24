@@ -4,6 +4,7 @@ import gzip
 import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from unittest import mock
 
 from realtime_support import make_config, payload_bytes, tiny_payload
 
@@ -149,3 +150,88 @@ def test_revisions_are_replayed_in_fetch_order(tmp_path: Path) -> None:
     assert json.loads(replayed.execute("SELECT warnings FROM fact_rt_snapshot").fetchone()[0]) == [
         {"code": "SUBTOTAL_MISMATCH", "detail": "燃氣：明細 16521.8 MW，小計 16521.4 MW"}
     ]
+
+
+def test_truncated_gzip_archive_file_is_skipped(tmp_path: Path) -> None:
+    """Truncated/corrupted gzip files should be counted as corrupted and rebuild should continue."""
+    config, decisions = _setup(tmp_path)
+
+    # Create one good archive file using proper archiving
+    good_raw = payload_bytes(data_time="2026-09-19T23:40:00")
+    archive.archive_payload(
+        config.archive_dir,
+        good_raw,
+        source_time=read_datetime(good_raw),
+        fetched_at=datetime(2026, 9, 19, 15, 45, 20, tzinfo=UTC),
+    )
+
+    # Create a truncated gzip file with the same SHA prefix as a valid payload
+    truncated_raw = payload_bytes(data_time="2026-09-19T23:50:00")
+    truncated_compressed = gzip.compress(truncated_raw)
+    sha_prefix = archive.payload_sha256(truncated_raw)[:12]
+    truncated_path = config.archive_dir / "2026" / "09" / "19" / f"2350_{sha_prefix}.json.gz"
+    truncated_path.parent.mkdir(parents=True, exist_ok=True)
+    # Write only first half of the compressed data to trigger EOFError
+    truncated_path.write_bytes(truncated_compressed[: len(truncated_compressed) // 2])
+
+    connection = store.connect(config.database)
+    report = rebuild.rebuild(connection, config, decisions, now=NOW)
+
+    # Should count 1 corrupted (truncated gzip), 1 ingested (good file)
+    assert (report.corrupted, report.ingested) == (1, 1)
+    # Rebuild should complete despite the corrupted file
+    assert store.schema_version(connection) == store.SCHEMA_VERSION
+
+
+def test_atomicity_rollback_on_ingest_failure(tmp_path: Path) -> None:
+    """Failure mid-rebuild should rollback to old database state (§7.3 atomicity)."""
+    config, decisions = _setup(tmp_path)
+
+    # Create initial database with one snapshot
+    live = store.connect(config.database)
+    rebuild.rebuild(live, config, decisions, now=NOW)
+    raw = payload_bytes(data_time="2026-09-19T23:40:00")
+    fetched = datetime(2026, 9, 19, 15, 45, 20, tzinfo=UTC)
+    _live_ingest(live, config, decisions, raw, fetched)
+
+    # Verify snapshot is in database
+    original_row = live.execute("SELECT COUNT(*) FROM fact_rt_snapshot").fetchone()[0]
+    assert original_row == 1
+    original_schema_version = store.schema_version(live)
+    live.close()
+
+    # Archive two more payloads with proper SHA prefixes
+    raw1 = payload_bytes(data_time="2026-09-19T23:40:00")
+    raw2 = payload_bytes(data_time="2026-09-20T00:00:00")
+    archive.archive_payload(
+        config.archive_dir, raw1, source_time=read_datetime(raw1), fetched_at=fetched
+    )
+    archive.archive_payload(
+        config.archive_dir,
+        raw2,
+        source_time=read_datetime(raw2),
+        fetched_at=fetched + timedelta(minutes=10),
+    )
+
+    # Monkeypatch ingest_snapshot to fail on second archive file
+    call_count = [0]
+    original_ingest = store.ingest_snapshot
+
+    def failing_ingest(*args, **kwargs):
+        call_count[0] += 1
+        if call_count[0] == 2:  # Fail on second archive file
+            raise RuntimeError("Simulated ingest failure")
+        return original_ingest(*args, **kwargs)
+
+    connection = store.connect(config.database)
+    with mock.patch("ingest.realtime.rebuild.ingest_snapshot", side_effect=failing_ingest):
+        try:
+            rebuild.rebuild(connection, config, decisions, now=NOW)
+            raise AssertionError("Expected RuntimeError from ingest_snapshot")
+        except RuntimeError as e:
+            assert str(e) == "Simulated ingest failure"
+
+    # Verify old data is still there (transaction was rolled back)
+    assert store.schema_version(connection) == original_schema_version
+    row_count = connection.execute("SELECT COUNT(*) FROM fact_rt_snapshot").fetchone()[0]
+    assert row_count == 1, f"Expected 1 snapshot after rollback, got {row_count}"

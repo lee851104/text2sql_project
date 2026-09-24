@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import sqlite3
+import zlib
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 
@@ -98,7 +99,11 @@ def rebuild(
             if current_day is not None and day != current_day:
                 _close_day(connection, current_day, now, config)
             current_day = day
-            raw = read_payload(archived.path)
+            try:
+                raw = read_payload(archived.path)
+            except (OSError, EOFError, zlib.error):
+                corrupted += 1
+                continue
             sha = payload_sha256(raw)
             if sha[:12] != archived.sha_prefix:
                 corrupted += 1
