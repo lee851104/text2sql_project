@@ -119,7 +119,7 @@ def iter_attempts(attempts_dir: Path) -> Iterator[dict[str, object]]:
     if not attempts_dir.is_dir():
         return
     for path in sorted(attempts_dir.glob("*.jsonl")):
-        with path.open(encoding="utf-8") as handle:
+        with path.open(encoding="utf-8", errors="replace") as handle:
             for line in handle:
                 text = line.strip()
                 if not text:
@@ -127,6 +127,6 @@ def iter_attempts(attempts_dir: Path) -> Iterator[dict[str, object]]:
                 try:
                     record = json.loads(text)
                 except json.JSONDecodeError:
-                    continue  # 當機時寫到一半的殘行
+                    continue  # 當機時寫到一半的殘行（含切在多位元組字元中間，已換成 U+FFFD）
                 if isinstance(record, dict):
                     yield record

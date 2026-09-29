@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import gzip
+import json
 import os
 from datetime import UTC, datetime
 from pathlib import Path
@@ -84,3 +85,19 @@ def test_attempt_log_round_trips_and_survives_a_torn_line(tmp_path: Path) -> Non
         {"attempted_at": "2026-09-18T13:45:20+00:00", "kind": "fetch"},
         {"attempted_at": "2026-09-18T13:55:20+00:00", "kind": "resume"},
     ]
+
+
+def test_attempt_log_skips_a_line_torn_inside_a_multibyte_character(tmp_path: Path) -> None:
+    first = {"attempted_at": "2026-09-18T13:45:20+00:00", "kind": "fetch", "detail": "連線逾時"}
+    append_attempt(tmp_path, first)
+    torn = json.dumps(
+        {"attempted_at": "2026-09-18T13:50:20+00:00", "kind": "fetch", "detail": "連線失敗"},
+        ensure_ascii=False,
+    ).encode("utf-8")
+    cut = torn.index("失".encode()) + 1  # 3 位元組字元只寫了第一個位元組
+    with (tmp_path / "2026-09.jsonl").open("ab") as handle:
+        handle.write(torn[:cut])
+    last = {"attempted_at": "2026-09-18T13:55:20+00:00", "kind": "resume"}
+    append_attempt(tmp_path, last)
+
+    assert list(iter_attempts(tmp_path)) == [first, last]

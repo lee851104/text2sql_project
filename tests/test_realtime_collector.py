@@ -517,3 +517,18 @@ def test_a_stop_request_left_from_an_earlier_run_is_cleared_on_start(tmp_path: P
     assert _collector(config, FakeClock(START), opener).run() == EXIT_OK
 
     assert _attempts(config) == [("startup", None), ("fetch", "new"), ("shutdown", None)]
+
+
+def test_startup_completes_when_the_attempt_log_has_a_line_torn_inside_a_character(
+    tmp_path: Path,
+) -> None:
+    config = make_config(tmp_path)
+    config.attempts_dir.mkdir(parents=True, exist_ok=True)
+    with (config.attempts_dir / "2026-09.jsonl").open("wb") as handle:
+        handle.write('{"kind":"fetch","detail":"連線失敗'.encode()[:-1])
+
+    collector = _collector(config, FakeClock(START), ScriptedOpener(not_modified))
+    collector.startup()  # must not raise
+    collector.shutdown()
+
+    assert ("startup", None) in _attempts(config)
