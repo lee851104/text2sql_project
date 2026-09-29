@@ -242,7 +242,7 @@ def parse_payload(
     for unit_type, row in subtotal_rows:
         net, net_share = parse_with_share(str(row["淨發電量(MW)"]))
         capacity, capacity_share = parse_with_share(str(row["裝置容量(MW)"]))
-        detail_net = round(detail_sums.get(unit_type, 0.0), 1)
+        detail_net = round(detail_sums.get(unit_type, 0.0), 3)
         name = str(row["機組名稱"]).strip()
         subtotals.append(
             SubtotalRow(unit_type, name, net, net_share, capacity, capacity_share, detail_net)
