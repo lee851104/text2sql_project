@@ -23,3 +23,16 @@ v_peak,語意檢視,36928,fact_daily_peak + dim_b_column + bridge_b_column,是,�
 v_re_generation,語意檢視,1976,fact_re_monthly + dim_re_site,是,年度、月份、發電站、能源別、縣市、發電量_度、裝置容量_瓩、場址數、數值狀態、主檔來源
 v_system,語意檢視,577,fact_daily_system,是,日期、淨尖峰供電能力_萬瓩、尖峰負載_萬瓩、備轉容量_萬瓩、備轉容量率_pct、工業用電_百萬度、民生用電_百萬度
 v_unit,語意檢視,175,dim_unit + dim_plant,是,機組名、電廠、縣市、裝置容量_瓩、裝置容量_萬瓩、燃料、商轉日期、商轉日期精度
+realtime.db:meta_rt_manifest,資料表,1,收集器,否,id、schema_version、built_at、build_kind、archive_files、decisions_sha256、plants_sha256
+realtime.db:dim_rt_plant,資料表,34,plants.csv,否,plant_id、plant_name
+realtime.db:dim_rt_unit,資料表,約 204（隨來源增減）,即時封存 + realtime_units.csv,否,id、unit_type、unit_type_raw、unit_name、flow、grain、access_scope、plant_id、decision_note、first_seen、last_seen
+realtime.db:fact_rt_snapshot,資料表,每天最多 144,即時封存,否,data_time、sha256、fetched_at、revision、detail_rows、quality、warnings
+realtime.db:fact_rt_unit_10min,資料表,約 204 × 144 × 14（保留 14 天）,即時封存,否,data_time、unit_id、net_mw、capacity_mw、load_ratio、note、value_status
+realtime.db:fact_rt_type_subtotal,資料表,約 11 × 144 × 14（保留 14 天）,即時封存,否,data_time、unit_type、subtotal_name、net_mw、net_share_pct、capacity_mw、capacity_share_pct、detail_net_mw
+realtime.db:fact_rt_quarantine,資料表,通常為 0,即時封存,否,data_time、row_index、reason、raw_row
+realtime.db:fact_rt_unit_daily,資料表,每天約 204（永久保留）,fact_rt_unit_10min,否,date、unit_id、energy_mwh_est、max_mw、avg_mw、min_mw、samples、expected_samples、notes_seen、source
+realtime.db:fact_rt_day,資料表,每天 1（永久保留）,fact_rt_snapshot + meta_rt_attempt,否,date、snapshots、expected、missed_collector_down、missed_fetch_failed、missed_rejected、rows_at_rollup、rolled_up_at、purged_at
+realtime.db:meta_rt_attempt,資料表,每天約 150–200,data/realtime/attempts/*.jsonl,否,id、attempted_at、kind、target_slot、outcome、http_status、error_type、reject_code、data_time、sha256、bytes、elapsed_ms、etag、detail
+realtime.db:v_rt_10min,語意檢視,同 fact_rt_unit_10min,fact_rt_unit_10min + dim_rt_unit + dim_rt_plant,否（RT-3 開放）,資料時間、日期、時刻、機組鍵、機組類型、機組名稱、粒度、電廠、裝置容量_MW、淨發電量_MW、出力比、備註、數值狀態
+realtime.db:v_rt_now,語意檢視,約 204,v_rt_10min 的最新時段,否（RT-3 開放）,同 v_rt_10min
+realtime.db:v_rt_daily,語意檢視,同 fact_rt_unit_daily,fact_rt_unit_daily + dim_rt_unit + dim_rt_plant,否（RT-3 開放）,日期、機組鍵、機組類型、機組名稱、粒度、電廠、估算發電量_MWh、最高出力_MW、平均出力_MW、最低出力_MW、取樣點數、應有點數、資料完整度、當日備註、資料來源

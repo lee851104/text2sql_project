@@ -26,10 +26,16 @@ re_generation.csv,解析,發電量分類為 ok／missing／suspect／invalid,src
 re_generation.csv,保留,缺值存 NULL 而不是 0,src/align/renewable.py:parse_generation,16 筆缺值：15 筆中屯風力、1 筆澎湖龍門風力 2024-02，經月報證實都是機組確實未發電
 re_generation.csv,修復,suspect 值不列入加總，除非 overrides 有附依據的人工修復,src/align/renewable.py:repair_generation,"1 筆：澎湖湖西風力 2024-07 原始值「357,156.00 2」，經 11307 月報驗算（382,722 毛 − 25,566 廠用 = 357,156）後修復"
 re_generation.csv,對齊,去掉發電站名稱結尾的「發電站」後與場址主檔比對,src/align/renewable.py:normalize_station,直接 join 只有 10 站對上；去後綴後 62 站；加 2 組人工確認別名 = 64 對齊（98.5%）；再加補充檔 = 65 覆蓋（100%）
-units_generation.json,剔除,剔除混在明細中的小計列（機組名稱含「小計」）,src/align/column_capacity.py:_realtime_index,215 列中 10 列是小計；風力的小計列寫成「小計(註5)」而非「小計」
+units_generation.json,剔除,剔除混在明細中的小計列（機組名稱含「小計」）,src/align/column_capacity.py:_realtime_index,215 列中 11 列是小計，其中風力那列寫成「小計(註5)」
 units_generation.json,解析,容量欄剝除百分比括號,src/align/column_capacity.py:parse_megawatts,小計列寫成「15918.1(26.052%)」，需取前綴數字
 units_generation.json,換算,MW → 瓩（×1000）,src/align/column_capacity.py:megawatts_to_kilowatts,與機組主檔同單位才能進 dim_b_column.capacity_kw
 units_generation.json,記錄,容量來源附當次快照的 SHA-256 前綴,src/ingest/build_db.py:_insert_column_capacities,這是每 10 分鐘覆寫的快照不是主檔，機組除役會直接消失（麥寮即如此），必須能回溯是哪一刻的狀態
 nuclear_units.csv,換算,MWe → 瓩（×1000）,src/align/column_capacity.py:_nuclear_index,核一 636×2、核二 985×2、核三 951×2
 nuclear_units.csv,排除,裝置容量欄非純數字者排除,src/align/column_capacity.py:_nuclear_index,龍門廠（核四）2 列商轉日期寫「封存中」，每日資料也沒有對應欄位，故不採用
 （跨檔）,檢查,填入的容量套用與 crosswalk 相同的容量比門檻,src/ingest/build_db.py:_insert_column_capacities,21 欄設定、18 欄補到容量；2 欄逾界寫入 KNOWN_CAPACITY_GAP：汽電共生 332%、星彰#1 107%
+即時封存（d006001）,讀取,以 utf-8-sig 解碼；DateTime 決定時段，必須在 10 分鐘整點且不晚於現在 15 分鐘,src/ingest/realtime/parse.py:parse_payload,不合格就整份拒收，但原始回應仍在封存，修好規則後重建即可補回
+即時封存（d006001）,剔除,名稱以「小計」開頭的列不進明細，另存 fact_rt_type_subtotal 並逐類比對明細加總,src/ingest/realtime/parse.py:parse_payload,11 列小計（含「小計(註5)」）；11 類明細加總與小計全部相等
+即時封存（d006001）,隔離,名稱不是「小計」開頭、值卻是「數值(百分比%)」格式的列,src/ingest/realtime/parse.py:parse_payload,改了名字的彙總列進 fact_rt_quarantine，不會混進明細
+即時封存（d006001）,清洗,機組類型去掉 HTML 標籤與結尾的英文括號，原樣另存,src/ingest/realtime/parse.py:clean_type,「儲能負載(Energy Storage System Load)</b>」→「儲能負載」
+即時封存（d006001）,解析,「-」「N/A」與空字串存 NULL；出力比去掉 % 後除以 100,src/ingest/realtime/parse.py:parse_number／parse_ratio,容量「-」45 列、發電量「N/A」2 列；NULL 不當成 0
+即時封存（d006001）,標記,備註為「通訊異常」的值標 comm_error，不算進估算發電量,src/ingest/realtime/parse.py:parse_payload,龍三風的 0.0 不是真的零
