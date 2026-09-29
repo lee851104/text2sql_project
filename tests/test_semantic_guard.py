@@ -750,6 +750,22 @@ def test_a_date_every_view_covers_is_not_blamed() -> None:
     assert _bounds_guard().explain_unanswerable_date(extract_entities(question)) is None
 
 
+def test_a_date_the_asked_view_covers_is_not_blamed() -> None:
+    """問的是出力，v_peak 涵蓋 2026-05 —— 答不出來的原因在別處，不是日期。
+
+    v_generation_cost 只到 2025，所以 2026 年的任何日期都「只有部分檢視涵蓋」。只看這
+    一點的話，離線答不出來的 2026 年問題全都會被講成日期超出範圍。
+    """
+
+    question = "林口#1 2026年5月平均出力"
+
+    decision = _bounds_guard().explain_unanswerable_date(
+        extract_entities(question), question=question
+    )
+
+    assert decision is None
+
+
 def test_a_question_without_a_date_is_not_blamed() -> None:
     question = "裝置容量前三大的電廠各在哪個縣市"
 

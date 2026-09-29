@@ -51,6 +51,31 @@ def resolve_plant(question: str, plants: set[str]) -> AliasResolution:
     )
 
 
+_RE_SITE_SUFFIXES = ("太陽光電", "風力", "地熱")
+
+
+def resolve_re_site(question: str, sites: set[str]) -> AliasResolution:
+    """比照 resolve_plant()：場站名去掉能源別後綴才比對，撞名就反問，不猜。"""
+
+    roots: dict[str, list[str]] = {}
+    for site in sites:
+        root = site
+        for suffix in _RE_SITE_SUFFIXES:
+            if site.endswith(suffix):
+                root = site.removesuffix(suffix)
+                break
+        roots.setdefault(root, []).append(site)
+
+    matches = tuple(
+        sorted(site for root, group in roots.items() if root and root in question for site in group)
+    )
+    return (
+        AliasResolution(matches[0], matches)
+        if len(matches) == 1
+        else AliasResolution(None, matches, len(matches) > 1)
+    )
+
+
 def resolve_peak_column(question: str, columns: set[str]) -> AliasResolution:
     ambiguous_hsinta = re.search(r"興達\s*#?\s*(?:3|(?:第)?三)(?:號|機|部|相關|是|的|\b)", question)
     if ambiguous_hsinta:

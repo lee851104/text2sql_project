@@ -2,7 +2,12 @@ from datetime import date
 
 import pytest
 
-from text2sql.aliases import resolve_peak_column, resolve_peak_columns, resolve_plant
+from text2sql.aliases import (
+    resolve_peak_column,
+    resolve_peak_columns,
+    resolve_plant,
+    resolve_re_site,
+)
 from text2sql.entities import DateRange, extract_entities, unparsed_date
 
 
@@ -36,6 +41,34 @@ def test_aliases_resolve_exact_shorthand_and_ambiguity() -> None:
 
     plant = resolve_plant("中火設備", {"台中發電廠", "林口發電廠"})
     assert plant.value == "台中發電廠"
+
+
+def test_resolve_re_site_matches_a_named_station_ignoring_unit_suffix() -> None:
+    """「蘆竹(#1~#8)」問的是場站「蘆竹風力」，括號裡的機組編號只是裝飾。"""
+
+    sites = {"蘆竹風力", "林口風力", "台南鹽田太陽光電"}
+    assert resolve_re_site("再生能源的蘆竹(#1~#8)裝置容量多少?", sites).value == "蘆竹風力"
+    assert resolve_re_site("林口(#4~#6)的地址?", sites).value == "林口風力"
+
+
+def test_resolve_re_site_is_ambiguous_when_two_sites_share_a_root() -> None:
+    """兩個場站拿掉能源別後綴會撞名時要反問，不能猜一個。"""
+
+    sites = {"台中電廠太陽光電", "台中電廠風力", "台南鹽田太陽光電"}
+    resolution = resolve_re_site("台中電廠再生能源發電量", sites)
+    assert resolution.value is None
+    assert resolution.ambiguous
+    assert set(resolution.candidates) == {"台中電廠太陽光電", "台中電廠風力"}
+
+
+def test_resolve_re_site_returns_no_match_for_an_aggregate_question() -> None:
+    """沒有點名場站的問句不該被誤判成「比對不到」的錯誤，就是單純沒有場站篩選。"""
+
+    sites = {"蘆竹風力", "林口風力"}
+    resolution = resolve_re_site("2026年2月各種再生能源發電量？", sites)
+    assert resolution.value is None
+    assert not resolution.ambiguous
+    assert resolution.candidates == ()
 
 
 def test_chinese_unit_numbers_resolve_both_comparison_targets() -> None:

@@ -347,3 +347,31 @@ def test_a_chatty_answer_is_handed_back_verbatim() -> None:
     assert response.success
     retry = json.loads(llm.calls[1])
     assert "希望有幫助" in retry["previous_attempt_sql"]
+
+
+def test_an_unanswerable_question_is_not_blamed_on_a_date_its_view_covers() -> None:
+    """林口#1 的出力在 v_peak，2026-05 就在裡面；答不出來是因為沒有 LLM，不是日期。"""
+
+    from text2sql.semantic_guard import SemanticGuard
+
+    pipeline = Text2SQLPipeline(
+        llm=FakeLLM([]),
+        sql_guard=SqlGuard(),
+        run_sql=lambda sql, params: ([], []),
+        corpus_path=CORPUS,
+        data_range=("2025-01-01", "2026-07-31"),
+        peak_columns={"林口#1"},
+        semantic_guard=SemanticGuard(
+            data_range=("2025-01-01", "2026-07-31"),
+            peak_columns={"林口#1"},
+            view_spans={
+                "v_peak": ("2025-01-01", "2026-07-31"),
+                "v_generation_cost": ("2023", "2025"),
+            },
+        ),
+    )
+
+    response = pipeline.query("林口#1 2026年5月平均出力")
+
+    assert not response.success
+    assert response.error_code != "DATA_RANGE_OUT_OF_BOUNDS"

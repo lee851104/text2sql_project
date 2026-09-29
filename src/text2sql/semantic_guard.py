@@ -117,6 +117,15 @@ VIEW_TIME_SPANS: dict[str, tuple[str, tuple[str, ...]]] = {
 # 通過，只因為 2027 年有大修排程。
 SCHEDULE_VIEWS = {"v_outage"}
 
+# 問句用詞直接點名的檢視。只收不會認錯的詞：認不出來就退回「列出涵蓋得到的檢視」，
+# 不會因為這張表而多擋一題。
+QUESTION_VIEW_WORDS: dict[str, tuple[str, ...]] = {
+    "v_peak": ("出力", "功率"),
+    "v_system": ("負載", "備轉", "供電能力", "工業用電", "民生用電"),
+    "v_generation_cost": ("成本",),
+    "v_outage": ("歲修", "維修"),
+}
+
 
 def _view_time_spans(connection: sqlite3.Connection) -> dict[str, tuple[str, str]]:
     """量出每個檢視實際涵蓋的時間範圍；讀不到的檢視略過，不要讓整個 guard 建不起來。"""
@@ -242,7 +251,9 @@ class SemanticGuard:
             ends.append(bounds[1])
         return min(starts), max(ends)
 
-    def explain_unanswerable_date(self, entities: Entities) -> SemanticDecision | None:
+    def explain_unanswerable_date(
+        self, entities: Entities, *, question: str = ""
+    ) -> SemanticDecision | None:
         """答不出來時，若問句的期間只有部分檢視涵蓋得到，就把哪些涵蓋得到講出來。
 
         `check_question` 跑在 route 之前，只能擋「所有檢視都涵蓋不到」；`check_sql` 擋得
@@ -262,6 +273,15 @@ class SemanticGuard:
         }
         # 全部涵蓋得到就不是日期的問題；全部涵蓋不到的話 `check_question` 早就擋掉了。
         if not covering or len(covering) == len(self.view_spans):
+            return None
+        # 問句點名的檢視都涵蓋得到，也不是日期的問題。v_generation_cost 只到 2025，
+        # 少了這一步，離線答不出來的 2026 年問題會全部被講成日期超出範圍。
+        named = {
+            view
+            for view, words in QUESTION_VIEW_WORDS.items()
+            if view in self.view_spans and any(word in question for word in words)
+        }
+        if named and named <= covering.keys():
             return None
         described = "；".join(
             f"{view} 涵蓋 {start} 至 {end}" for view, (start, end) in sorted(covering.items())
