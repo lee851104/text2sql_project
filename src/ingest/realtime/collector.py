@@ -6,7 +6,6 @@
 
 from __future__ import annotations
 
-import csv
 import json
 import logging
 import sqlite3
@@ -19,7 +18,7 @@ from pathlib import Path
 from ingest.realtime import archive, client, maintenance, parse, rebuild, store
 from ingest.realtime.config import RealtimeConfig
 from ingest.realtime.decisions import (
-    DecisionFileError,
+    LOAD_ERRORS,
     Decisions,
     empty_decisions,
     file_sha256,
@@ -144,7 +143,7 @@ class Collector:
     def _load_decisions(self) -> Decisions | None:
         try:
             decisions = load_decisions(self.config.units_csv, self.config.plants_csv)
-        except (DecisionFileError, OSError, ValueError, KeyError, csv.Error) as error:
+        except LOAD_ERRORS as error:
             LOGGER.warning("%s；沿用資料庫裡上一次成功套用的決定。", error)
             return None
         for warning in decisions.warnings:

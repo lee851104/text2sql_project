@@ -17,6 +17,7 @@ from ingest.realtime.lock import is_locked, read_holder
 from ingest.realtime.status import read_status
 from ingest.realtime.timeutil import TAIPEI
 
+LOGGER = logging.getLogger("ingest.realtime")
 STATUS_EXIT = {"healthy": 0, "stale": 1, "stopped": 2, "unavailable": 2}
 STOP_WAIT_SECONDS = 60
 
@@ -113,11 +114,16 @@ def main(argv: list[str] | None = None, *, root: Path | None = None) -> int:
         return stop(config)
     _configure_logging(config, to_file=args.command == "run")
     collector = Collector(config)
-    if args.command == "run":
-        return collector.run()
-    if args.command == "once":
-        return collector.run_once()
-    return collector.rebuild_only()
+    try:
+        if args.command == "run":
+            return collector.run()
+        if args.command == "once":
+            return collector.run_once()
+        return collector.rebuild_only()
+    except Exception as error:
+        LOGGER.exception("未預期的例外")
+        print(f"收集器異常結束：{error}", file=sys.stderr)
+        return EXIT_FAILED
 
 
 if __name__ == "__main__":

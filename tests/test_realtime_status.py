@@ -102,3 +102,34 @@ def test_stop_times_out_while_the_collector_keeps_running(tmp_path: Path) -> Non
         code = stop(config, wait_seconds=2, sleep=lambda _seconds: None)
 
     assert code == 1
+
+
+def test_cli_main_handles_collector_exception_cleanly(tmp_path: Path, monkeypatch) -> None:
+    root = write_project(tmp_path)
+    output = io.StringIO()
+
+    def raise_error(*args, **kwargs):
+        raise RuntimeError("Test error during collection")
+
+    from ingest.realtime import collector
+
+    monkeypatch.setattr(collector.Collector, "run_once", raise_error)
+
+    with redirect_stdout(output):
+        code = main(["once"], root=root)
+
+    assert code == 1
+
+
+def test_status_with_malformed_plants_csv(tmp_path: Path) -> None:
+    config = make_config(tmp_path)
+    _collect_once(config)
+
+    # Create a malformed plants.csv without plant_id column
+    config.plants_csv.write_text("plant_name\nPlant A\nPlant B\n", encoding="utf-8")
+
+    report = read_status(config=config, now=START + timedelta(minutes=2))
+
+    assert isinstance(report, dict)
+    assert report.get("decisions_error") is not None
+    assert report["state"] in ("stopped", "stale", "healthy")

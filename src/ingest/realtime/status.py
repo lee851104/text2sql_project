@@ -12,7 +12,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from ingest.realtime.config import RealtimeConfig, load_config
-from ingest.realtime.decisions import DecisionFileError, load_decisions
+from ingest.realtime.decisions import LOAD_ERRORS, load_decisions
 from ingest.realtime.lock import is_locked
 from ingest.realtime.maintenance import classify_missing, day_slots
 from ingest.realtime.schedule import target_slot
@@ -85,7 +85,7 @@ def _read(
     try:
         decisions = load_decisions(config.units_csv, config.plants_csv)
         stale_decisions = len(set(decisions.units) - known)
-    except (DecisionFileError, OSError) as error:
+    except LOAD_ERRORS as error:
         decisions_error = str(error)
     quality_row = (
         connection.execute(

@@ -20,6 +20,10 @@ class DecisionFileError(ValueError):
     """整份人工決定檔無效（欄位標頭不符或重複列）；呼叫端沿用上一次成功載入的內容。"""
 
 
+# Errors that can occur when loading unit and plant decision files
+LOAD_ERRORS = (DecisionFileError, OSError, ValueError, KeyError, csv.Error)
+
+
 @dataclass(frozen=True)
 class UnitDecision:
     grain: str
