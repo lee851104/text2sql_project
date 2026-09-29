@@ -20,6 +20,7 @@ from ingest.realtime.collector import (
 )
 from ingest.realtime.lock import SingleInstanceLock, is_locked
 from ingest.realtime.parse import read_datetime
+from ingest.realtime.timeutil import utc_iso
 
 START = datetime(2026, 9, 18, 13, 45, 20, tzinfo=UTC)  # 21:45:20 Taipei → target 21:40
 HEADER = "unit_type,unit_name,grain,access_scope,plant_id,note\n"
@@ -484,3 +485,35 @@ def test_the_loop_keeps_running_when_the_attempt_log_cannot_be_written(
 
     assert collector.run() == EXIT_OK
     assert len(opener.requests) >= 3
+
+
+def test_reconcile_takes_the_fetch_time_from_the_attempt_log(tmp_path: Path) -> None:
+    config = make_config(tmp_path)
+    clock = FakeClock(START)
+    _collector(config, clock, ScriptedOpener(not_modified)).run_once()  # 建好空的資料庫
+    raw = payload_bytes()
+    archive.archive_payload(
+        config.archive_dir, raw, source_time=read_datetime(raw), fetched_at=START
+    )
+    logged = utc_iso(START - timedelta(minutes=3))
+    archive.append_attempt(
+        config.attempts_dir,
+        {"attempted_at": logged, "kind": "fetch", "sha256": archive.payload_sha256(raw)},
+    )
+
+    _collector(config, clock, ScriptedOpener(not_modified)).run_once()
+
+    rows = _db(config).execute("SELECT fetched_at FROM fact_rt_snapshot").fetchall()
+    assert rows == [(logged,)]
+
+
+def test_a_stop_request_left_from_an_earlier_run_is_cleared_on_start(tmp_path: Path) -> None:
+    config = make_config(tmp_path)
+    config.stop_path.parent.mkdir(parents=True, exist_ok=True)
+    config.stop_path.touch()
+    stop = lambda: config.stop_path.touch()  # noqa: E731
+    opener = ScriptedOpener(ok(payload_bytes()), after=stop)
+
+    assert _collector(config, FakeClock(START), opener).run() == EXIT_OK
+
+    assert _attempts(config) == [("startup", None), ("fetch", "new"), ("shutdown", None)]

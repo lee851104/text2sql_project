@@ -64,6 +64,10 @@ class Collector:
     def run(self) -> int:
         try:
             with SingleInstanceLock(self.config.lock_path):
+                if self.config.stop_path.exists():
+                    # 拿到鎖時還在的停止要求只可能是上一次留下的，不能讓它擋住這次啟動。
+                    self.config.stop_path.unlink(missing_ok=True)
+                    LOGGER.info("清除上一次留下的停止要求")
                 self.startup()
                 try:
                     self._loop()
@@ -214,6 +218,7 @@ class Collector:
         since = None
         if latest is not None:
             since = (parse_slot(latest) - timedelta(days=RECONCILE_DAYS - 1)).date().isoformat()
+        times = rebuild.fetch_times(self.config)
         for archived in archive.iter_archive(self.config.archive_dir, since=since):
             try:
                 raw = archive.read_payload(archived.path)
@@ -223,7 +228,7 @@ class Collector:
             sha = archive.payload_sha256(raw)
             if sha[:12] != archived.sha_prefix:
                 continue
-            fetched_at = rebuild.archived_fetch_time(archived, {})
+            fetched_at = rebuild.archived_fetch_time(archived, times)
             existing = store.snapshot_fetched_at(connection, str(archived.data_time))
             if existing is not None and (existing[0] == sha or existing[1] >= fetched_at):
                 continue
