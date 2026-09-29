@@ -38,6 +38,15 @@ RECONCILE_DAYS = 2
 _INGEST_OUTCOMES = {"new": "new", "revised": "revised", "duplicate": "stale"}
 
 
+_CORRUPTION_CODES = {sqlite3.SQLITE_CORRUPT, sqlite3.SQLITE_NOTADB}
+
+
+def _is_corruption(error: sqlite3.Error) -> bool:
+    """只有 SQLite 明說檔案損毀或不是資料庫才算；BUSY、IOERR、FULL 等都不算。"""
+    code = getattr(error, "sqlite_errorcode", None)
+    return code is not None and (code & 0xFF) in _CORRUPTION_CODES
+
+
 class Collector:
     def __init__(
         self,
@@ -165,10 +174,16 @@ class Collector:
         try:
             connection = store.connect(path)
             if existed and store.quick_check(connection) != "ok":
-                raise sqlite3.DatabaseError("quick_check 未通過")
-            if existed and store.schema_version(connection) == store.SCHEMA_VERSION:
+                connection.close()
+                self._move_aside(path, now)
+                connection = None
+            elif existed and store.schema_version(connection) == store.SCHEMA_VERSION:
                 return connection
-        except sqlite3.DatabaseError:
+        except sqlite3.DatabaseError as error:
+            if not _is_corruption(error):
+                if connection is not None:
+                    connection.close()
+                raise  # 鎖住、磁碟滿等暫時性錯誤：不動好檔案，讓啟動器稍後重試
             if connection is not None:
                 connection.close()
             self._move_aside(path, now)
@@ -191,7 +206,7 @@ class Collector:
         except BaseException as error:
             if connection is not None:
                 connection.close()
-            if not isinstance(error, sqlite3.DatabaseError):
+            if not (isinstance(error, sqlite3.DatabaseError) and _is_corruption(error)):
                 raise
             self._move_aside(path, now)
         connection = store.connect(path)
@@ -204,7 +219,14 @@ class Collector:
     @staticmethod
     def _move_aside(path: Path, now: datetime) -> None:
         """打不開的檔案移到旁邊再重建；封存還在，所以不會遺失資料。"""
-        corrupt = path.with_name(f"{path.name}.corrupt-{to_taipei(now):%Y%m%d%H%M%S}")
+        if not path.exists():
+            return
+        stamp = f"{to_taipei(now):%Y%m%d%H%M%S}"
+        corrupt = path.with_name(f"{path.name}.corrupt-{stamp}")
+        counter = 1
+        while corrupt.exists():  # 同一秒內移兩次也不能蓋掉前一份
+            corrupt = path.with_name(f"{path.name}.corrupt-{stamp}-{counter}")
+            counter += 1
         path.replace(corrupt)
         for suffix in ("-wal", "-shm"):
             Path(f"{path}{suffix}").unlink(missing_ok=True)

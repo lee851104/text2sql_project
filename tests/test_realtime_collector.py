@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 from realtime_support import make_config, payload_bytes
 
-from ingest.realtime import archive, maintenance, store
+from ingest.realtime import archive, maintenance, rebuild, store
 from ingest.realtime.collector import (
     EXIT_ALREADY_RUNNING,
     EXIT_OK,
@@ -532,3 +532,64 @@ def test_startup_completes_when_the_attempt_log_has_a_line_torn_inside_a_charact
     collector.shutdown()
 
     assert ("startup", None) in _attempts(config)
+
+
+def _healthy_database(tmp_path: Path):
+    config = make_config(tmp_path)
+    clock = FakeClock(START)
+    _collector(config, clock, ScriptedOpener(ok(payload_bytes()))).run_once()
+    return config, clock
+
+
+def _corrupt_files(config) -> list[Path]:
+    return list(config.database.parent.glob("realtime.db.corrupt-*"))
+
+
+def test_a_locked_database_is_not_moved_aside_on_open(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config, clock = _healthy_database(tmp_path)
+
+    def locked(connection):
+        raise sqlite3.OperationalError("database is locked")
+
+    monkeypatch.setattr(store, "quick_check", locked)
+    with pytest.raises(sqlite3.OperationalError):
+        _collector(config, clock, ScriptedOpener(not_modified)).run_once()
+
+    assert config.database.is_file()
+    assert _corrupt_files(config) == []
+
+
+def test_a_failing_rebuild_that_is_not_corruption_keeps_the_database(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config, clock = _healthy_database(tmp_path)
+
+    def locked(*args, **kwargs):
+        raise sqlite3.OperationalError("database is locked")
+
+    monkeypatch.setattr(rebuild, "rebuild", locked)
+    with pytest.raises(sqlite3.OperationalError):
+        _collector(config, clock, ScriptedOpener()).rebuild_only()
+
+    assert config.database.is_file()
+    assert _corrupt_files(config) == []
+
+
+def test_move_aside_twice_in_one_second_keeps_both_files(tmp_path: Path) -> None:
+    path = tmp_path / "realtime.db"
+    for label in (b"first", b"second"):
+        path.write_bytes(label)
+        Collector._move_aside(path, START)
+
+    assert sorted(p.read_bytes() for p in tmp_path.glob("realtime.db.corrupt-*")) == [
+        b"first",
+        b"second",
+    ]
+
+
+def test_move_aside_without_a_file_does_nothing(tmp_path: Path) -> None:
+    Collector._move_aside(tmp_path / "realtime.db", START)
+
+    assert list(tmp_path.iterdir()) == []
