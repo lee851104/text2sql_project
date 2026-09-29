@@ -1,0 +1,2 @@
+# Windows 批次檔必須是 CRLF：LF 行尾時 cmd.exe 的 goto 可能找不到標籤。
+*.bat text eol=crlf
