@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 from realtime_support import make_config, payload_bytes
 
-from ingest.realtime import archive, store
+from ingest.realtime import archive, maintenance, store
 from ingest.realtime.collector import (
     EXIT_ALREADY_RUNNING,
     EXIT_OK,
@@ -358,3 +358,129 @@ def test_rebuild_replaces_a_file_that_is_not_a_database(tmp_path: Path) -> None:
     assert code == EXIT_OK
     assert len(list(config.database.parent.glob("realtime.db.corrupt-*"))) == 1
     assert _db(config).execute("SELECT COUNT(*) FROM fact_rt_snapshot").fetchone()[0] == 1
+
+
+def _fetch_times(config) -> list[datetime]:
+    return [
+        datetime.fromisoformat(record["attempted_at"])
+        for record in archive.iter_attempts(config.attempts_dir)
+        if record["kind"] == "fetch"
+    ]
+
+
+def _run_until(config, clock: FakeClock, stop_after: datetime) -> tuple[Collector, int]:
+    collector = _collector(
+        config, clock, ScriptedOpener(ok(payload_bytes()), *[not_modified] * 300)
+    )
+
+    def sleep(seconds: float) -> None:
+        clock.sleep(seconds)
+        if clock.now >= stop_after:
+            config.stop_path.touch()
+
+    collector.sleep = sleep
+    return collector, collector.run()
+
+
+def _break_maintenance(monkeypatch: pytest.MonkeyPatch) -> list[datetime]:
+    calls: list[datetime] = []
+
+    def broken(connection, now, config):
+        calls.append(now)
+        raise sqlite3.OperationalError("disk I/O error")
+
+    monkeypatch.setattr(maintenance, "run_maintenance", broken)
+    return calls
+
+
+def test_a_maintenance_failure_at_startup_or_hourly_does_not_stop_collection(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    config = make_config(tmp_path)
+    clock = FakeClock(START)
+    calls = _break_maintenance(monkeypatch)
+
+    _, code = _run_until(config, clock, START + MAINTENANCE_INTERVAL + timedelta(hours=1))
+
+    assert code == EXIT_OK
+    assert calls[0] == START and any(now >= START + MAINTENANCE_INTERVAL for now in calls)
+    fetches = _fetch_times(config)
+    assert fetches[0] == START
+    assert any(at > START + MAINTENANCE_INTERVAL for at in fetches)
+
+
+def test_startup_survives_a_failed_decisions_sync_and_reconcile_ingest(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    config = make_config(tmp_path)
+    clock = FakeClock(START)
+    _collector(config, clock, ScriptedOpener(not_modified)).run_once()  # 建好資料庫
+    config.units_csv.write_text(HEADER + "燃氣,大潭CC#1,unit,plant,8,\n", encoding="utf-8")
+    raw = payload_bytes()
+    archive.archive_payload(
+        config.archive_dir, raw, source_time=read_datetime(raw), fetched_at=START
+    )
+
+    failed: list[str] = []
+
+    def broken(name: str):
+        def fail(*args, **kwargs):
+            failed.append(name)
+            raise sqlite3.OperationalError("database is locked")
+
+        return fail
+
+    monkeypatch.setattr(store, "sync_decisions", broken("sync"))
+    monkeypatch.setattr(store, "ingest_snapshot", broken("ingest"))
+    collector = _collector(config, clock, ScriptedOpener(not_modified))
+
+    collector.startup()  # must not raise
+    assert collector.fetch("2026-09-18 21:40") == "not_modified"
+    collector.shutdown()
+    assert failed == ["sync", "ingest"]
+
+
+def _break_attempt_log(monkeypatch: pytest.MonkeyPatch) -> None:
+    def locked(attempts_dir, record):
+        raise PermissionError(13, "Excel has the file open")
+
+    monkeypatch.setattr(archive, "append_attempt", locked)
+
+
+def test_a_failed_attempt_log_write_still_advances_the_scheduler(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    config = make_config(tmp_path)
+    collector = _collector(config, FakeClock(START), ScriptedOpener(ok(payload_bytes())))
+    collector.startup()
+    _break_attempt_log(monkeypatch)
+
+    outcome = collector.fetch("2026-09-18 21:40")
+
+    assert outcome == "new"
+    assert collector.state.last_adopted == "2026-09-18 21:40"
+    mirrored = collector.connection.execute(
+        "SELECT COUNT(*) FROM meta_rt_attempt WHERE kind = 'fetch'"
+    ).fetchone()[0]
+    collector.shutdown()
+    assert mirrored == 1
+
+
+def test_the_loop_keeps_running_when_the_attempt_log_cannot_be_written(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    config = make_config(tmp_path)
+    clock = FakeClock(START)
+    _break_attempt_log(monkeypatch)
+    naps = iter([3 * 3600.0])  # 第一次 sleep 睡了三小時 → 醒來時要記 resume
+    opener = ScriptedOpener(ok(payload_bytes()), *[not_modified] * 300)
+
+    def sleep(seconds: float) -> None:
+        clock.sleep(next(naps, seconds))
+        if clock.now >= START + timedelta(hours=4):
+            config.stop_path.touch()
+
+    collector = Collector(config, clock=clock, sleep=sleep, opener=opener, monotonic=lambda: 0.0)
+
+    assert collector.run() == EXIT_OK
+    assert len(opener.requests) >= 3

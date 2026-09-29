@@ -118,12 +118,19 @@ class Collector:
         self.decisions = self._load_decisions()
         self.connection = self._open_database(now)
         if self.decisions is not None:
-            with store.transaction(self.connection):
-                stale = store.sync_decisions(self.connection, self.decisions)
+            try:
+                with store.transaction(self.connection):
+                    stale = store.sync_decisions(self.connection, self.decisions)
+            except sqlite3.Error:
+                LOGGER.exception("人工決定寫入資料庫失敗，記錄後繼續啟動")
+                stale = []
             if stale:
                 LOGGER.warning("人工決定檔有 %d 列從未出現在來源中", len(stale))
         self._reconcile_archive()
-        self.maintain(now, reload_decisions=False)
+        try:
+            self.maintain(now, reload_decisions=False)
+        except Exception:
+            LOGGER.exception("啟動時的維護發生例外，記錄後繼續；抓取照常開始")
         self.state = SchedulerState(last_adopted=store.latest_data_time(self.connection))
         self._record({"attempted_at": utc_iso(now), "kind": "startup"})
 
@@ -229,10 +236,18 @@ class Collector:
                 )
             except parse.PayloadRejected:
                 continue
-            with store.transaction(connection):
-                store.ingest_snapshot(
-                    connection, parsed, sha256=sha, fetched_at=fetched_at, decisions=self.decisions
-                )
+            try:
+                with store.transaction(connection):
+                    store.ingest_snapshot(
+                        connection,
+                        parsed,
+                        sha256=sha,
+                        fetched_at=fetched_at,
+                        decisions=self.decisions,
+                    )
+            except sqlite3.Error:
+                LOGGER.exception("補入庫失敗，略過：%s", parsed.data_time)
+                continue
             LOGGER.info("補入庫：%s", parsed.data_time)
 
     # ---- 主迴圈 ----------------------------------------------------------------
@@ -243,18 +258,18 @@ class Collector:
         last_maintenance = last_wake
         while not self.config.stop_path.exists():
             now = self.clock()
-            if (now - last_wake).total_seconds() > schedule.resume_gap_seconds:
-                detail = json.dumps({"from": utc_iso(last_wake), "to": utc_iso(now)})
-                self._record({"attempted_at": utc_iso(now), "kind": "resume", "detail": detail})
-            last_wake = now
+            woke_from, last_wake = last_wake, now
             wait = float(schedule.loop_max_sleep_seconds)
-            if now - last_maintenance >= MAINTENANCE_INTERVAL:
-                try:
-                    self.maintain(now)
-                except Exception:
-                    LOGGER.exception("每小時維護發生例外，記錄後繼續；下一輪照常抓取")
-                last_maintenance = now
             try:
+                if (now - woke_from).total_seconds() > schedule.resume_gap_seconds:
+                    detail = json.dumps({"from": utc_iso(woke_from), "to": utc_iso(now)})
+                    self._record({"attempted_at": utc_iso(now), "kind": "resume", "detail": detail})
+                if now - last_maintenance >= MAINTENANCE_INTERVAL:
+                    try:
+                        self.maintain(now)
+                    except Exception:
+                        LOGGER.exception("每小時維護發生例外，記錄後繼續；下一輪照常抓取")
+                    last_maintenance = now
                 action = plan_next(now, self.state, schedule)
                 if action.kind == "fetch":
                     self.fetch(action.target_slot)
@@ -361,7 +376,11 @@ class Collector:
 
     def _record(self, record: dict[str, object]) -> None:
         """先寫 JSONL（真實來源），再寫資料庫鏡像；資料庫失敗時重建會補回。"""
-        archive.append_attempt(self.config.attempts_dir, record)
+        try:
+            archive.append_attempt(self.config.attempts_dir, record)
+        except OSError:
+            # 例如 Excel 開著當月的 .jsonl：只記錄，資料庫鏡像照寫，抓取照常。
+            LOGGER.exception("抓取紀錄寫入 JSONL 失敗；資料庫鏡像照常寫入")
         if self.connection is None:
             return
         try:
