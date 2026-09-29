@@ -193,3 +193,47 @@ def test_cleaning_helpers() -> None:
 def test_read_datetime_is_lenient() -> None:
     assert read_datetime(payload_bytes()) == datetime.fromisoformat("2026-09-18T21:40:00+08:00")
     assert read_datetime(b"garbage") is None
+
+
+def test_subtotal_tolerance_exactly_at_threshold(tmp_path: Path) -> None:
+    """Difference of exactly 0.1 MW (at tolerance) must NOT warn.
+
+    Uses values that trip float precision bug: 596.6 (details) vs 596.7 (subtotal).
+    In floats, 596.7 - 596.6 = 0.10000000000002274, which would warn if not rounded.
+    """
+    raw = tiny_payload(
+        "2026-09-18T21:40:00",
+        [
+            ("風力", "Plant A", "300", "298.3", ""),
+            ("風力", "Plant B", "300", "298.3", ""),
+            ("風力", "小計", "600", "596.7", ""),
+        ],
+    )
+    parsed = _parse(raw, tmp_path)
+
+    # Should NOT warn about SUBTOTAL_MISMATCH because 0.1 MW is exactly at the tolerance
+    assert not any(w.code == "SUBTOTAL_MISMATCH" for w in parsed.warnings)
+
+    subtotals = {row.unit_type: row for row in parsed.subtotals}
+    assert subtotals["風力"].net_mw == 596.7
+    assert subtotals["風力"].detail_net_mw == 596.6
+
+
+def test_subtotal_tolerance_beyond_threshold(tmp_path: Path) -> None:
+    """Difference of 0.2 MW (beyond tolerance) must warn."""
+    raw = tiny_payload(
+        "2026-09-18T21:40:00",
+        [
+            ("風力", "Plant A", "300", "298.3", ""),
+            ("風力", "Plant B", "300", "298.3", ""),
+            ("風力", "小計", "600", "596.8", ""),
+        ],
+    )
+    parsed = _parse(raw, tmp_path)
+
+    # Should warn because 0.2 MW exceeds the 0.1 MW tolerance
+    assert any(w.code == "SUBTOTAL_MISMATCH" for w in parsed.warnings)
+
+    subtotals = {row.unit_type: row for row in parsed.subtotals}
+    assert subtotals["風力"].net_mw == 596.8
+    assert subtotals["風力"].detail_net_mw == 596.6

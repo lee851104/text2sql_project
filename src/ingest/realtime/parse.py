@@ -242,12 +242,12 @@ def parse_payload(
     for unit_type, row in subtotal_rows:
         net, net_share = parse_with_share(str(row["淨發電量(MW)"]))
         capacity, capacity_share = parse_with_share(str(row["裝置容量(MW)"]))
-        detail_net = round(detail_sums.get(unit_type, 0.0), 3)
+        detail_net = round(detail_sums.get(unit_type, 0.0), 1)
         name = str(row["機組名稱"]).strip()
         subtotals.append(
             SubtotalRow(unit_type, name, net, net_share, capacity, capacity_share, detail_net)
         )
-        if net is not None and abs(detail_net - net) > validation.subtotal_tolerance_mw:
+        if net is not None and round(abs(detail_net - net), 6) > validation.subtotal_tolerance_mw:
             warnings.append(
                 ParseWarning(
                     "SUBTOTAL_MISMATCH", f"{unit_type}：明細 {detail_net:.1f} MW，小計 {net:.1f} MW"
