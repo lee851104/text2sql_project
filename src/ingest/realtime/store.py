@@ -209,9 +209,13 @@ SCHEMA = (
 def connect(path: Path) -> sqlite3.Connection:
     path.parent.mkdir(parents=True, exist_ok=True)
     connection = sqlite3.connect(path, timeout=5.0, isolation_level=None)
-    connection.execute("PRAGMA journal_mode = WAL")
-    connection.execute("PRAGMA foreign_keys = ON")
-    connection.execute("PRAGMA busy_timeout = 5000")
+    try:
+        connection.execute("PRAGMA journal_mode = WAL")
+        connection.execute("PRAGMA foreign_keys = ON")
+        connection.execute("PRAGMA busy_timeout = 5000")
+    except BaseException:
+        connection.close()  # 不關的話 Windows 上無法把損毀的檔案移開
+        raise
     return connection
 
 

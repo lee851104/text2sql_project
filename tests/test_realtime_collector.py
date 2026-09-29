@@ -305,3 +305,56 @@ def test_a_failed_archive_write_is_recorded_and_does_not_remember_the_etag(
     full_records = list(archive.iter_attempts(config.attempts_dir))
     fetch_record = [r for r in full_records if r["kind"] == "fetch"][-1]
     assert fetch_record["error_type"] == "ArchiveError"
+
+
+def _corrupt_pages(path: Path, first_page: int, last_page: int) -> None:
+    """Overwrite 4 KiB pages first_page..last_page (1-based, -1 = the last page)."""
+    data = bytearray(path.read_bytes())
+    pages = len(data) // 4096
+    first, last = (p if p > 0 else pages + 1 + p for p in (first_page, last_page))
+    data[(first - 1) * 4096 : last * 4096] = bytes([0xA5]) * ((last - first + 1) * 4096)
+    path.write_bytes(bytes(data))
+
+
+@pytest.mark.parametrize(
+    ("pages", "opens"),
+    [
+        pytest.param((-1, -1), True, id="quick-check-fails"),
+        pytest.param((2, -1), False, id="connect-fails"),
+    ],
+)
+def test_a_damaged_database_is_moved_aside_and_rebuilt(tmp_path: Path, pages, opens) -> None:
+    config = make_config(tmp_path)
+    clock = FakeClock(START)
+    _collector(config, clock, ScriptedOpener(ok(payload_bytes()))).run_once()
+    _corrupt_pages(config.database, *pages)
+    if opens:  # 確認真的走到「檔案打得開、quick_check 不過」這條路
+        probe = store.connect(config.database)
+        assert store.quick_check(probe) != "ok"
+        probe.close()
+
+    code = _collector(config, clock, ScriptedOpener(not_modified)).run_once()
+
+    assert code == EXIT_OK
+    assert len(list(config.database.parent.glob("realtime.db.corrupt-*"))) == 1
+    connection = _db(config)
+    assert connection.execute("PRAGMA quick_check").fetchone()[0] == "ok"
+    assert connection.execute("SELECT data_time FROM fact_rt_snapshot").fetchall() == [
+        ("2026-09-18 21:40",)
+    ]
+
+
+def test_rebuild_replaces_a_file_that_is_not_a_database(tmp_path: Path) -> None:
+    config = make_config(tmp_path)
+    raw = payload_bytes()
+    archive.archive_payload(
+        config.archive_dir, raw, source_time=read_datetime(raw), fetched_at=START
+    )
+    config.database.parent.mkdir(parents=True, exist_ok=True)
+    config.database.write_bytes(b"this is not a sqlite database" * 200)
+
+    code = _collector(config, FakeClock(START), ScriptedOpener()).rebuild_only()
+
+    assert code == EXIT_OK
+    assert len(list(config.database.parent.glob("realtime.db.corrupt-*"))) == 1
+    assert _db(config).execute("SELECT COUNT(*) FROM fact_rt_snapshot").fetchone()[0] == 1

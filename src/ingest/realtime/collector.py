@@ -96,11 +96,8 @@ class Collector:
         try:
             with SingleInstanceLock(self.config.lock_path):
                 decisions = self._load_decisions() or empty_decisions(self.config.plants_csv)
-                connection = store.connect(self.config.database)
-                try:
-                    report = rebuild.rebuild(connection, self.config, decisions, now=self.clock())
-                finally:
-                    connection.close()
+                connection, report = self._rebuild(None, decisions, self.clock())
+                connection.close()
         except AlreadyRunning as error:
             LOGGER.error("%s；請先停止收集器再重建。", error)
             return EXIT_ALREADY_RUNNING
@@ -153,27 +150,45 @@ class Collector:
     def _open_database(self, now: datetime) -> sqlite3.Connection:
         path = self.config.database
         existed = path.is_file()
+        connection: sqlite3.Connection | None = None
         try:
             connection = store.connect(path)
-            try:
-                healthy = (
-                    existed
-                    and store.quick_check(connection) == "ok"
-                    and store.schema_version(connection) == store.SCHEMA_VERSION
-                )
-            except sqlite3.DatabaseError:
-                connection.close()
-                raise
+            if existed and store.quick_check(connection) != "ok":
+                raise sqlite3.DatabaseError("quick_check 未通過")
+            if existed and store.schema_version(connection) == store.SCHEMA_VERSION:
+                return connection
         except sqlite3.DatabaseError:
+            if connection is not None:
+                connection.close()
             self._move_aside(path, now)
-            connection = store.connect(path)
-            healthy = False
-        if not healthy:
-            LOGGER.warning("realtime.db 不存在、版本不符或檢查失敗，從封存重建")
-            decisions = self.decisions or empty_decisions(self.config.plants_csv)
-            report = rebuild.rebuild(connection, self.config, decisions, now=now)
-            LOGGER.info("重建完成：入庫 %d、拒收 %d", report.ingested, report.rejected)
+            connection = None
+        LOGGER.warning("realtime.db 不存在、版本不符或檢查失敗，從封存重建")
+        decisions = self.decisions or empty_decisions(self.config.plants_csv)
+        connection, report = self._rebuild(connection, decisions, now)
+        LOGGER.info("重建完成：入庫 %d、拒收 %d", report.ingested, report.rejected)
         return connection
+
+    def _rebuild(
+        self, connection: sqlite3.Connection | None, decisions: Decisions, now: datetime
+    ) -> tuple[sqlite3.Connection, rebuild.RebuildReport]:
+        """從封存重建；原檔損毀到連重建都失敗時，移到旁邊、換新檔再重建一次。"""
+        path = self.config.database
+        try:
+            if connection is None:
+                connection = store.connect(path)
+            return connection, rebuild.rebuild(connection, self.config, decisions, now=now)
+        except BaseException as error:
+            if connection is not None:
+                connection.close()
+            if not isinstance(error, sqlite3.DatabaseError):
+                raise
+            self._move_aside(path, now)
+        connection = store.connect(path)
+        try:
+            return connection, rebuild.rebuild(connection, self.config, decisions, now=now)
+        except BaseException:
+            connection.close()
+            raise
 
     @staticmethod
     def _move_aside(path: Path, now: datetime) -> None:
