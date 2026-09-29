@@ -8,10 +8,16 @@ from datetime import UTC, datetime, timedelta
 from email.message import Message
 from pathlib import Path
 
+import pytest
 from realtime_support import make_config, payload_bytes
 
 from ingest.realtime import archive, store
-from ingest.realtime.collector import EXIT_ALREADY_RUNNING, EXIT_OK, Collector
+from ingest.realtime.collector import (
+    EXIT_ALREADY_RUNNING,
+    EXIT_OK,
+    MAINTENANCE_INTERVAL,
+    Collector,
+)
 from ingest.realtime.lock import SingleInstanceLock, is_locked
 from ingest.realtime.parse import read_datetime
 
@@ -226,3 +232,76 @@ def test_second_collector_exits_with_code_3(tmp_path: Path) -> None:
         code = _collector(config, FakeClock(START), ScriptedOpener(not_modified)).run_once()
 
     assert code == EXIT_ALREADY_RUNNING
+
+
+def _corrupt_units_csv(config) -> None:
+    """Simulate 'saved by Excel as cp950' — invalid UTF-8, raises UnicodeDecodeError."""
+    config.units_csv.write_bytes((HEADER + "燃氣,大潭CC#1,unit,plant,8,\n").encode("cp950"))
+
+
+def test_startup_completes_when_the_units_csv_is_not_valid_utf8(tmp_path: Path) -> None:
+    """Fix round 1 / C1(b): _load_decisions must not let a decoding error crash startup()."""
+    config = make_config(tmp_path)
+    _corrupt_units_csv(config)
+
+    collector = _collector(config, FakeClock(START), ScriptedOpener(not_modified))
+    collector.startup()  # must not raise
+    collector.shutdown()
+
+
+def test_maintenance_failure_does_not_stop_the_fetch_loop(tmp_path: Path) -> None:
+    """Fix round 1 / C1(a): a maintenance error must not starve the loop of fetches forever."""
+    config = make_config(tmp_path)
+    clock = FakeClock(START)
+    opener = ScriptedOpener(ok(payload_bytes()), *([not_modified] * 300))
+    collector = Collector(
+        config, clock=clock, sleep=clock.sleep, opener=opener, monotonic=lambda: 0.0
+    )
+    corrupted = {"done": False}
+    stop_after = START + MAINTENANCE_INTERVAL + timedelta(hours=2)
+
+    def sleep(seconds: float) -> None:
+        clock.sleep(seconds)
+        if not corrupted["done"] and clock.now >= START + MAINTENANCE_INTERVAL:
+            _corrupt_units_csv(config)
+            corrupted["done"] = True
+        if clock.now >= stop_after:
+            config.stop_path.touch()
+
+    collector.sleep = sleep
+
+    assert collector.run() == EXIT_OK
+
+    cutoff = MAINTENANCE_INTERVAL.total_seconds()
+    fetches_after_maintenance = [
+        record
+        for record in archive.iter_attempts(config.attempts_dir)
+        if record["kind"] == "fetch"
+        and (datetime.fromisoformat(record["attempted_at"]) - START).total_seconds() > cutoff
+    ]
+    assert len(fetches_after_maintenance) >= 2
+
+
+def test_a_failed_archive_write_is_recorded_and_does_not_remember_the_etag(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Fix round 1 / I1: archive_payload raising OSError must not escape fetch()."""
+    config = make_config(tmp_path)
+    collector = _collector(config, FakeClock(START), ScriptedOpener(ok(payload_bytes())))
+    collector.startup()
+
+    def broken_archive_payload(*args, **kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(archive, "archive_payload", broken_archive_payload)
+
+    outcome = collector.fetch("2026-09-18 21:40")
+    collector.shutdown()
+
+    assert outcome == "error"
+    assert collector.etag is None
+    records = [r for r in _attempts(config) if r[0] == "fetch"]
+    assert records[-1] == ("fetch", "error")
+    full_records = list(archive.iter_attempts(config.attempts_dir))
+    fetch_record = [r for r in full_records if r["kind"] == "fetch"][-1]
+    assert fetch_record["error_type"] == "ArchiveError"

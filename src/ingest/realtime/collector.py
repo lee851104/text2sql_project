@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import csv
 import json
 import logging
 import sqlite3
@@ -143,7 +144,7 @@ class Collector:
     def _load_decisions(self) -> Decisions | None:
         try:
             decisions = load_decisions(self.config.units_csv, self.config.plants_csv)
-        except DecisionFileError as error:
+        except (DecisionFileError, OSError, ValueError, KeyError, csv.Error) as error:
             LOGGER.warning("%s；沿用資料庫裡上一次成功套用的決定。", error)
             return None
         for warning in decisions.warnings:
@@ -233,10 +234,13 @@ class Collector:
                 self._record({"attempted_at": utc_iso(now), "kind": "resume", "detail": detail})
             last_wake = now
             wait = float(schedule.loop_max_sleep_seconds)
-            try:
-                if now - last_maintenance >= MAINTENANCE_INTERVAL:
+            if now - last_maintenance >= MAINTENANCE_INTERVAL:
+                try:
                     self.maintain(now)
-                    last_maintenance = now
+                except Exception:
+                    LOGGER.exception("每小時維護發生例外，記錄後繼續；下一輪照常抓取")
+                last_maintenance = now
+            try:
                 action = plan_next(now, self.state, schedule)
                 if action.kind == "fetch":
                     self.fetch(action.target_slot)
@@ -292,12 +296,17 @@ class Collector:
         raw = result.body
         assert raw is not None and self.connection is not None
         sha = archive.payload_sha256(raw)
-        archive.archive_payload(
-            self.config.archive_dir,
-            raw,
-            source_time=parse.read_datetime(raw),
-            fetched_at=fetched_at,
-        )
+        try:
+            archive.archive_payload(
+                self.config.archive_dir,
+                raw,
+                source_time=parse.read_datetime(raw),
+                fetched_at=fetched_at,
+            )
+        except OSError as error:
+            # 封存都寫不進去就別入庫了：不記 ETag，下次會重新下載再試一次封存。
+            record.update({"error_type": "ArchiveError", "detail": str(error)})
+            return "error", None
         record.update({"sha256": sha, "bytes": len(raw), "etag": result.etag})
         try:
             parsed = parse.parse_payload(
