@@ -2,6 +2,46 @@
 
 > 這份檔案在每個可驗證、可回退的儲存點更新。回退前需保留使用者原有的未提交變更。
 
+## CP-072 — 即時收集器 RT-1：先封存再入庫、可重建的 realtime.db
+
+- 時間：2026-09-29 12:18 +08:00
+- 狀態：已完成（RT-1；RT-2、RT-3 尚未開始）
+- 分支：`feat/realtime-collector`（從 `docs/realtime-ingest-design` 開，規格與計畫在 CP-071）
+- 起點：依 `docs/superpowers/specs/2026-09-24-realtime-ingest-design.md` 與
+  `docs/superpowers/plans/2026-09-24-realtime-ingest-rt1.md` 實作 RT-1。
+
+### 做了什麼
+
+- `src/ingest/realtime/`：常駐收集器（`python -m ingest.realtime run`），每個時段抓到就停；原始回應先
+  gzip 封存到 `data/realtime/archive/`，再寫進 `data/processed/realtime.db`；抓取紀錄同時寫 JSONL 與資料庫。
+- 結構有問題的快照整份拒收（封存仍在），數值有問題的照收並標記品質；小計、彙總列、跨類型同名、
+  `N/A`、「通訊異常」都在入庫時處理。
+- 每日估算發電量只算可信值；缺口分成收集器沒在跑、抓取失敗、拒收三種；清除條件寫在 SQL 裡。
+- schema 版本不符或資料庫損壞時自動從封存重建；重建結果與逐筆入庫的內容 checksum 相同（測試釘住）。
+- `taipower_align/realtime_units.csv`：204 列人工決定（粒度與電廠歸屬），逐列人工確認。
+- 三個批次檔、`.gitattributes`（`*.bat` 固定 CRLF）、`docs/SERVING.md` 操作說明、`docs/lineage/` 更新。
+- 審查中補強的穩健性：人工決定檔／`plants.csv` 壞掉只警告並沿用上次；每小時維護、啟動步驟、封存寫入或
+  抓取紀錄寫入失敗都不中斷收集；`realtime.db` 真的損壞（SQLITE_CORRUPT／NOTADB 或 quick_check 失敗）才
+  移到旁邊重建，暫時性錯誤只重試；讀不出的封存檔與寫到一半的抓取紀錄都略過；指令列未預期錯誤以結束碼 1
+  與中文訊息結束。
+- 實機執行找出的錯誤：小計容差比較受浮點誤差影響，差值剛好 0.1 MW 也被標 warn，已修正。
+
+### 刻意沒做的
+
+- 查詢端完全沒動：`v_rt_*` 檢視存在但服務查不到（RT-3）。README、ATTRIBUTION、SYSTEM_CARD、
+  `coverage.yaml` 的說法等 RT-3 再改。
+- `d006010` 回補與對帳（RT-2）。
+
+- 驗收：`uv run ruff format --check .`、`uv run ruff check .` 通過；`uv run pytest -q` →
+  `874 passed, 2 skipped, 4 warnings in 217.62s (0:03:37)`（2 個 skip 是環境因素：未安裝 openai extra、
+  連接埠 8765 被占用）；`git diff --stat origin/main...HEAD -- src/text2sql src/serving src/eval benchmarks corpus`
+  （加上 guard／coverage 設定與 README、ATTRIBUTION、SYSTEM_CARD）無輸出，`git diff --check` 無輸出；
+  實機 `once`（2026-09-29，經使用者同意）→ 結束碼 0，最新時段 2026-09-29 11:20；首次品質 warn：風力
+  SUBTOTAL_MISMATCH（明細 596.6 vs 小計 596.7），原因是上述浮點誤差；修正後重新解析同一份封存，品質 ok、
+  無警告；未定機組 0。連續收集、睡眠喚醒 → 待使用者實機驗證（Task 15 Step 4 後半，尚未執行）。
+- 回退方式：由新到舊 `git revert` 本分支的全部 commit；`data/realtime/` 與 `data/processed/realtime.db`
+  不在版控，直接刪除即可，不影響 `power.db` 與網頁服務。
+
 ## CP-071 — 即時機組發電量：整體架構與 RT-1 設計規格
 
 - 時間：2026-09-24 14:30 +08:00
