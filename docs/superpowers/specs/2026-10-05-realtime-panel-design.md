@@ -67,7 +67,9 @@ RT-1 已經每 10 分鐘把台電 `d006001` 的機組發電量收進 `data/proce
 class RealtimePanel:
     def __init__(self, config: RealtimeConfig, power_database: Path) -> None: ...
     def status(self, *, now: datetime | None = None) -> dict[str, object]: ...
-    def overview(self, scope: RealtimeScope, *, now: datetime | None = None) -> dict[str, object]: ...
+    def overview(
+        self, scope: RealtimeScope, *, now: datetime | None = None
+    ) -> dict[str, object]: ...
 ```
 
 - `now` 可注入，測試固定「現在」；預設是 `datetime.now(UTC)`。
@@ -151,11 +153,13 @@ class RealtimeScope:
     plant_id: int | None = None
     plant_name: str | None = None
 
+
 @dataclass(frozen=True)
 class UnitRow:
-    key: int            # dim_rt_unit.id = 檢視的「機組鍵」
-    access_scope: str   # plant / shared / undecided
+    key: int  # dim_rt_unit.id = 檢視的「機組鍵」
+    access_scope: str  # plant / shared / undecided
     plant_id: int | None
+
 
 def visible_unit_keys(scope: RealtimeScope, units: Iterable[UnitRow]) -> frozenset[int] | None: ...
 def own_unit_keys(scope: RealtimeScope, units: Iterable[UnitRow]) -> frozenset[int]: ...
