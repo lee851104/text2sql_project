@@ -247,3 +247,40 @@ def test_an_unreadable_database_is_503_and_health_degrades(
     assert response.json()["detail"] == "即時資料暫時讀不到。"
     assert health.status_code == 200
     assert health.json()["realtime"] == {"available": False, "state": "unavailable"}
+
+
+# ── 前端靜態檔 ─────────────────────────────────────────────────────────────
+
+STATIC = Path(__file__).resolve().parents[1] / "src" / "serving" / "static"
+REALTIME_IDS = (
+    "realtimePanel",
+    "realtimeLight",
+    "realtimeStatusText",
+    "realtimeLoginNote",
+    "realtimeDisclosures",
+    "realtimeBody",
+    "realtimeTypeHead",
+    "realtimeTypeRows",
+    "realtimeStorageNote",
+    "realtimeTrend",
+    "realtimeTrendDetails",
+    "realtimeTrendTable",
+)
+
+
+def test_the_overview_page_has_the_realtime_block_above_the_metric_cards() -> None:
+    html = (STATIC / "index.html").read_text(encoding="utf-8")
+
+    for element_id in REALTIME_IDS:
+        assert f'id="{element_id}"' in html, element_id
+    assert html.index('id="realtimePanel"') < html.index('class="metric-grid"')
+    assert "各機組發電量即時資訊" in html  # 資料來源顯名
+
+
+def test_the_script_refreshes_the_panel_only_while_it_is_visible() -> None:
+    script = (STATIC / "app.js").read_text(encoding="utf-8")
+
+    assert 'api("/api/realtime/overview")' in script
+    assert "REALTIME_REFRESH_MS = 60000" in script
+    assert '"visibilitychange"' in script
+    assert "connectgaps: false" in script

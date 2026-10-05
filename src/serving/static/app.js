@@ -55,6 +55,9 @@
   var dialogReturnFocus = null;
   var datasetDialogReturnFocus = null;
   var dataChangeDialogReturnFocus = null;
+  var REALTIME_REFRESH_MS = 60000;
+  var REALTIME_STATE_LABELS = { healthy: "正常", stale: "資料落後", stopped: "收集器未執行", unavailable: "尚無即時資料" };
+  var realtimeRequest = null;
 
   function element(tag, className, text) {
     var node = document.createElement(tag);
@@ -224,6 +227,7 @@
     workspace.scrollTop = 0;
     if (!options || options.focus !== false) window.setTimeout(function () { byId(meta[2]).focus(); }, 0);
     if (name === "data") enterDataManagement();
+    if (name === "overview") loadRealtime();
     if (name === "settings") {
       if (adminSession) loadRuntime(false);
       else loadAdminSession().then(function (authenticated) {
@@ -716,6 +720,157 @@
     }).catch(function (error) {
       if (announceResult) announce(error.message, true);
     }).finally(function () { button.disabled = false; });
+  }
+
+  function realtimeNumber(value) {
+    if (value == null) return "—";
+    return new Intl.NumberFormat("zh-Hant-TW", { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(value);
+  }
+
+  function realtimeVisible() {
+    return !document.hidden && !byId("overviewView").hidden;
+  }
+
+  function setRealtimeStatus(state, text) {
+    var light = state === "healthy" ? "healthy" : state === "stale" ? "stale" : "stopped";
+    byId("realtimeLight").className = "rt-light " + light;
+    byId("realtimeStatusText").textContent = text;
+  }
+
+  function realtimeStatusText(info) {
+    if (!info || !info.available || !info.latest_data_time) return "尚無即時資料";
+    var parts = ["最新時段 " + info.latest_data_time + "（台灣時間）"];
+    if (info.lag_minutes != null) parts.push(Math.round(info.lag_minutes) + " 分鐘前");
+    if (info.today && info.today.elapsed_slots) parts.push("今天 " + info.today.snapshots + "／" + info.today.elapsed_slots + " 個時段");
+    if (info.state && info.state !== "healthy") parts.push(REALTIME_STATE_LABELS[info.state] || info.state);
+    return parts.join(" · ");
+  }
+
+  function renderRealtimeDisclosures(items) {
+    var holder = byId("realtimeDisclosures");
+    holder.textContent = "";
+    (Array.isArray(items) ? items : []).forEach(function (item) {
+      holder.appendChild(element("div", "callout", item.reason || item.code));
+    });
+  }
+
+  function renderRealtimeTypes(data) {
+    var plant = data.scope !== "all";
+    var head = byId("realtimeTypeHead");
+    var body = byId("realtimeTypeRows");
+    var headRow = element("tr");
+    var storage = false;
+    head.textContent = "";
+    body.textContent = "";
+    var labels = plant
+      ? ["類型", "本廠（MW）", "共用（MW）", "裝置容量（MW）", "通訊異常機組"]
+      : ["類型", "淨發電量（MW）", "裝置容量（MW）", "通訊異常機組"];
+    labels.forEach(function (label) {
+      var th = element("th", "", label);
+      th.scope = "col";
+      headRow.appendChild(th);
+    });
+    head.appendChild(headRow);
+    (Array.isArray(data.by_type) ? data.by_type : []).forEach(function (entry) {
+      var row = element("tr");
+      var label = entry.type;
+      if (entry.type === "儲能") { label += "（放電）"; storage = true; }
+      if (entry.type === "儲能負載") { label += "（充電）"; storage = true; }
+      var th = element("th", "", label);
+      th.scope = "row";
+      row.appendChild(th);
+      var values = plant ? [entry.own_net_mw, entry.shared_net_mw] : [entry.net_mw];
+      values.concat([entry.capacity_mw]).forEach(function (value) {
+        row.appendChild(element("td", "numeric", realtimeNumber(value)));
+      });
+      row.appendChild(element("td", "numeric", valueText(entry.unreliable_units)));
+      body.appendChild(row);
+    });
+    byId("realtimeStorageNote").hidden = !storage;
+  }
+
+  function renderRealtimeTrend(today) {
+    var chart = byId("realtimeTrend");
+    var holder = byId("realtimeTrendTable");
+    var slots = today && Array.isArray(today.slots) ? today.slots : [];
+    var series = today && Array.isArray(today.series) ? today.series : [];
+    var plotly = window.Plotly && typeof window.Plotly.react === "function" ? window.Plotly : null;
+    holder.textContent = "";
+    byId("realtimeTrendDetails").hidden = !slots.length;
+    if (slots.length) {
+      var columns = ["時刻"].concat(series.map(function (item) { return item.type; }));
+      var rows = slots.map(function (slot, index) {
+        return [slot].concat(series.map(function (item) { return item.net_mw[index]; }));
+      });
+      var table = renderTable(columns, rows);
+      if (table) holder.appendChild(table);
+    }
+    if (!slots.length || !plotly) {
+      if (plotly) plotly.purge(chart);
+      chart.textContent = slots.length ? "圖表元件未載入，請展開下方數字表。" : "今天還沒有資料。";
+      return;
+    }
+    if (!chart.classList.contains("js-plotly-plot")) chart.textContent = "";
+    var traces = series.map(function (item) {
+      // 缺值是 null：斷線，不畫成 0。
+      return { type: "scatter", mode: "lines", name: item.type, x: slots, y: item.net_mw, connectgaps: false };
+    });
+    Promise.resolve().then(function () {
+      return plotly.react(chart, traces, {
+        margin: { t: 16, r: 16, b: 52, l: 64 },
+        xaxis: { title: { text: "時刻（台灣時間）" } },
+        yaxis: { title: { text: "MW" } },
+        legend: { orientation: "h" },
+        paper_bgcolor: "rgba(0,0,0,0)",
+        plot_bgcolor: "rgba(0,0,0,0)",
+        font: { family: "system-ui, sans-serif", color: "#263547" },
+        autosize: true
+      }, { responsive: true, displaylogo: false, modeBarButtonsToRemove: ["sendDataToCloud", "lasso2d", "select2d"] });
+    }).catch(function () {
+      plotly.purge(chart);
+      chart.textContent = "圖表無法顯示，請展開下方數字表。";
+    });
+  }
+
+  function loadRealtime() {
+    if (realtimeRequest) return realtimeRequest;
+    realtimeRequest = api("/api/realtime/overview").then(function (payload) {
+      var data = businessData(payload);
+      byId("realtimeLoginNote").hidden = true;
+      if (!data.available) {
+        setRealtimeStatus(data.state, "尚無即時資料");
+        renderRealtimeDisclosures([]);
+        byId("realtimeBody").hidden = true;
+        return;
+      }
+      setRealtimeStatus(data.state, realtimeStatusText({
+        available: true,
+        latest_data_time: data.data_time,
+        lag_minutes: data.lag_minutes,
+        state: data.state,
+        today: data.today
+      }));
+      renderRealtimeDisclosures(data.disclosures);
+      renderRealtimeTypes(data);
+      byId("realtimeBody").hidden = false;
+      renderRealtimeTrend(data.today);
+    }).catch(function (error) {
+      byId("realtimeBody").hidden = true;
+      renderRealtimeDisclosures([]);
+      if (error.status === 401) {
+        // 訪客權限是 denied 或登入已失效：只顯示狀態，不顯示數字。
+        byId("realtimeLoginNote").hidden = false;
+        return api("/api/health").then(function (health) {
+          var info = health.realtime || {};
+          setRealtimeStatus(info.state, realtimeStatusText(info));
+        }).catch(function () { setRealtimeStatus("unavailable", "無法讀取即時狀態"); });
+      }
+      byId("realtimeLoginNote").hidden = true;
+      if (error.status === 409) setRealtimeStatus("unavailable", "電廠對照不一致，請聯絡管理員。");
+      else if (error.status === 503) setRealtimeStatus("unavailable", "即時資料暫時讀不到，稍後會自動再試。");
+      else setRealtimeStatus("unavailable", "無法讀取即時資料：" + error.message);
+    }).finally(function () { realtimeRequest = null; });
+    return realtimeRequest;
   }
 
   function loadExamples() {
@@ -2263,7 +2418,7 @@
   byId("sidebarBackdrop").addEventListener("click", function () { setSidebarOpen(false); });
   byId("modeShortcut").addEventListener("click", function () { showView("settings"); });
   byId("clearHistory").addEventListener("click", clearHistory);
-  byId("refreshOverview").addEventListener("click", function () { loadStats(true); });
+  byId("refreshOverview").addEventListener("click", function () { loadStats(true); loadRealtime(); });
   loadCoverage();
   byId("refreshDataManagement").addEventListener("click", function () { refreshDataManagement(true); });
   byId("dataLoginForm").addEventListener("submit", loginAdmin);
@@ -2328,6 +2483,9 @@
     if (byId("sidebar").classList.contains("open")) setSidebarOpen(false);
   });
   window.addEventListener("resize", function () { setSidebarOpen(false, false); });
+  // 總覽頁開著、且分頁在前景時才更新；資料本身每 10 分鐘才變一次。
+  window.setInterval(function () { if (realtimeVisible()) loadRealtime(); }, REALTIME_REFRESH_MS);
+  document.addEventListener("visibilitychange", function () { if (realtimeVisible()) loadRealtime(); });
 
   loadHistory();
   showView("query", { focus: false });
