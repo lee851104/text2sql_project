@@ -38,7 +38,11 @@
   （加上 guard／coverage 設定與 README、ATTRIBUTION、SYSTEM_CARD）無輸出，`git diff --check` 無輸出；
   實機 `once`（2026-09-29，經使用者同意）→ 結束碼 0，最新時段 2026-09-29 11:20；首次品質 warn：風力
   SUBTOTAL_MISMATCH（明細 596.6 vs 小計 596.7），原因是上述浮點誤差；修正後重新解析同一份封存，品質 ok、
-  無警告；未定機組 0。連續收集、睡眠喚醒 → 待使用者實機驗證（Task 15 Step 4 後半，尚未執行）。
+  無警告；未定機組 0。連續收集（2026-10-05，使用者以 `即時收集啟動.bat` 實機執行）→ 10:30、10:40、
+  10:50、11:00、11:10 共 5 個時段全部 `new`（HTTP 200），抓取時間落在時段後約 5 分 20 秒，0 次失敗、
+  0 次拒收，品質 ok；第一次執行沒有 shutdown 紀錄（行程未經停止要求就結束，例如視窗被直接關閉），第二次啟動時清除了遺留的
+  `stop.request` 並補抓 10:50；睡眠喚醒 → `resume`（03:15:20Z → 03:18:55Z）；`停止即時收集.bat` →
+  `shutdown`，`status` 顯示 stopped。合併 origin/main 後 `pytest -q` → 1051 passed, 2 skipped。
 - 回退方式：由新到舊 `git revert` 本分支的全部 commit；`data/realtime/` 與 `data/processed/realtime.db`
   不在版控，直接刪除即可，不影響 `power.db` 與網頁服務。
 
