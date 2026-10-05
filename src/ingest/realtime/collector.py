@@ -108,7 +108,7 @@ class Collector:
     def rebuild_only(self) -> int:
         try:
             with SingleInstanceLock(self.config.lock_path):
-                decisions = self._load_decisions() or empty_decisions(self.config.plants_csv)
+                decisions = self._load_decisions() or self._fallback_decisions()
                 connection, report = self._rebuild(None, decisions, self.clock())
                 connection.close()
         except AlreadyRunning as error:
@@ -167,6 +167,14 @@ class Collector:
             LOGGER.warning("%s", warning)
         return decisions
 
+    def _fallback_decisions(self) -> Decisions:
+        """決定檔讀不到又必須重建時用；連電廠名冊都讀不到就給空的，不讓啟動失敗。"""
+        try:
+            return empty_decisions(self.config.plants_csv)
+        except LOAD_ERRORS as error:
+            LOGGER.warning("電廠名冊讀不到，先用空的決定重建：%s", error)
+            return Decisions({}, {}, (), "", "")
+
     def _open_database(self, now: datetime) -> sqlite3.Connection:
         path = self.config.database
         existed = path.is_file()
@@ -189,7 +197,7 @@ class Collector:
             self._move_aside(path, now)
             connection = None
         LOGGER.warning("realtime.db 不存在、版本不符或檢查失敗，從封存重建")
-        decisions = self.decisions or empty_decisions(self.config.plants_csv)
+        decisions = self.decisions or self._fallback_decisions()
         connection, report = self._rebuild(connection, decisions, now)
         LOGGER.info("重建完成：入庫 %d、拒收 %d", report.ingested, report.rejected)
         return connection

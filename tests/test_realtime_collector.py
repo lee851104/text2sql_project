@@ -9,7 +9,7 @@ from email.message import Message
 from pathlib import Path
 
 import pytest
-from realtime_support import make_config, payload_bytes
+from realtime_support import PLANTS_CSV, make_config, payload_bytes
 
 from ingest.realtime import archive, maintenance, rebuild, store
 from ingest.realtime.collector import (
@@ -597,3 +597,47 @@ def test_move_aside_without_a_file_does_nothing(tmp_path: Path) -> None:
     Collector._move_aside(tmp_path / "realtime.db", START)
 
     assert list(tmp_path.iterdir()) == []
+
+
+def _break_plants_roster(config) -> None:
+    config.plants_csv.write_text("name\n大潭發電廠\n", encoding="utf-8")
+
+
+def test_a_rebuild_with_an_unreadable_plants_roster_uses_empty_decisions(tmp_path: Path) -> None:
+    config = make_config(tmp_path)
+    clock = FakeClock(START)
+    _collector(config, clock, ScriptedOpener(ok(payload_bytes()))).run_once()
+    config.database.unlink()
+    _break_plants_roster(config)
+
+    collector = _collector(config, clock, ScriptedOpener(not_modified))
+    code = collector.run_once()
+
+    assert code == EXIT_OK
+    connection = _db(config)
+    assert connection.execute("SELECT build_kind FROM meta_rt_manifest").fetchone() == ("rebuild",)
+    assert connection.execute("SELECT COUNT(*) FROM fact_rt_snapshot").fetchone()[0] == 1
+
+    # 名冊修好後，每小時的重新載入會把真正的決定讀回來。
+    collector = _collector(config, clock, ScriptedOpener())
+    collector.startup()
+    assert collector.decisions is None
+    config.plants_csv.write_text(PLANTS_CSV, encoding="utf-8")
+    collector.maintain(clock())
+    assert collector.decisions is not None and collector.decisions.plants
+    collector.shutdown()
+
+
+def test_rebuild_only_with_an_unreadable_plants_roster_uses_empty_decisions(
+    tmp_path: Path,
+) -> None:
+    config = make_config(tmp_path)
+    clock = FakeClock(START)
+    _collector(config, clock, ScriptedOpener(ok(payload_bytes()))).run_once()
+    config.database.unlink()
+    config.plants_csv.unlink()
+
+    code = _collector(config, clock, ScriptedOpener()).rebuild_only()
+
+    assert code == EXIT_OK
+    assert _db(config).execute("SELECT COUNT(*) FROM fact_rt_snapshot").fetchone()[0] == 1
