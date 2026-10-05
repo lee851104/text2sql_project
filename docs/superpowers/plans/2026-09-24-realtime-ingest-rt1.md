@@ -40,6 +40,7 @@
 | 補入庫與停止檔 | 補入庫的抓取時間改用抓取紀錄（`rebuild.fetch_times`），與重建一致；拿到鎖後立刻刪掉上一次留下的 `stop.request` | 規格 §4.2、§7.3 | `5b35c07` |
 | 文件 | SERVING.md 說明結束碼 3、`once` 失敗回 1、設定錯誤每個指令都回 1；lineage 03 的 `realtime_units.csv` 大小改成磁碟上的大小 | 與程式一致 | `49202e5` |
 | 殘行 | `iter_attempts` 以 `errors="replace"` 讀檔，切在多位元組字元中間的殘行解不出 JSON 就略過 | 審查後發現：否則每次啟動都 `UnicodeDecodeError` 而無限重啟；規格 §9 | `bdcf0e0` |
+| 電廠名冊讀不到的重建 | 新增 `Collector._fallback_decisions`：`empty_decisions` 讀 `plants.csv` 失敗（`LOAD_ERRORS`）時警告，改用空的決定重建；`run`／`once` 與 `rebuild_only` 兩處都用它，各加一個測試 | 重建的後備路徑沒接住 `LOAD_ERRORS`，`plants.csv` 缺檔或格式壞掉時啟動失敗、啟動器每 60 秒重試同一個錯；違反規格 §3.1／§5.3／§9「壞檔只警告、不停止收集」 | `28fac81` |
 | 只在真的損毀時移檔 | 只有 `SQLITE_CORRUPT`／`SQLITE_NOTADB`（或 `quick_check` 不是 ok）才移到旁邊，鎖住等暫時性錯誤往上拋、結束碼 1、由批次檔重試；移開的檔名不重複；檔案不存在時不做事 | 避免把健康的檔案移走；規格 §4.2、§9 | `0341c0a` |
 | CI 上的舊版 SQLite | 損毀資料庫測試的前置探測也接受 `quick_check` 直接拋例外（SQLite 3.45.1，CI 的 Ubuntu）；程式本身原本就兩種都處理 | PR #17 的 CI 失敗 | `99ef404` |
 

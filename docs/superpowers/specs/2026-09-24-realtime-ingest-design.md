@@ -376,6 +376,8 @@ CREATE INDEX idx_rt_attempt_slot ON meta_rt_attempt(target_slot);
     缺檔或格式壞掉的 `plants.csv`。可能的例外集中在 `decisions.LOAD_ERRORS` 一個 tuple，
     收集器與 `status` 共用；收集器只發出警告，沿用資料庫裡上一次成功套用的決定，`status` 把原因放在
     `decisions_error`，不會因此當掉；
+  - 需要重建 `realtime.db`、而 `plants.csv` 又讀不了時，重建改用空的決定（沒有機組決定、沒有電廠名冊），
+    不讓啟動失敗；檔案修好後，下一次每小時重新載入（檔案 SHA 與空字串不同）會把真正的決定讀回來；
   - 少欄的列（欄位比標頭少）當成那一列不合法：視為未定，並發出警告；
   - `plant_id` 不在 `plants.csv`、欄位值不合法：只有那一列視為未定，並發出警告；
   - 檔案裡有、但來源從沒出現過的列：列為過期的決定並回報，比照 `b_column_capacity` 的
