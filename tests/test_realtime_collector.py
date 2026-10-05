@@ -331,8 +331,12 @@ def test_a_damaged_database_is_moved_aside_and_rebuilt(tmp_path: Path, pages, op
     _corrupt_pages(config.database, *pages)
     if opens:  # 確認真的走到「檔案打得開、quick_check 不過」這條路
         probe = store.connect(config.database)
-        assert store.quick_check(probe) != "ok"
-        probe.close()
+        try:
+            assert store.quick_check(probe) != "ok"
+        except sqlite3.DatabaseError:
+            pass  # SQLite 3.45 等舊版直接拋錯，不回傳檢查結果；兩種都算檢查不過
+        finally:
+            probe.close()
 
     code = _collector(config, clock, ScriptedOpener(not_modified)).run_once()
 
