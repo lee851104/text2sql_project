@@ -2,6 +2,35 @@
 
 > 這份檔案在每個可驗證、可回退的儲存點更新。回退前需保留使用者原有的未提交變更。
 
+## CP-074 — 即時發電面板 RT-3a：總覽頁看得到即時資料，權限與查詢一致
+
+- 時間：2026-10-06 09:09 +08:00
+- 狀態：已完成（RT-3a；實機驗收見下方。RT-3b 自然語言查詢即時資料尚未開始）
+- 分支：`feat/realtime-panel`（從 `docs/realtime-panel-design` 開，底下是 RT-1 的 `feat/realtime-collector`）
+- 起點：依 `docs/superpowers/specs/2026-10-05-realtime-panel-design.md` 與
+  `docs/superpowers/plans/2026-10-05-realtime-panel-rt3a.md` 實作。
+
+### 做了什麼
+
+- `src/text2sql/realtime_scope.py`：權限純函式（全範圍看全部；電廠帳號看本廠＋shared；未定的機組一律不給電廠帳號），
+  RT-3b 重用。
+- `src/serving/realtime_panel.py`：每次請求唯讀開 `realtime.db`，寫死的 SQL；只加總「正常」的值，缺值是 null；
+  儲能與儲能負載分列；電廠帳號拆「本廠」「共用」，並比對兩邊的電廠名冊；揭露 `RT_STALE`、`RT_COLLECTOR_STOPPED`、
+  `RT_QUALITY_WARN`、`RT_SCOPE_PLANT`、`RT_NO_DATA_TODAY`。
+- `src/serving/app.py`：`/api/health` 多 `realtime` 狀態欄位（不含數字，絕不因此出錯）；`GET /api/realtime/overview`
+  （401／409／503）；「匿名可否讀取」抽成 `require_query_access`，`/api/query` 行為不變。
+- 前端：總覽頁的即時發電區塊（狀態列、各類型表、今日趨勢圖＋數字表），前景時每 60 秒更新。
+- 文件：SERVING 新增「即時發電面板」；README、ATTRIBUTION 的「快照，不是即時資料服務」改寫並加上即時資料集顯名；
+  SYSTEM_CARD 新增「即時資料」（不經四眼審核的說明）；規格依實作同步。
+
+### 刻意沒做的
+
+- 查詢端仍查不到即時資料，`configs/coverage.yaml` 不變（RT-3b）。
+- 機組明細表、從網頁啟停收集器。
+
+- 驗收：`uv run ruff format --check .`、`uv run ruff check .` 通過；`uv run pytest -q` → 1108 passed、1 skipped
+  （基準 1054 passed）；`node --check app.js` 通過。
+
 ## CP-073 — 即時收集器 RT-1：先封存再入庫、可重建的 realtime.db
 
 - 時間：2026-09-29 12:18 +08:00

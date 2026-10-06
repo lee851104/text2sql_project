@@ -1,6 +1,6 @@
 # 即時發電面板（RT-3a）設計規格
 
-> 狀態：設計已確認，待實作
+> 狀態：已實作（feat/realtime-panel，CP-074）
 > 日期：2026-10-05
 > 前置：RT-1 即時收集器（`docs/superpowers/specs/2026-09-24-realtime-ingest-design.md`，PR #18）
 > 範圍：RT-3 的第一段——網頁上的即時發電面板。自然語言查詢即時資料是 RT-3b，另寫規格。
@@ -49,7 +49,7 @@ RT-1 已經每 10 分鐘把台電 `d006001` 的機組發電量收進 `data/proce
                                         ├─ 唯讀開 realtime.db（每次請求開、用完即關）
                                         ├─ 讀 dim_rt_unit → realtime_scope.visible_unit_keys()
                                         ├─ 電廠帳號：比對 dim_rt_plant ↔ power.db dim_plant_scope
-                                        └─ 固定 SQL：v_rt_now、v_rt_10min（今天）
+                                        └─ 固定 SQL：v_rt_10min（最新時段＝read_status 的 latest_data_time；今天）
 ```
 
 - 面板**不經過 Text2SQL**。它跑的是寫死的 SQL，沒有任何使用者輸入進入 SQL。
@@ -65,12 +65,21 @@ RT-1 已經每 10 分鐘把台電 `d006001` 的機組發電量收進 `data/proce
 
 ```python
 class RealtimePanel:
-    def __init__(self, config: RealtimeConfig, power_database: Path) -> None: ...
+    def __init__(self, config: RealtimeConfig | None) -> None: ...
+    @classmethod
+    def from_project(cls, root: Path = PROJECT_ROOT) -> RealtimePanel: ...
     def status(self, *, now: datetime | None = None) -> dict[str, object]: ...
     def overview(
-        self, scope: RealtimeScope, *, now: datetime | None = None
+        self,
+        scope: RealtimeScope,
+        *,
+        plants: Mapping[int, str] | None = None,
+        now: datetime | None = None,
     ) -> dict[str, object]: ...
 ```
+
+- `plants` 是 power.db 的電廠對照表（`ScopeCatalog.plant_names_by_id()`），電廠範圍必須提供。power.db 會熱抽換，所以不在建置時記路徑，而是每次請求取目前 runtime 的對照表，和電廠帳號解析用的是同一份。
+- `from_project` 讀不到 RT-1 設定時記 log，回 `RealtimePanel(None)`，此時一律視同無資料（§7）。
 
 - `now` 可注入，測試固定「現在」；預設是 `datetime.now(UTC)`。
 - 開檔方式與 `text2sql.db.ReadOnlySQLite` 相同：URI `mode=ro`，加 `PRAGMA query_only = ON`。
@@ -105,13 +114,14 @@ class RealtimePanel:
    "scope": "all",
    "by_type": [{"type": "燃氣", "net_mw": 13703.4, "capacity_mw": 15210.0,
                 "units": 30, "unreliable_units": 0}, ...],
-   "today": {"date": "2026-10-05",
+   "today": {"date": "2026-10-05", "elapsed_slots": 93, "snapshots": 92,
              "slots": ["00:00", "00:10", ...],
              "series": [{"type": "燃氣", "net_mw": [12001.2, null, ...]}, ...]},
    "disclosures": [{"code": "RT_STALE", "reason": "資料落後 42 分鐘"}]}}
 ```
 
 - `by_type` 依 `net_mw` 由大到小排序。
+- 一組機組裡沒有任何「正常」的值時，`net_mw`（以及電廠帳號的 `own_net_mw`、`shared_net_mw`）是 `null`，不是 0。
 - **儲能與儲能負載各自一列，不合併**（放電與充電會相抵，RT-1 規格 §8.5 第 5 點）。
 - `today.series` 的每個值對應 `slots` 的同一位置。**缺值是 `null`，不是 0**：那個時段沒抓到資料，
   或該類型那個時段沒有任何正常值。
@@ -156,16 +166,17 @@ class RealtimeScope:
 
 @dataclass(frozen=True)
 class UnitRow:
-    key: int  # dim_rt_unit.id = 檢視的「機組鍵」
+    key: str  # 檢視的「機組鍵」：機組類型|機組名稱
     access_scope: str  # plant / shared / undecided
     plant_id: int | None
 
 
-def visible_unit_keys(scope: RealtimeScope, units: Iterable[UnitRow]) -> frozenset[int] | None: ...
-def own_unit_keys(scope: RealtimeScope, units: Iterable[UnitRow]) -> frozenset[int]: ...
+def visible_unit_keys(scope: RealtimeScope, units: Iterable[UnitRow]) -> frozenset[str] | None: ...
+def own_unit_keys(scope: RealtimeScope, units: Iterable[UnitRow]) -> frozenset[str]: ...
 ```
 
 - 純函式，不讀資料庫、不看 HTTP。`None` 代表全部看得到。
+- `RealtimeScope` 另有 `label` 屬性（`all` 或 `plant:<電廠名稱>`，即回應的 `scope` 欄位）與常數 `ALL_PLANTS = RealtimeScope("all")`。
 - 放在查詢端的套件，RT-3b 的守門直接重用，兩條路徑的權限不會分岔。
 
 ### 5.2 身分 → 範圍
@@ -187,7 +198,7 @@ def own_unit_keys(scope: RealtimeScope, units: Iterable[UnitRow]) -> frozenset[i
 容易誤會成自己電廠的出力。所以電廠帳號的每一類改成：
 
 ```json
-{"type": "太陽能", "own_net_mw": 0.0, "shared_net_mw": 7731.1, "capacity_mw": ..., "units": ..., "unreliable_units": ...}
+{"type": "太陽能", "own_net_mw": null, "shared_net_mw": 7731.1, "capacity_mw": ..., "units": ..., "unreliable_units": ...}
 ```
 
 前端分「本廠」「共用」兩欄，並附 `RT_SCOPE_PLANT`。`all` 範圍只有一個 `net_mw`。
@@ -213,6 +224,7 @@ def own_unit_keys(scope: RealtimeScope, units: Iterable[UnitRow]) -> frozenset[i
    儲能、儲能負載旁標註「放電／充電，不相抵」。電廠帳號多「本廠」「共用」兩欄。
 3. **今日趨勢圖**：每個類型一條線，缺值處斷線（不畫成 0）。用 `index.html` 已載入的 Plotly
    （`plotly-basic`），不新增相依套件。圖下附可展開的數字表，給讀螢幕的使用者與要看精確數字的人。
+4. **資料來源**：區塊底部一行顯名——台灣電力公司「各機組發電量即時資訊」、授權條款、更新頻率與「不能作為決策依據」。
 
 揭露沿用查詢結果現有的提示框樣式。
 
@@ -269,7 +281,7 @@ def own_unit_keys(scope: RealtimeScope, units: Iterable[UnitRow]) -> frozenset[i
 
 - **`docs/SERVING.md`**：新增「即時發電面板」一節——看得到什麼、權限、燈號意義、資料多久更新、
   收集器沒在跑時會怎樣。
-- **README 第 244 行、ATTRIBUTION 第 27 行**：「快照，不是即時資料服務」改成兩句：分析用的
+- **README 第 244 行、ATTRIBUTION 第 27 行**（ATTRIBUTION 的「開放資料顯名」加上即時資料集 8931／`d006001`）：「快照，不是即時資料服務」改成兩句：分析用的
   `power.db` 仍是固定時間的快照；總覽頁的即時發電區塊每 10 分鐘取自台電 `d006001`，可能落後或中斷，
   頁面會標出資料時間。兩者都不能作為供電或調度決策依據。
 - **`docs/SYSTEM_CARD.md`**：新增即時資料一節——即時資料**不經過四眼審核**，每一筆快照由自動驗證

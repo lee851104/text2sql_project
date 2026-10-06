@@ -1537,8 +1537,8 @@ from text2sql.realtime_scope import ALL_PLANTS, RealtimeScope
 
 `create_app` 的參數在 `raw_data_service` 之後加上：
 
-```python
-realtime_panel: RealtimePanel | None = (None,)
+```text
+    realtime_panel: RealtimePanel | None = None,
 ```
 
 在 `application.state.raw_data_service = ...` 那段之後加上：
