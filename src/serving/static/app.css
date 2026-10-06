@@ -413,3 +413,14 @@ pre { overflow: auto; padding: 13px; border-radius: 9px; color: #dceaff; backgro
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 }
+.realtime-panel { margin-bottom: 18px; padding: 20px; }
+.realtime-panel .content-heading { flex-wrap: wrap; }
+.realtime-status { display: flex; align-items: center; gap: 8px; margin: 0; color: var(--muted-strong); font-size: .8rem; }
+.rt-light { flex: 0 0 auto; width: 10px; height: 10px; border-radius: 50%; background: #9aa5b1; box-shadow: 0 0 0 4px rgba(154,165,177,.16); }
+.rt-light.healthy { background: #5dcc78; box-shadow: 0 0 0 4px rgba(93,204,120,.14); }
+.rt-light.stale { background: #d89b35; box-shadow: 0 0 0 4px rgba(216,155,53,.14); }
+.realtime-table { width: 100%; border-collapse: collapse; }
+.realtime-table th, .realtime-table td { padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: left; font-size: .8rem; }
+.realtime-table td.numeric { text-align: right; font-variant-numeric: tabular-nums; }
+.realtime-note { margin: 10px 0 0; color: var(--muted); font-size: .75rem; }
+.realtime-panel details { margin-top: 8px; font-size: .8rem; }

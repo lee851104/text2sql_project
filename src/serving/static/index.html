@@ -156,6 +156,24 @@
             <button class="secondary-button" type="button" id="refreshOverview">重新整理</button>
           </header>
 
+          <section class="surface realtime-panel" id="realtimePanel" aria-labelledby="realtimeTitle">
+            <div class="content-heading">
+              <div><p class="eyebrow">REALTIME</p><h3 id="realtimeTitle">即時發電</h3></div>
+              <p class="realtime-status"><span class="rt-light" id="realtimeLight" aria-hidden="true"></span><span id="realtimeStatusText">讀取中…</span></p>
+            </div>
+            <p class="realtime-note" id="realtimeLoginNote" hidden>登入後可查看即時發電數字。</p>
+            <div id="realtimeDisclosures"></div>
+            <div id="realtimeBody" hidden>
+              <div class="table-wrap" tabindex="0" aria-label="最新時段各類型總出力，可左右捲動">
+                <table class="realtime-table"><thead id="realtimeTypeHead"></thead><tbody id="realtimeTypeRows"></tbody></table>
+              </div>
+              <p class="realtime-note" id="realtimeStorageNote" hidden>儲能是放電、儲能負載是充電，兩者分列、不相抵。</p>
+              <figure class="chart realtime-chart" aria-label="今日各類型出力趨勢（台灣時間）"><div class="plotly-chart" id="realtimeTrend" tabindex="0"></div></figure>
+              <details id="realtimeTrendDetails"><summary>今日趨勢數字表</summary><div id="realtimeTrendTable"></div></details>
+            </div>
+            <p class="realtime-note">資料來源：台灣電力公司「各機組發電量即時資訊」（政府資料開放授權條款－第 1 版），每 10 分鐘更新；可能落後或中斷，不能作為供電或調度決策依據。</p>
+          </section>
+
           <div class="metric-grid" aria-label="資料涵蓋統計">
             <article class="metric-card"><span class="metric-icon blue" aria-hidden="true">▥</span><div><p>尖峰事實資料</p><strong id="totalRecords">—</strong><small>逐機組、逐日紀錄</small></div></article>
             <article class="metric-card"><span class="metric-icon green" aria-hidden="true">▧</span><div><p>機組主檔</p><strong id="totalUnits">—</strong><small>設備與電廠資訊</small></div></article>

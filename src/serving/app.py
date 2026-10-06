@@ -52,7 +52,9 @@ from serving.data_management import (
 from serving.presentation import enrich_query_data
 from serving.query_log import QueryErrorLog
 from serving.raw_data import RawDataError, RawDataNotFoundError, RawDataService
+from serving.realtime_panel import RealtimePanel, RealtimeReadError, RealtimeScopeMismatch
 from serving.runtime import RuntimeManager, RuntimeMode, ServiceRuntime
+from text2sql.realtime_scope import ALL_PLANTS, RealtimeScope
 
 # 這幾句不含內部細節，可以原樣回給前端；其餘一律換成通用訊息。
 SAFE_RUNTIME_ERRORS = {
@@ -356,6 +358,7 @@ def create_app(
     accounts: Sequence[Account] | None = None,
     data_manager: DataManagementService | None = None,
     raw_data_service: RawDataService | None = None,
+    realtime_panel: RealtimePanel | None = None,
 ) -> FastAPI:
     assets = (static_dir or Path(__file__).with_name("static")).resolve()
     application = FastAPI(
@@ -392,6 +395,9 @@ def create_app(
     application.state.raw_data_service = raw_data_service or RawDataService(
         root=PROJECT_ROOT,
         database=application.state.data_base_directory / "raw_open_data.db",
+    )
+    application.state.realtime_panel = (
+        realtime_panel if realtime_panel is not None else RealtimePanel.from_project(PROJECT_ROOT)
     )
     application.state.query_error_log = QueryErrorLog(diagnostic_workspace / "query-errors.jsonl")
     application.state.learning_pipelines = WeakSet()
@@ -643,6 +649,7 @@ def create_app(
             or protected_path.startswith("/api/runtime/")
             or protected_path.startswith("/api/corpus/")
             or protected_path.startswith("/api/data/")
+            or protected_path.startswith("/api/realtime/")
             or protected_path == "/api/training-status"
         ):
             application.state.auth_manager.mark_no_store(response)
@@ -781,6 +788,7 @@ def create_app(
             "online_llm": service.online_llm,
             "mode": mode,
             "data_range": {"start": service.data_range[0], "end": service.data_range[1]},
+            "realtime": application.state.realtime_panel.status(),
         }
 
     @application.get("/api/stats")
@@ -1273,14 +1281,36 @@ def create_app(
             raise HTTPException(status_code=503, detail=str(error)) from error
         return resolved[principal.username]
 
+    def require_query_access(principal: AdminPrincipal | None, detail: str) -> None:
+        """Anonymous callers read data only when POWERQUERY_ANONYMOUS_QUERY_SCOPE allows it."""
+
+        if principal is None and application.state.anonymous_scope == "denied":
+            raise HTTPException(status_code=401, detail=detail)
+
+    def realtime_scope_for(
+        principal: AdminPrincipal | None,
+    ) -> tuple[RealtimeScope, dict[int, str] | None]:
+        """Same identity rule as /api/query, plus the roster a plant scope is checked against.
+
+        全電廠帳號與匿名訪客不需要 power.db，所以只有電廠帳號才取目前的 runtime。
+        """
+
+        if principal is None or principal.plant_id is None:
+            return ALL_PLANTS, None
+        service = current_runtime()
+        plant = resolve_account_plant(principal, service)
+        if not plant:
+            raise HTTPException(status_code=503, detail="帳號名冊與目前的登入階段不一致。")
+        catalog = service.pipeline.scope_guard.catalog
+        return RealtimeScope("plant", principal.plant_id, plant), catalog.plant_names_by_id()
+
     @application.post("/api/query")
     def query(
         payload: QueryRequest,
         principal: Annotated[AdminPrincipal | None, Depends(_query_principal)],
     ) -> dict[str, object]:
         plant_account = principal is not None and principal.plant_id is not None
-        if principal is None and application.state.anonymous_scope == "denied":
-            raise HTTPException(status_code=401, detail="此服務的查詢需要先登入。")
+        require_query_access(principal, "此服務的查詢需要先登入。")
         if plant_account and payload.query_scope != "trusted":
             # 原始檔查詢不經 ScopeGuard；開放給電廠帳號等於留一條繞過授權的路。
             raise HTTPException(
@@ -1419,6 +1449,26 @@ def create_app(
                 response=response,
             )
         return response
+
+    @application.get("/api/realtime/overview")
+    def realtime_overview(
+        principal: Annotated[AdminPrincipal | None, Depends(_query_principal)],
+    ) -> dict[str, object]:
+        require_query_access(principal, "即時發電數字需要先登入。")
+        scope, plants = realtime_scope_for(principal)
+        try:
+            data = application.state.realtime_panel.overview(scope, plants=plants)
+        except RealtimeScopeMismatch as error:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "電廠對照不一致（RT_SCOPE_MISMATCH）：即時資料與查詢資料庫的電廠名冊"
+                    "對不上，請聯絡管理員。"
+                ),
+            ) from error
+        except RealtimeReadError as error:
+            raise HTTPException(status_code=503, detail="即時資料暫時讀不到。") from error
+        return {"success": True, "data": data}
 
     application.mount("/static", StaticFiles(directory=assets), name="static")
     return application
