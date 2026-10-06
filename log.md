@@ -22,14 +22,28 @@
 - 前端：總覽頁的即時發電區塊（狀態列、各類型表、今日趨勢圖＋數字表），前景時每 60 秒更新。
 - 文件：SERVING 新增「即時發電面板」；README、ATTRIBUTION 的「快照，不是即時資料服務」改寫並加上即時資料集顯名；
   SYSTEM_CARD 新增「即時資料」（不經四眼審核的說明）；規格依實作同步。
+- 最終審查補強（`f1e4617`）：品質警告的細節是全系統的（全國各類型 MW、任何電廠的機組名），電廠帳號改成只看
+  警告代碼；三段讀取包在同一個讀取交易裡；名冊對不上時回 503 而非 500；登入、登出後立刻更新面板。
 
 ### 刻意沒做的
 
 - 查詢端仍查不到即時資料，`configs/coverage.yaml` 不變（RT-3b）。
 - 機組明細表、從網頁啟停收集器。
 
-- 驗收：`uv run ruff format --check .`、`uv run ruff check .` 通過；`uv run pytest -q` → 1108 passed、1 skipped
-  （基準 1054 passed）；`node --check app.js` 通過。
+- 驗收：`uv run ruff format --check .`、`uv run ruff check .` 通過；`uv run pytest -q` → 1112 passed、1 skipped
+  （基準 1054 passed、1 skipped）；`node --check app.js` 通過。
+
+### 實機驗收
+
+- 2026-10-06，本機服務、`realtime.db` 複製自 RT-1 的收集資料（原檔未動），帳號用暫時名冊（驗收後已刪除）：
+  - 管理員：12 種類型全部看得到（燃氣 13,703.4 MW）。
+  - 台中發電廠帳號：只看到本廠與 shared，表格分「本廠」「共用」兩欄，附 `RT_SCOPE_PLANT`。
+  - `POWERQUERY_ANONYMOUS_QUERY_SCOPE=denied` 的訪客：overview 回 401，只顯示狀態列與「登入後可查看即時發電數字」。
+- 收集器停止時燈號灰、附 `RT_COLLECTOR_STOPPED` 與 `RT_NO_DATA_TODAY`。啟動收集器後抓到 09:20、09:30 兩個時段：
+  燈號轉綠、揭露消失、趨勢圖畫出 12 條線；09:30 由頁面自己的 60 秒更新取得，網頁服務全程沒有重啟。
+  停止收集器後 30 秒內燈號轉灰並出現 `RT_COLLECTOR_STOPPED`。
+- `git diff f61ed66 -- src/text2sql src/eval benchmarks corpus configs src/ingest` 只有新增的
+  `src/text2sql/realtime_scope.py`。
 
 ## CP-073 — 即時收集器 RT-1：先封存再入庫、可重建的 realtime.db
 
