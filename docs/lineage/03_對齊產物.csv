@@ -21,3 +21,4 @@ re_sites_supplement.csv,人工補充,1,281,人工維護（含 source_urls 欄）
 re_station_crosswalk.csv,衍生,65,7892,uv run python -m align,17141 與 17140 的發電站對齊結果，含狀態與縣市
 units.csv,來源副本,175,21364,ingest.fetch 下載後複製,官方原檔逐字副本，未經任何修改
 units_generation.json,來源副本,215,36431,ingest.fetch 下載後複製,官方原檔逐字副本，未經任何修改
+realtime_units.csv,人工維護,204,15656,python -m ingest.realtime.candidates 產生候選後人工逐列確認,即時機組的粒度（個別／彙總）與電廠歸屬；電廠帳號的權限依據

@@ -2,6 +2,97 @@
 
 > 這份檔案在每個可驗證、可回退的儲存點更新。回退前需保留使用者原有的未提交變更。
 
+## CP-073 — 即時收集器 RT-1：先封存再入庫、可重建的 realtime.db
+
+- 時間：2026-09-29 12:18 +08:00
+- 狀態：已完成（RT-1；RT-2、RT-3 尚未開始）
+- 分支：`feat/realtime-collector`（從 `docs/realtime-ingest-design` 開，規格與計畫在 CP-072）
+- 起點：依 `docs/superpowers/specs/2026-09-24-realtime-ingest-design.md` 與
+  `docs/superpowers/plans/2026-09-24-realtime-ingest-rt1.md` 實作 RT-1。
+
+### 做了什麼
+
+- `src/ingest/realtime/`：常駐收集器（`python -m ingest.realtime run`），每個時段抓到就停；原始回應先
+  gzip 封存到 `data/realtime/archive/`，再寫進 `data/processed/realtime.db`；抓取紀錄同時寫 JSONL 與資料庫。
+- 結構有問題的快照整份拒收（封存仍在），數值有問題的照收並標記品質；小計、彙總列、跨類型同名、
+  `N/A`、「通訊異常」都在入庫時處理。
+- 每日估算發電量只算可信值；缺口分成收集器沒在跑、抓取失敗、拒收三種；清除條件寫在 SQL 裡。
+- schema 版本不符或資料庫損壞時自動從封存重建；重建結果與逐筆入庫的內容 checksum 相同（測試釘住）。
+- `taipower_align/realtime_units.csv`：204 列人工決定（粒度與電廠歸屬），逐列人工確認。
+- 三個批次檔、`.gitattributes`（`*.bat` 固定 CRLF）、`docs/SERVING.md` 操作說明、`docs/lineage/` 更新。
+- 審查中補強的穩健性：人工決定檔／`plants.csv` 壞掉只警告並沿用上次；每小時維護、啟動步驟、封存寫入或
+  抓取紀錄寫入失敗都不中斷收集；`realtime.db` 真的損壞（SQLITE_CORRUPT／NOTADB 或 quick_check 失敗）才
+  移到旁邊重建，暫時性錯誤只重試；讀不出的封存檔與寫到一半的抓取紀錄都略過；指令列未預期錯誤以結束碼 1
+  與中文訊息結束。
+- 實機執行找出的錯誤：小計容差比較受浮點誤差影響，差值剛好 0.1 MW 也被標 warn，已修正。
+
+### 刻意沒做的
+
+- 查詢端完全沒動：`v_rt_*` 檢視存在但服務查不到（RT-3）。README、ATTRIBUTION、SYSTEM_CARD、
+  `coverage.yaml` 的說法等 RT-3 再改。
+- `d006010` 回補與對帳（RT-2）。
+
+- 驗收：`uv run ruff format --check .`、`uv run ruff check .` 通過；`uv run pytest -q` →
+  `874 passed, 2 skipped, 4 warnings in 217.62s (0:03:37)`（2 個 skip 是環境因素：未安裝 openai extra、
+  連接埠 8765 被占用）；`git diff --stat origin/main...HEAD -- src/text2sql src/serving src/eval benchmarks corpus`
+  （加上 guard／coverage 設定與 README、ATTRIBUTION、SYSTEM_CARD）無輸出，`git diff --check` 無輸出；
+  實機 `once`（2026-09-29，經使用者同意）→ 結束碼 0，最新時段 2026-09-29 11:20；首次品質 warn：風力
+  SUBTOTAL_MISMATCH（明細 596.6 vs 小計 596.7），原因是上述浮點誤差；修正後重新解析同一份封存，品質 ok、
+  無警告；未定機組 0。連續收集（2026-10-05，使用者以 `即時收集啟動.bat` 實機執行）→ 10:30、10:40、
+  10:50、11:00、11:10 共 5 個時段全部 `new`（HTTP 200），抓取時間落在時段後約 5 分 20 秒，0 次失敗、
+  0 次拒收，品質 ok；第一次執行沒有 shutdown 紀錄（行程未經停止要求就結束，例如視窗被直接關閉），第二次啟動時清除了遺留的
+  `stop.request` 並補抓 10:50；睡眠喚醒 → `resume`（03:15:20Z → 03:18:55Z）；`停止即時收集.bat` →
+  `shutdown`，`status` 顯示 stopped。合併 origin/main 後 `pytest -q` → 1051 passed, 2 skipped。
+- 回退方式：由新到舊 `git revert` 本分支的全部 commit；`data/realtime/` 與 `data/processed/realtime.db`
+  不在版控，直接刪除即可，不影響 `power.db` 與網頁服務。
+
+## CP-072 — 即時機組發電量：整體架構與 RT-1 設計規格
+
+- 時間：2026-09-24 14:30 +08:00
+- 狀態：已完成（設計；尚未實作）
+- 分支：`docs/realtime-ingest-design`（從 `origin/main` 開，CP-070 在未合併的
+  `fix/renewable-generation-query-filters` 上，這裡往後編避免撞號；合併時 main 已佔用 CP-071，故順延為 CP-072）
+- 起點：使用者要開始做 `docs/REALTIME_INGEST.md`（未進版控的即時資料設計初稿），請求更完整的
+  建議與架構。逐條拿 repo 內的即時快照、官方端點與程式碼核對後，分六段逐段確認設計。
+
+### 核對後推翻的初稿前提
+
+- **歷史可以回補。** 資料集 37331（`d006010`）提供每 10 分鐘淨發電量，滾動約 3 個月；HEAD 實測
+  189,826,367 bytes，Last-Modified 2026-08-24。初稿「無法回補」不成立。
+- **機組名稱不唯一。** 12 個名稱跨類型重複（11 部儲能同時在「儲能」與「儲能負載」）。初稿的
+  `unit_name UNIQUE` 會讓放電與充電撞在一起，其中一筆安靜消失。
+- **小計是 11 列。** 風力的小計名為 `小計(註5)`，只比對「小計」會漏掉它。11 類的明細加總與小計
+  全部相等，可以當入庫檢查。
+- **明細不是全部單機。** `其它購電太陽能` 一列就佔太陽能容量 97.7%；初稿類型表的機組數把小計列
+  也算了進去（風力寫 32，實際 31）。
+- **部署機沒有時區資料庫。** `ZoneInfo("Asia/Taipei")` 拋出 `ZoneInfoNotFoundError`，改用固定 UTC+8。
+- **初稿沒寫到的整合點。** `ScopeGuard` 對未分類的檢視會拒絕；公開服務只走規則路由；
+  `SemanticGuard` 的檢視期間只在啟動時量一次；`coverage.yaml` 有兩條限制會變成假的、測試卻抓
+  不到；本機與公開兩個服務行程若各自輪詢會重複請求。
+
+### 使用者裁決
+
+兩類問題（現在／目前、期間發電量）都要，先做即時；收集器與公開服務同一台，會關機或睡眠；
+電廠帳號只看自己電廠，依人工審核的機組→電廠對照，不屬於 34 座電廠的列標 `shared`；做法採
+「獨立收集器＋先封存再入庫」；規格另開檔，初稿改成資料分析。
+
+### 產出
+
+- `docs/superpowers/specs/2026-09-24-realtime-ingest-design.md`：整體架構（RT-1 收集儲存、
+  RT-2 `d006010` 回補、RT-3 查詢整合）與 RT-1 的完整設計，含排程、封存、schema、解析驗證、
+  彙總保留重建、對外介面、測試與完成的定義。
+- `docs/REALTIME_INGEST.md`：改成資料分析。仍成立的分析保留，6 處以「更正」標示，初稿的設計
+  段落改成一張對照表，指向規格的章節。
+- 另發現一個與本設計無關的既有問題：「即時備轉容量率」回傳 2025-01-01 起的 200 天，
+  `disclosures` 是空的。已另開背景任務，不在本儲存點處理。
+
+- 驗收：只改文件，未動程式碼與測試（`tests/` 沒有任何測試讀取這兩份文件）。`git diff --cached
+  --check` 通過；規格內的 `§` 引用全部指向存在的章節、表格欄數一致、沒有占位字；兩份文件互相
+  連結的相對路徑都存在。
+- 未完成：RT-1 的實作計畫（下一步）；RT-2、RT-3 的規格。
+- 回退方式：回退 `docs: design the realtime unit generation collector (RT-1)` 這個 commit；只會
+  移除兩份文件與本儲存點，程式與資料不受影響。
+
 ## CP-071 — T2 語料內 30 題加進 RAG 語料
 
 - 時間：2026-09-24 17:13 +08:00

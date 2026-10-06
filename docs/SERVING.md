@@ -41,6 +41,49 @@ uv run powerquery --json "天然氣機組共有幾台？"
 
 `.env.example` 是環境變數參考，不會被程式自動載入；請透過 PowerShell、服務管理器或容器環境注入需要的值。
 
+## 即時資料收集器
+
+> RT-1 階段：收集器只負責收資料，查詢頁與 API 要到 RT-3 才查得到這些資料。設計見[即時機組發電量設計規格](superpowers/specs/2026-09-24-realtime-ingest-design.md)。
+
+收集器是獨立的常駐程式，每 10 分鐘向台電抓一次「各機組發電量即時資訊」（`d006001`）。原始回應先 gzip 封存到 `data/realtime/archive/`，再寫進 `data/processed/realtime.db`。它和網頁服務互不相干：重啟服務不影響收集，收集器也不必跟著服務一起啟動。每小時的維護（重新套用人工決定、對帳、彙總與清除）若出錯只會記錄，不會中斷抓取。
+
+### 啟動與停止
+
+- 雙擊 [`即時收集啟動.bat`](../即時收集啟動.bat)：開一個視窗持續收集，異常結束時 60 秒後自動重啟；同一時間只會有一份在跑。
+- 登入後自動啟動：按 `Win + R` 輸入 `shell:startup`，把 [`開機自動啟動-即時收集.bat`](../開機自動啟動-即時收集.bat) 的捷徑放進去。電腦睡眠或關機期間收不到資料，那些時段會記成缺口。
+- 雙擊 [`停止即時收集.bat`](../停止即時收集.bat)，或在收集器視窗按 `Ctrl+C`。
+
+手動操作：
+
+```powershell
+uv run python -m ingest.realtime status    # 健康狀態；加 --json 給程式讀
+uv run python -m ingest.realtime once      # 立刻抓一次、做一次維護就結束
+uv run python -m ingest.realtime rebuild   # 從封存重建 realtime.db（收集器必須先停）
+uv run python -m ingest.realtime stop      # 要求收集器停止，最多等 60 秒
+```
+
+`status` 的結束碼：0 正常、1 落後超過 30 分鐘、2 收集器沒在跑或資料庫不存在。`run`／`once`／`rebuild` 遇到未預期的錯誤時，會以繁體中文印出原因並以結束碼 1 結束；`once` 這一次抓取失敗時也以結束碼 1 結束。結束碼 3 表示已有另一份收集器拿著鎖，啟動批次檔把它當成正常停止，不會重啟。設定檔有誤時，每個指令都會印出「設定錯誤」並以結束碼 1 結束。
+
+### 檔案
+
+| 位置 | 內容 |
+|---|---|
+| `data/realtime/archive/` | 每份內容不同的原始回應，gzip 永久保存，是重建時的真實來源；重建與對帳時讀不了的封存檔會被略過 |
+| `data/realtime/attempts/` | 每次抓取嘗試一行 JSON：成功、304、失敗（含封存寫入失敗，記為 `ArchiveError`）、拒收、睡眠後醒來 |
+| `data/processed/realtime.db` | 10 分鐘明細（保留 14 天）、每日估算發電量（永久）、缺口紀錄 |
+| `logs/realtime-collector-*.log` | 收集器的執行紀錄，由收集器自己寫入（批次檔不轉存輸出） |
+| `taipower_align/realtime_units.csv` | 每條序列的人工決定：個別或彙總、屬於哪座電廠 |
+
+`data/` 與 `logs/` 都不進版控。
+
+### 升級
+
+停止收集器 → 更新程式 → 重新啟動收集器（schema 版本不符時會自動從封存重建）→ 重啟網頁服務。修改 `realtime_units.csv` 不需要重建，收集器每小時會自動套用；如果決定檔或電廠檔壞了（例如用 Excel 另存成非 UTF-8），只會記一則警告，繼續使用上一份好的決定。
+
+### 資料治理
+
+即時快照不走資料管理的四眼審核：每 10 分鐘就有一筆，逐筆由人核准並不可行。四眼原則改套在規則上：解析程式、`realtime_units.csv` 與 `configs/realtime.yaml` 的變更一律走 PR 審查，每一筆快照則由自動驗證放行。結構有問題的快照不入庫（原始回應仍然封存），數值有問題的照收並標記品質。
+
 ## 網頁工作台
 
 左側導覽包含五個工作區：

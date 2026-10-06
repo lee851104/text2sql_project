@@ -1,0 +1,205 @@
+unit_type,unit_name,grain,access_scope,plant_id,note
+燃氣,大潭CC#1,unit,plant,8,名稱前綴對應大潭發電廠
+燃氣,大潭CC#2,unit,plant,8,名稱前綴對應大潭發電廠
+燃氣,大潭CC#3,unit,plant,8,名稱前綴對應大潭發電廠
+燃氣,大潭CC#4,unit,plant,8,名稱前綴對應大潭發電廠
+燃氣,大潭CC#5,unit,plant,8,名稱前綴對應大潭發電廠
+燃氣,大潭CC#6,unit,plant,8,名稱前綴對應大潭發電廠
+燃氣,大潭CC#7,unit,plant,8,名稱前綴對應大潭發電廠
+燃氣,大潭CC#8,unit,plant,8,名稱前綴對應大潭發電廠
+燃氣,大潭CC#9,unit,plant,8,名稱前綴對應大潭發電廠
+燃氣,通霄CC#1,unit,plant,21,名稱前綴對應通霄發電廠
+燃氣,通霄CC#2,unit,plant,21,名稱前綴對應通霄發電廠
+燃氣,通霄CC#3,unit,plant,21,名稱前綴對應通霄發電廠
+燃氣,通霄CC#6,unit,plant,21,名稱前綴對應通霄發電廠
+燃氣,通霄GT#9,unit,plant,21,名稱前綴對應通霄發電廠
+燃氣,台中CC#1(註10),unit,plant,5,名稱前綴對應台中發電廠
+燃氣,台中CC#2(註10),unit,plant,5,名稱前綴對應台中發電廠
+燃氣,興達新CC#1,unit,plant,18,名稱前綴對應興達發電廠
+燃氣,興達新CC#2(註10),unit,plant,18,名稱前綴對應興達發電廠
+燃氣,興達新CC#3(註10),unit,plant,18,名稱前綴對應興達發電廠
+燃氣,興達CC#1,unit,plant,18,名稱前綴對應興達發電廠
+燃氣,興達CC#2,unit,plant,18,名稱前綴對應興達發電廠
+燃氣,興達CC#3,unit,plant,18,名稱前綴對應興達發電廠
+燃氣,興達CC#4,unit,plant,18,名稱前綴對應興達發電廠
+燃氣,興達CC#5,unit,plant,18,名稱前綴對應興達發電廠
+燃氣,南部CC#1,unit,plant,4,名稱前綴對應南部發電廠
+燃氣,南部CC#2,unit,plant,4,名稱前綴對應南部發電廠
+燃氣,南部CC#3,unit,plant,4,名稱前綴對應南部發電廠
+燃氣,南部CC#4,unit,plant,4,名稱前綴對應南部發電廠
+燃氣,大林#5,unit,plant,7,名稱前綴對應大林發電廠
+燃氣,大林#6,unit,plant,7,名稱前綴對應大林發電廠
+民營電廠-燃氣,海湖#1,unit,plant,24,名稱前綴對應海湖電廠
+民營電廠-燃氣,海湖#2,unit,plant,24,名稱前綴對應海湖電廠
+民營電廠-燃氣,新桃#1,unit,plant,26,名稱前綴對應新桃電廠
+民營電廠-燃氣,國光#1,unit,plant,25,名稱前綴對應國光電廠
+民營電廠-燃氣,星彰#1,unit,plant,27,名稱前綴對應星彰電廠
+民營電廠-燃氣,星元#1,unit,plant,28,名稱前綴對應星元電廠
+民營電廠-燃氣,嘉惠#1,unit,plant,30,名稱前綴對應嘉惠電廠
+民營電廠-燃氣,嘉惠#2,unit,plant,30,名稱前綴對應嘉惠電廠
+民營電廠-燃氣,豐德#1,unit,plant,31,名稱前綴對應豐德電廠
+民營電廠-燃氣,豐德#2,unit,plant,31,名稱前綴對應豐德電廠
+民營電廠-燃氣,豐德#3,unit,plant,31,名稱前綴對應豐德電廠
+燃煤,林口#1,unit,plant,15,名稱前綴對應林口發電廠
+燃煤,林口#2,unit,plant,15,名稱前綴對應林口發電廠
+燃煤,林口#3,unit,plant,15,名稱前綴對應林口發電廠
+燃煤,台中#1,unit,plant,5,名稱前綴對應台中發電廠
+燃煤,台中#2,unit,plant,5,名稱前綴對應台中發電廠
+燃煤,台中#3,unit,plant,5,名稱前綴對應台中發電廠
+燃煤,台中#4,unit,plant,5,名稱前綴對應台中發電廠
+燃煤,台中#5,unit,plant,5,名稱前綴對應台中發電廠
+燃煤,台中#6,unit,plant,5,名稱前綴對應台中發電廠
+燃煤,台中#7,unit,plant,5,名稱前綴對應台中發電廠
+燃煤,台中#8,unit,plant,5,名稱前綴對應台中發電廠
+燃煤,台中#9,unit,plant,5,名稱前綴對應台中發電廠
+燃煤,台中#10,unit,plant,5,名稱前綴對應台中發電廠
+燃煤,興達#1(註15),unit,plant,18,名稱前綴對應興達發電廠
+燃煤,興達#2(註15),unit,plant,18,名稱前綴對應興達發電廠
+燃煤,興達#3(註15),unit,plant,18,名稱前綴對應興達發電廠
+燃煤,興達#4(註12),unit,plant,18,名稱前綴對應興達發電廠
+燃煤,大林#1,unit,plant,7,名稱前綴對應大林發電廠
+燃煤,大林#2,unit,plant,7,名稱前綴對應大林發電廠
+民營電廠-燃煤,和平#1,unit,plant,23,名稱前綴對應和平電廠
+民營電廠-燃煤,和平#2,unit,plant,23,名稱前綴對應和平電廠
+汽電共生,汽電共生,bucket,shared,,彙總列，不屬於單一電廠，標 shared
+燃料油,協和#3,unit,plant,2,名稱前綴對應協和發電廠
+燃料油,協和#4,unit,plant,2,名稱前綴對應協和發電廠
+燃料油,澎湖尖山(註4),unit,plant,11,澎湖的尖山發電廠，名稱含尖山，人工確認
+燃料油,核二Gas1,unit,plant,33,名稱前綴對應核二廠
+燃料油,核二Gas2,unit,plant,33,名稱前綴對應核二廠
+燃料油,核三Gas1,unit,plant,34,名稱前綴對應核三廠
+燃料油,核三Gas2,unit,plant,34,名稱前綴對應核三廠
+燃料油,台中Gas1&2,unit,plant,5,名稱前綴對應台中發電廠
+燃料油,台中Gas3&4,unit,plant,5,名稱前綴對應台中發電廠
+燃料油,金門塔山(註4),unit,plant,6,金門的塔山發電廠，名稱含塔山，人工確認
+燃料油,馬祖珠山(註4),unit,plant,3,馬祖的珠山分廠，名稱含珠山，人工確認
+燃料油,離島其它(註4),bucket,shared,,彙總列，不屬於單一電廠，標 shared
+太陽能,彰濱光,unit,shared,,不屬於單一電廠，標 shared
+太陽能,南鹽光,unit,shared,,不屬於單一電廠，標 shared
+太陽能,其它台電自有,bucket,shared,,彙總列，不屬於單一電廠，標 shared
+太陽能,崙尾光,unit,shared,,不屬於單一電廠，標 shared
+太陽能,天衝光,unit,shared,,不屬於單一電廠，標 shared
+太陽能,天篷光,unit,shared,,不屬於單一電廠，標 shared
+太陽能,寶興光(註10),unit,shared,,不屬於單一電廠，標 shared
+太陽能,聯華光(註10),unit,shared,,不屬於單一電廠，標 shared
+太陽能,向陽光(註10),unit,shared,,不屬於單一電廠，標 shared
+太陽能,星崴光(註10),unit,shared,,不屬於單一電廠，標 shared
+太陽能,碩力光(註10),unit,shared,,不屬於單一電廠，標 shared
+太陽能,天英光(註10),unit,shared,,不屬於單一電廠，標 shared
+太陽能,志光光(註10),unit,shared,,不屬於單一電廠，標 shared
+太陽能,永堯光(註10),unit,shared,,不屬於單一電廠，標 shared
+太陽能,昱昶光(註10),unit,shared,,不屬於單一電廠，標 shared
+太陽能,星崙光(註10),unit,shared,,不屬於單一電廠，標 shared
+太陽能,新和光(註10),unit,shared,,不屬於單一電廠，標 shared
+太陽能,生利光(註10),unit,shared,,不屬於單一電廠，標 shared
+太陽能,廷和光(註10),unit,shared,,不屬於單一電廠，標 shared
+太陽能,星股光(註10),unit,shared,,不屬於單一電廠，標 shared
+太陽能,其它購電太陽能,bucket,shared,,彙總列，不屬於單一電廠，標 shared
+風力,觀園,unit,shared,,不屬於單一電廠，標 shared
+風力,台中港,unit,shared,,不屬於單一電廠，標 shared
+風力,王功,unit,shared,,不屬於單一電廠，標 shared
+風力,彰工,unit,shared,,不屬於單一電廠，標 shared
+風力,雲麥,unit,shared,,不屬於單一電廠，標 shared
+風力,四湖,unit,shared,,不屬於單一電廠，標 shared
+風力,其它台電自有,bucket,shared,,彙總列，不屬於單一電廠，標 shared
+風力,苗栗大鵬,unit,shared,,不屬於單一電廠，標 shared
+風力,鹿威彰濱,unit,shared,,不屬於單一電廠，標 shared
+風力,觀威觀音&桃威新屋,unit,shared,,不屬於單一電廠，標 shared
+風力,中威大安,unit,shared,,不屬於單一電廠，標 shared
+風力,創維風,unit,shared,,不屬於單一電廠，標 shared
+風力,新源崙背,unit,shared,,不屬於單一電廠，標 shared
+風力,彰品風(註10),unit,shared,,不屬於單一電廠，標 shared
+風力,其它購電風力,bucket,shared,,彙總列，不屬於單一電廠，標 shared
+風力,離岸一期,unit,shared,,不屬於單一電廠，標 shared
+風力,離岸二期(註10),unit,shared,,不屬於單一電廠，標 shared
+風力,海洋竹南,unit,shared,,不屬於單一電廠，標 shared
+風力,海能風,unit,shared,,不屬於單一電廠，標 shared
+風力,沃一風,unit,shared,,不屬於單一電廠，標 shared
+風力,沃二風,unit,shared,,不屬於單一電廠，標 shared
+風力,沃四風(註10),unit,shared,,不屬於單一電廠，標 shared
+風力,沃南風,unit,shared,,不屬於單一電廠，標 shared
+風力,芳一風,unit,shared,,不屬於單一電廠，標 shared
+風力,芳二風,unit,shared,,不屬於單一電廠，標 shared
+風力,允湖,unit,shared,,不屬於單一電廠，標 shared
+風力,允西,unit,shared,,不屬於單一電廠，標 shared
+風力,中能風,unit,shared,,不屬於單一電廠，標 shared
+風力,龍A風(註10),unit,shared,,不屬於單一電廠，標 shared
+風力,龍B風(註10),unit,shared,,不屬於單一電廠，標 shared
+風力,龍三風(註10),unit,shared,,不屬於單一電廠，標 shared
+水力,德基#1,unit,plant,9,大甲溪發電廠的德基分廠，依 taipower_align/README.md
+水力,德基#2,unit,plant,9,大甲溪發電廠的德基分廠，依 taipower_align/README.md
+水力,德基#3,unit,plant,9,大甲溪發電廠的德基分廠，依 taipower_align/README.md
+水力,青山#1,unit,plant,9,大甲溪發電廠的青山分廠，依 taipower_align/README.md
+水力,青山#2,unit,plant,9,大甲溪發電廠的青山分廠，依 taipower_align/README.md
+水力,青山#3,unit,plant,9,大甲溪發電廠的青山分廠，依 taipower_align/README.md
+水力,青山#4,unit,plant,9,大甲溪發電廠的青山分廠，依 taipower_align/README.md
+水力,谷關#1,unit,plant,9,大甲溪發電廠的谷關分廠，依 taipower_align/README.md
+水力,谷關#2,unit,plant,9,大甲溪發電廠的谷關分廠，依 taipower_align/README.md
+水力,谷關#3,unit,plant,9,大甲溪發電廠的谷關分廠，依 taipower_align/README.md
+水力,谷關#4,unit,plant,9,大甲溪發電廠的谷關分廠，依 taipower_align/README.md
+水力,天輪#1,unit,plant,9,大甲溪發電廠的天輪分廠，依 taipower_align/README.md
+水力,天輪#2,unit,plant,9,大甲溪發電廠的天輪分廠，依 taipower_align/README.md
+水力,天輪#3,unit,plant,9,大甲溪發電廠的天輪分廠，依 taipower_align/README.md
+水力,天輪#4,unit,plant,9,大甲溪發電廠的天輪分廠，依 taipower_align/README.md
+水力,天輪#5,unit,plant,9,大甲溪發電廠的天輪分廠，依 taipower_align/README.md
+水力,馬鞍#1,unit,plant,9,大甲溪發電廠的馬鞍分廠，依 taipower_align/README.md
+水力,馬鞍#2,unit,plant,9,大甲溪發電廠的馬鞍分廠，依 taipower_align/README.md
+水力,卓蘭#1,unit,plant,1,名稱前綴對應卓蘭發電廠
+水力,卓蘭#2,unit,plant,1,名稱前綴對應卓蘭發電廠
+水力,萬大#1,unit,plant,19,名稱前綴對應萬大發電廠
+水力,萬大#2,unit,plant,19,名稱前綴對應萬大發電廠
+水力,萬大#3,unit,plant,19,名稱前綴對應萬大發電廠
+水力,萬大#4,unit,plant,19,名稱前綴對應萬大發電廠
+水力,松林#1&2,unit,plant,19,萬大發電廠的松林分廠，依 taipower_align/README.md 被拆兩邊的電廠表
+水力,大觀一#1,unit,plant,10,名稱前綴對應大觀發電廠
+水力,大觀一#2,unit,plant,10,名稱前綴對應大觀發電廠
+水力,大觀一#3,unit,plant,10,名稱前綴對應大觀發電廠
+水力,大觀一#4,unit,plant,10,名稱前綴對應大觀發電廠
+水力,大觀一#5,unit,plant,10,名稱前綴對應大觀發電廠
+水力,鉅工#1,unit,plant,12,明潭發電廠的鉅工分廠，依 taipower_align/README.md
+水力,鉅工#2,unit,plant,12,明潭發電廠的鉅工分廠，依 taipower_align/README.md
+水力,水里#1,unit,plant,12,明潭發電廠的水里分廠，依 taipower_align/README.md
+水力,立霧#1&#2,unit,plant,14,東部發電廠的立霧分廠，依 taipower_align/README.md
+水力,龍澗#1,unit,plant,14,東部發電廠的龍澗分廠，依 taipower_align/README.md
+水力,龍澗#2,unit,plant,14,東部發電廠的龍澗分廠，依 taipower_align/README.md
+水力,碧海,unit,plant,14,東部發電廠的碧海分廠，依 taipower_align/README.md
+水力,烏來&桂山&粗坑,bucket,shared,,烏來、桂山、粗坑三廠合併成一列，無法歸到單一電廠，人工確認
+水力,北部小水力(註6),bucket,shared,,彙總列，不屬於單一電廠，標 shared
+水力,中部小水力(註6),bucket,shared,,彙總列，不屬於單一電廠，標 shared
+水力,南部小水力(註6),bucket,shared,,彙總列，不屬於單一電廠，標 shared
+水力,東部小水力(註6),bucket,shared,,彙總列，不屬於單一電廠，標 shared
+水力,翡翠#1,unit,shared,,不在 34 座電廠名冊內，依規格 §5.3 標 shared，人工確認；日後查證可改
+水力,石門#1,unit,plant,17,名稱前綴對應石門發電廠
+水力,石門#2,unit,plant,17,名稱前綴對應石門發電廠
+水力,曾文#1,unit,plant,13,名稱前綴對應曾文發電廠
+水力,義興#1,unit,shared,,不在 34 座電廠名冊內，依規格 §5.3 標 shared，人工確認；日後查證可改
+水力,名間,unit,shared,,不在 34 座電廠名冊內，依規格 §5.3 標 shared，人工確認；日後查證可改
+水力,嘉南西口、烏山頭和八田,unit,shared,,不在 34 座電廠名冊內，依規格 §5.3 標 shared，人工確認；日後查證可改
+水力,卑南,unit,shared,,不在 34 座電廠名冊內，依規格 §5.3 標 shared，人工確認；日後查證可改
+水力,捷祥關山,unit,shared,,不在 34 座電廠名冊內，依規格 §5.3 標 shared，人工確認；日後查證可改
+水力,其它購電小水力,bucket,shared,,彙總列，不屬於單一電廠，標 shared
+儲能,大觀二#1,unit,plant,10,名稱前綴對應大觀發電廠
+儲能,大觀二#2,unit,plant,10,名稱前綴對應大觀發電廠
+儲能,大觀二#3,unit,plant,10,名稱前綴對應大觀發電廠
+儲能,大觀二#4,unit,plant,10,名稱前綴對應大觀發電廠
+儲能,明潭#1,unit,plant,12,名稱前綴對應明潭發電廠
+儲能,明潭#2,unit,plant,12,名稱前綴對應明潭發電廠
+儲能,明潭#3,unit,plant,12,名稱前綴對應明潭發電廠
+儲能,明潭#4,unit,plant,12,名稱前綴對應明潭發電廠
+儲能,明潭#5,unit,plant,12,名稱前綴對應明潭發電廠
+儲能,明潭#6,unit,plant,12,名稱前綴對應明潭發電廠
+儲能,電池(註16),bucket,shared,,彙總列，不屬於單一電廠，標 shared
+其它再生能源,台電自有地熱,unit,shared,,不屬於單一電廠，標 shared
+其它再生能源,購電地熱,bucket,shared,,彙總列，不屬於單一電廠，標 shared
+其它再生能源,生質能(Biofuel),unit,shared,,不屬於單一電廠，標 shared
+儲能負載,大觀二#1,unit,plant,10,名稱前綴對應大觀發電廠
+儲能負載,大觀二#2,unit,plant,10,名稱前綴對應大觀發電廠
+儲能負載,大觀二#3,unit,plant,10,名稱前綴對應大觀發電廠
+儲能負載,大觀二#4,unit,plant,10,名稱前綴對應大觀發電廠
+儲能負載,明潭#1,unit,plant,12,名稱前綴對應明潭發電廠
+儲能負載,明潭#2,unit,plant,12,名稱前綴對應明潭發電廠
+儲能負載,明潭#3,unit,plant,12,名稱前綴對應明潭發電廠
+儲能負載,明潭#4,unit,plant,12,名稱前綴對應明潭發電廠
+儲能負載,明潭#5,unit,plant,12,名稱前綴對應明潭發電廠
+儲能負載,明潭#6,unit,plant,12,名稱前綴對應明潭發電廠
+儲能負載,電池(註16),bucket,shared,,彙總列，不屬於單一電廠，標 shared

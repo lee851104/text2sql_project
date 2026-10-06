@@ -19,3 +19,6 @@ paths:
   outage_scope_csv: taipower_align/outage_plant_map.csv
   database: data/processed/power.db
   data_quality_report: reports/data_quality.json
+  realtime_database: data/processed/realtime.db
+  realtime_root: data/realtime
+  realtime_units_csv: taipower_align/realtime_units.csv
