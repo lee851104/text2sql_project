@@ -653,6 +653,10 @@ def create_app(
             or protected_path == "/api/training-status"
         ):
             application.state.auth_manager.mark_no_store(response)
+        elif protected_path == "/" or protected_path.startswith("/static/"):
+            # 沒有 Cache-Control 時瀏覽器會依 Last-Modified 自行推估新鮮度，升級後可能好幾天都用
+            # 舊的 app.js。no-cache 讓每次載入都帶 ETag 回來確認，沒變只回 304。
+            response.headers.setdefault("Cache-Control", "no-cache")
         return response
 
     @application.get("/", include_in_schema=False)
