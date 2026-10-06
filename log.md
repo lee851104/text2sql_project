@@ -32,6 +32,8 @@
 
 - 驗收：`uv run ruff format --check .`、`uv run ruff check .` 通過；`uv run pytest -q` → 1112 passed、1 skipped
   （基準 1054 passed、1 skipped）；`node --check app.js` 通過。
+- 回退方式：由新到舊 `git revert` 本分支的全部 commit。只會移除面板、權限函式與文件改動；收集器、
+  `realtime.db` 與查詢端都不受影響。
 
 ### 實機驗收
 

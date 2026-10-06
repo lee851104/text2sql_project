@@ -1294,7 +1294,7 @@ from text2sql.scope_guard import ScopeCatalog
 pytestmark = pytest.mark.integration
 
 ORIGIN = "http://testserver"
-PASSWORD = "realtime-test-password"
+PASSWORD = "realtime-test-password"  # pre-merge-check: allow-secret（測試用假密碼）
 ALL_ACCOUNT = "supervisor"
 PLANT_ACCOUNT = "datan"
 OWN_PLANT = "大潭發電廠"
