@@ -167,6 +167,17 @@ def test_a_denied_visitor_gets_401_while_health_still_answers(
     assert client.get("/api/health").json()["realtime"]["available"] is True
 
 
+@pytest.mark.parametrize("username", [ALL_ACCOUNT, PLANT_ACCOUNT])
+def test_a_logged_in_account_passes_a_denied_anonymous_scope(
+    service: Service, client: TestClient, tmp_path: Path, username: str
+) -> None:
+    _install(service, tmp_path)
+    client.app.state.anonymous_scope = "denied"
+    _login(client, username)
+
+    assert client.get("/api/realtime/overview").status_code == 200
+
+
 def test_query_keeps_its_own_login_message(client: TestClient) -> None:
     client.app.state.anonymous_scope = "denied"
 

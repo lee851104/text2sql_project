@@ -1178,6 +1178,7 @@
       unlockDataManagement(data);
       selectManagementTab(activeManagementTab, { focus: false });
       announce("資料管理登入成功", false);
+      if (realtimeVisible()) loadRealtime();
       return refreshDataManagement(false);
     }).catch(function (error) {
       lockDataManagement("登入失敗：" + error.message);
@@ -1201,6 +1202,7 @@
       if (error && error.status !== 401) announce("登出請求未完成，但本頁憑證已清除", true);
     }).finally(function () {
       lockDataManagement("已登出資料管理。", false);
+      if (realtimeVisible()) loadRealtime();
       managementRequestActive = false;
       byId("dataLogout").disabled = false;
       window.setTimeout(function () { byId("adminUsername").focus(); }, 0);

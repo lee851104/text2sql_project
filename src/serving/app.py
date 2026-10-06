@@ -1299,6 +1299,8 @@ def create_app(
             return ALL_PLANTS, None
         service = current_runtime()
         plant = resolve_account_plant(principal, service)
+        if not plant:
+            raise HTTPException(status_code=503, detail="帳號名冊與目前的登入階段不一致。")
         catalog = service.pipeline.scope_guard.catalog
         return RealtimeScope("plant", principal.plant_id, plant), catalog.plant_names_by_id()
 

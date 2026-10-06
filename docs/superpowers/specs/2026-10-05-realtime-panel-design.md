@@ -137,7 +137,7 @@ class RealtimePanel:
 |---|---|
 | `RT_STALE` | `state = stale`：落後超過門檻，附落後分鐘數 |
 | `RT_COLLECTOR_STOPPED` | `state = stopped`：數字是收集器停止前的最後一筆 |
-| `RT_QUALITY_WARN` | 最新快照 `quality = warn`，附警告內容（RT-1 規格 §6） |
+| `RT_QUALITY_WARN` | 最新快照 `quality = warn`；警告內容（RT-1 規格 §6）只給全電廠範圍，電廠帳號只看到警告代碼（細節可能涉及其他電廠） |
 | `RT_SCOPE_PLANT` | 電廠帳號：只含本廠機組與 `shared` 的列 |
 | `RT_NO_DATA_TODAY` | 最新資料不是今天的：今日趨勢是空的 |
 

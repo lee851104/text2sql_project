@@ -259,6 +259,31 @@ def test_a_quality_warning_is_disclosed(tmp_path: Path) -> None:
     assert "SUBTOTAL_MISMATCH" in data["disclosures"][0]["reason"]
 
 
+def test_a_plant_scope_sees_the_warning_codes_but_no_system_wide_details(
+    tmp_path: Path,
+) -> None:
+    warnings = [
+        {"code": "VALUE_UNPARSEABLE", "detail": "淨發電量 1 列：興達#1"},
+        {"code": "SUBTOTAL_MISMATCH", "detail": "燃氣：明細 780.0 MW，小計 790.0 MW"},
+    ]
+
+    data = _running(_panel(tmp_path, warnings={"2026-10-05 15:20": warnings}), DATAN)
+
+    reasons = {item["code"]: item["reason"] for item in data["disclosures"]}
+    assert reasons["RT_QUALITY_WARN"] == (
+        "最新快照有驗證警告（VALUE_UNPARSEABLE、SUBTOTAL_MISMATCH）；細節請洽管理員。"
+    )
+    assert not any("興達" in reason or "790.0" in reason for reason in reasons.values())
+
+
+def test_the_all_scope_still_sees_the_warning_details(tmp_path: Path) -> None:
+    warnings = [{"code": "SUBTOTAL_MISMATCH", "detail": "燃氣：明細 780.0 MW，小計 790.0 MW"}]
+
+    data = _running(_panel(tmp_path, warnings={"2026-10-05 15:20": warnings}))
+
+    assert "790.0 MW" in data["disclosures"][0]["reason"]
+
+
 # ── 沒有資料、讀不到 ───────────────────────────────────────────────────────
 
 

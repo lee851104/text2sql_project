@@ -109,6 +109,9 @@ class RealtimePanel:
             raise RealtimeReadError(str(error)) from error
         try:
             connection.execute("PRAGMA query_only = ON")
+            # 讀取交易：機組名冊、最新時段與今日資料要來自同一個 WAL 快照，
+            # 收集器中途寫入也不會讓三者不一致；連線關閉時交易自然結束。
+            connection.execute("BEGIN")
             return self._overview(
                 connection,
                 scope,
@@ -306,13 +309,17 @@ def _disclosures(
             }
         )
     if report.get("latest_quality") == "warn":
-        warnings = report.get("latest_warnings") or []
-        detail = "；".join(
-            f"{item.get('code')}：{item.get('detail')}"
-            for item in warnings
-            if isinstance(item, Mapping)
-        )
-        items.append({"code": "RT_QUALITY_WARN", "reason": f"最新快照有驗證警告：{detail}"})
+        warnings = [
+            item for item in report.get("latest_warnings") or [] if isinstance(item, Mapping)
+        ]
+        if scope.kind == "plant":
+            # 警告是全系統的（全國小計、別廠與歸屬未定的機組名），電廠帳號只給代碼。
+            codes = "、".join(dict.fromkeys(str(item.get("code")) for item in warnings))
+            reason = f"最新快照有驗證警告（{codes}）；細節請洽管理員。"
+        else:
+            detail = "；".join(f"{item.get('code')}：{item.get('detail')}" for item in warnings)
+            reason = f"最新快照有驗證警告：{detail}"
+        items.append({"code": "RT_QUALITY_WARN", "reason": reason})
     if scope.kind == "plant":
         items.append(
             {
