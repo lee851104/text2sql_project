@@ -2,6 +2,31 @@
 
 > 這份檔案在每個可驗證、可回退的儲存點更新。回退前需保留使用者原有的未提交變更。
 
+## CP-077 — 今日趨勢圖的圖例、時間刻度與軸標題不再重疊
+
+- 時間：2026-10-07 14:10 +08:00
+- 狀態：已完成
+- 分支：`fix/realtime-trend-chart-layout`（從 `main` @ `8e5349e` 開）
+- 起點：使用者回報總覽頁的今日趨勢圖文字重疊、不好看。圖例放在圖下方，和直排的每 10 分鐘時間刻度、
+  X 軸標題擠在一起；12 種類型共用 Plotly 預設的 10 色，燃氣與儲能、太陽能與儲能負載同色。
+
+### 做了什麼
+
+- `src/serving/static/app.js`：
+  - 關掉 Plotly 圖例，改由頁面在圖的上方畫圖例（色塊＋名稱，可換行）。Plotly 的圖例不會替自己留位置，
+    放下方壓到刻度，放上方壓到線條。
+  - 時間刻度只標整點，依圖寬每約 90px 一個、至少 3 個，橫排。
+  - 每種類型固定顏色（13 種都不同），未知類型用備用色。
+- `src/serving/static/index.html`：圖例元素 `realtimeTrendLegend`。
+- `src/serving/static/app.css`：圖例樣式；趨勢圖高度 380px。
+- `tests/test_realtime_api.py`：圖例元素在圖之前、`showlegend: false`、刻度橫排。
+- 以真實的今日資料在本機預覽驗證：桌面（刻度每 2 小時）與手機寬度 375px（3 個刻度、圖例換行、無水平捲動）
+  都沒有重疊。主控台的一則 CSP「inline style」錯誤在 main 上載入 Plotly 時原本就有，不是這次造成的。
+
+- 驗收：`uv run ruff format --check .`、`uv run ruff check .` 通過；`uv run pytest -q` → 1121 passed、2 skipped
+  （新增 1 項；第 2 個 skip 是本機 8765 埠被占用的環境因素）；`node --check app.js` 通過。
+- 回退方式：`git revert` 本分支的 commit。趨勢圖回到原本的版面，資料與 API 不受影響。
+
 ## CP-076 — 開機啟動檔在 Big5 主控台下讀錯指令，登入後收集器沒有啟動
 
 - 時間：2026-10-07 11:10 +08:00

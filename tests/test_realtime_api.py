@@ -276,6 +276,7 @@ REALTIME_IDS = (
     "realtimeTrend",
     "realtimeTrendDetails",
     "realtimeTrendTable",
+    "realtimeTrendLegend",
 )
 
 
@@ -295,3 +296,14 @@ def test_the_script_refreshes_the_panel_only_while_it_is_visible() -> None:
     assert "REALTIME_REFRESH_MS = 60000" in script
     assert '"visibilitychange"' in script
     assert "connectgaps: false" in script
+
+
+def test_the_trend_chart_keeps_its_legend_and_time_labels_apart() -> None:
+    """Plotly 的圖例不會替自己留位置，曾經和時間刻度、軸標題疊在一起；圖例改由頁面畫在圖的上方。"""
+
+    script = (STATIC / "app.js").read_text(encoding="utf-8")
+    html = (STATIC / "index.html").read_text(encoding="utf-8")
+
+    assert "showlegend: false" in script
+    assert "tickangle: 0" in script
+    assert html.index('id="realtimeTrendLegend"') < html.index('id="realtimeTrend"')
