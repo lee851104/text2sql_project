@@ -2,6 +2,28 @@
 
 > 這份檔案在每個可驗證、可回退的儲存點更新。回退前需保留使用者原有的未提交變更。
 
+## CP-075 — 前端靜態檔改成每次重新確認，升級後不再沿用舊 app.js
+
+- 時間：2026-10-06 14:50 +08:00
+- 狀態：已完成
+- 分支：`fix/static-cache-revalidate`（從 `main` @ `29a6488` 開）
+- 起點：#19 合併後在本機開網頁，即時發電區塊一直停在「讀取中…」。原因是首頁與 `/static/` 沒有
+  `Cache-Control`，瀏覽器依 Last-Modified 推估新鮮度，連重新整理都直接用快取裡升級前的 `app.js`。
+
+### 做了什麼
+
+- `src/serving/app.py`：首頁與 `/static/` 的回應加上 `Cache-Control: no-cache`（不覆蓋已設定的值；
+  API 的 no-store 規則不變）。每次載入都帶 ETag 確認，沒變只回 304。
+- `src/serving/static/index.html`：`app.js`、`app.css`、`styles.css` 加上 `?v=20261006`，讓已經快取舊檔的
+  瀏覽器改抓新網址。之後的更新靠 no-cache 就夠，版本參數不必每次改。
+- `tests/test_static_cache.py`：首頁與三個靜態檔都帶 no-cache、未變更時回 304、`index.html` 的版本參數
+  網址拿得到檔案、API 仍是 no-store。
+- `docs/SERVING.md`：說明快取行為。
+
+- 驗收：`uv run ruff format --check .`、`uv run ruff check .` 通過；`uv run pytest -q` → 1119 passed、1 skipped
+  （基準 1112 passed、1 skipped）；`node --check app.js` 通過。
+- 回退方式：`git revert` 本分支的 commit。只會讓瀏覽器回到自行推估快取的行為，資料與查詢不受影響。
+
 ## CP-074 — 即時發電面板 RT-3a：總覽頁看得到即時資料，權限與查詢一致
 
 - 時間：2026-10-06 09:09 +08:00
