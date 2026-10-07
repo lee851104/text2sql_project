@@ -57,6 +57,22 @@
   var dataChangeDialogReturnFocus = null;
   var REALTIME_REFRESH_MS = 60000;
   var REALTIME_STATE_LABELS = { healthy: "正常", stale: "資料落後", stopped: "收集器未執行", unavailable: "尚無即時資料" };
+  var REALTIME_TYPE_COLORS = {
+    "燃氣": "#1f77b4",
+    "民營電廠-燃氣": "#7fb3e0",
+    "燃煤": "#3d3d3d",
+    "民營電廠-燃煤": "#9a9a9a",
+    "汽電共生": "#8c564b",
+    "燃料油": "#b8a300",
+    "核能": "#9467bd",
+    "太陽能": "#ff7f0e",
+    "風力": "#17becf",
+    "水力": "#2ca02c",
+    "其它再生能源": "#98c379",
+    "儲能": "#d62728",
+    "儲能負載": "#f4a3a8"
+  };
+  var REALTIME_FALLBACK_COLORS = ["#e377c2", "#7f7f7f", "#bcbd22", "#aec7e8", "#ffbb78"];
   var realtimeRequest = null;
 
   function element(tag, className, text) {
@@ -789,6 +805,33 @@
     byId("realtimeStorageNote").hidden = !storage;
   }
 
+  function realtimeTypeColor(type, index) {
+    // 每種類型固定一個顏色：Plotly 預設只有 10 色，12 種類型會重複，換時段後顏色也不會跳動。
+    return REALTIME_TYPE_COLORS[type] || REALTIME_FALLBACK_COLORS[index % REALTIME_FALLBACK_COLORS.length];
+  }
+
+  function realtimeHourTicks(slots, width) {
+    // 只標整點；依圖寬每約 90px 一個刻度（至少 3 個），橫排也不會擠在一起，手機上一樣。
+    var maxTicks = Math.max(3, Math.floor((width || 0) / 90));
+    var hours = slots.filter(function (slot) { return slot.slice(3) === "00"; });
+    var step = Math.max(1, Math.ceil(hours.length / maxTicks));
+    return hours.filter(function (_slot, index) { return index % step === 0; });
+  }
+
+  function renderRealtimeLegend(traces) {
+    var legend = byId("realtimeTrendLegend");
+    legend.textContent = "";
+    traces.forEach(function (trace) {
+      var item = element("li", "");
+      var swatch = element("span", "realtime-legend-swatch");
+      swatch.setAttribute("aria-hidden", "true");
+      swatch.style.backgroundColor = trace.line.color;
+      item.appendChild(swatch);
+      item.appendChild(element("span", "", trace.name));
+      legend.appendChild(item);
+    });
+  }
+
   function renderRealtimeTrend(today) {
     var chart = byId("realtimeTrend");
     var holder = byId("realtimeTrendTable");
@@ -806,21 +849,34 @@
       if (table) holder.appendChild(table);
     }
     if (!slots.length || !plotly) {
+      byId("realtimeTrendLegend").textContent = "";
       if (plotly) plotly.purge(chart);
       chart.textContent = slots.length ? "圖表元件未載入，請展開下方數字表。" : "今天還沒有資料。";
       return;
     }
     if (!chart.classList.contains("js-plotly-plot")) chart.textContent = "";
-    var traces = series.map(function (item) {
+    var traces = series.map(function (item, index) {
       // 缺值是 null：斷線，不畫成 0。
-      return { type: "scatter", mode: "lines", name: item.type, x: slots, y: item.net_mw, connectgaps: false };
+      return {
+        type: "scatter",
+        mode: "lines",
+        name: item.type,
+        x: slots,
+        y: item.net_mw,
+        connectgaps: false,
+        line: { color: realtimeTypeColor(item.type, index) }
+      };
     });
+    var ticks = realtimeHourTicks(slots, chart.clientWidth);
+    renderRealtimeLegend(traces);
     Promise.resolve().then(function () {
       return plotly.react(chart, traces, {
-        margin: { t: 16, r: 16, b: 52, l: 64 },
-        xaxis: { title: { text: "時刻（台灣時間）" } },
+        margin: { t: 16, r: 16, b: 56, l: 64 },
+        xaxis: { title: { text: "時刻（台灣時間）" }, tickmode: "array", tickvals: ticks, ticktext: ticks, tickangle: 0 },
         yaxis: { title: { text: "MW" } },
-        legend: { orientation: "h" },
+        // 圖例改由頁面畫在圖的上方（renderRealtimeLegend）：Plotly 的圖例不會替自己留位置，
+        // 放下方會壓到時間刻度，放上方會壓到線條。
+        showlegend: false,
         paper_bgcolor: "rgba(0,0,0,0)",
         plot_bgcolor: "rgba(0,0,0,0)",
         font: { family: "system-ui, sans-serif", color: "#263547" },

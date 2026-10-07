@@ -424,3 +424,7 @@ pre { overflow: auto; padding: 13px; border-radius: 9px; color: #dceaff; backgro
 .realtime-table td.numeric { text-align: right; font-variant-numeric: tabular-nums; }
 .realtime-note { margin: 10px 0 0; color: var(--muted); font-size: .75rem; }
 .realtime-panel details { margin-top: 8px; font-size: .8rem; }
+.realtime-chart .plotly-chart { height: 380px; }
+.realtime-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 16px 0 0; padding: 0; list-style: none; font-size: .78rem; color: var(--muted-strong); }
+.realtime-legend li { display: inline-flex; align-items: center; gap: 6px; }
+.realtime-legend-swatch { flex: 0 0 auto; width: 14px; height: 3px; border-radius: 2px; }
