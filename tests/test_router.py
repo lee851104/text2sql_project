@@ -502,7 +502,7 @@ def test_overview_words_do_not_catch_a_single_kind() -> None:
 # ---------------------------------------------------------------------------
 # 大修（歲修）離線路由
 #
-# 測試集 100 題裡有 20 題問「大修」，原本全部掉到線上生成：classify_intent 的 outage
+# 測試集 100 題裡有 20 題問「大修」，原本全部掉到 LLM 生成：classify_intent 的 outage
 # 關鍵字只收「歲修／維修／修復」，沒有「大修」。少了這個詞，問句要嘛落到 other，要嘛
 # 被 plant_units（「林口電廠…機組…」）或 fuel_stats（「燃煤…總裝置容量」）先搶走。
 # ---------------------------------------------------------------------------
@@ -617,7 +617,7 @@ def test_an_overhaul_threshold_question_lists_units_instead_of_summing() -> None
     ["某機組預計何時開始大修", "某機組預計何時恢復運轉"],
 )
 def test_a_templated_overhaul_question_asks_which_unit(question: str) -> None:
-    """範本句沒指名機組，該追問是哪一部，而不是掉到線上生成。"""
+    """範本句沒指名機組，該追問是哪一部，而不是掉到 LLM 生成。"""
 
     missing = missing_parameter_clarification(
         question,
@@ -633,7 +633,7 @@ def test_a_templated_overhaul_question_asks_which_unit(question: str) -> None:
 # ---------------------------------------------------------------------------
 # 核能
 #
-# 核能不在 dim_unit 機組主檔裡，所以問「核一有哪些機組」原本一路掉到線上生成。
+# 核能不在 dim_unit 機組主檔裡，所以問「核一有哪些機組」原本一路掉到 LLM 生成。
 # 但 v_peak 的「核能」類別有**完整**的 6 部單機（核一/二/三各 2 部，沒有彙總欄），
 # 容量也在「對應裝置容量_萬瓩」欄 —— 資料查得到，只是規則沒接。
 # ---------------------------------------------------------------------------

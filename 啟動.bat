@@ -1,13 +1,13 @@
 @echo off
 setlocal EnableExtensions DisableDelayedExpansion
-title PowerQuery TW
+title GridLens TW
 
 rem Always work from this launcher's directory. pushd also supports UNC paths.
 pushd "%~dp0" >nul 2>&1
 if errorlevel 1 goto :project_directory_error
 
 echo ============================================================
-echo   PowerQuery TW Web Launcher
+echo   GridLens TW Web Launcher
 echo ============================================================
 echo.
 
@@ -36,7 +36,7 @@ goto :initialize_directories
 
 :sync_dependencies
 echo [1/4] Synchronizing Python dependencies. The first run may take a while...
-call uv sync --extra dev --extra online
+call uv sync --extra dev --extra local
 if errorlevel 1 goto :sync_error
 powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%~dp0scripts\launcher_dependency_state.ps1" write >nul 2>&1
 if errorlevel 1 echo [WARNING] Dependency stamp could not be saved; the next launch will sync again.
@@ -68,7 +68,7 @@ if errorlevel 1 goto :server_error
 goto :server_stopped
 
 :already_running
-echo [4/4] PowerQuery TW is already running. Opening the browser...
+echo [4/4] GridLens TW is already running. Opening the browser...
 if defined POWERQUERY_SKIP_BROWSER goto :success
 start "" "%POWERQUERY_URL%"
 goto :success
@@ -107,7 +107,7 @@ goto :failure
 
 :server_stopped
 echo.
-echo PowerQuery TW has stopped.
+echo GridLens TW has stopped.
 goto :success
 
 :failure

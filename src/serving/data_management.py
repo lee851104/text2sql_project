@@ -49,7 +49,9 @@ CHANGE_SCHEMA = "powerquery-data-change-v1"
 DATABASE_SCHEMA = "powerquery-data-database-v1"
 MUTATION_SCHEMA = "powerquery-data-mutation-v1"
 PUBLISH_SCHEMA = "powerquery-data-publish-v1"
-SOURCE_SCHEMA = "powerquery-data-sources-v1"
+SOURCE_SCHEMA = "powerquery-data-sources-v2"
+# v1 的版本 id 只由來源內容決定；舊 workspace 的版本仍照原公式驗證，但視為需要重建。
+LEGACY_SOURCE_SCHEMA = "powerquery-data-sources-v1"
 VERSION_SCHEMA = "powerquery-data-version-v1"
 ZERO_HASH = "0" * 64
 _AUDIT_EVENT_PATTERN = re.compile(r"^[a-z][a-z0-9_:-]{0,79}$")
@@ -61,7 +63,7 @@ _FILE_LOCK_RETRY_SECONDS = 0.05
 _WINDOWS_RETRYABLE_ERRORS = {5, 32, 33}
 
 ChangeState = Literal["pending_review", "approved", "rejected", "failed"]
-ChangeAction = Literal["upload", "remove", "rollback"]
+ChangeAction = Literal["upload", "remove", "rollback", "rebuild"]
 
 
 @dataclass(frozen=True)
@@ -400,12 +402,21 @@ class DataManagementService:
         source_paths: Mapping[str, Path],
         initial_database: Path,
         build_database: BuildDatabase,
+        build_schema: str,
         switch_runtime: SwitchRuntime | None = None,
         max_upload_bytes: int = 64 * 1024 * 1024,
         allow_self_approval: bool = False,
     ) -> None:
+        """`build_schema` 是建庫程式的 schema 版本，與來源內容一起決定資料版本 id。
+
+        同一組來源用不同 schema 的建庫程式建出來是不同的資料庫，所以必須是不同的版本；
+        否則新程式重建出的 checksum 會被當成篡改，服務端也永遠拿不到新 schema。
+        """
+
         if max_upload_bytes < 1:
             raise ValueError("max_upload_bytes 必須大於 0。")
+        if not isinstance(build_schema, str) or not build_schema.strip():
+            raise ValueError("build_schema 不可為空。")
         unknown = set(source_paths) - set(DATA_SLOTS)
         missing = set(DATA_SLOTS) - set(source_paths)
         if unknown or missing:
@@ -420,6 +431,7 @@ class DataManagementService:
         }
         self._initial_database = Path(initial_database).resolve()
         self._build_database = build_database
+        self.build_schema = build_schema
         self._switch_runtime = switch_runtime
         self.max_upload_bytes = max_upload_bytes
         self.allow_self_approval = bool(allow_self_approval)
@@ -527,8 +539,8 @@ class DataManagementService:
         return payload
 
     @staticmethod
-    def _version_for_entries(entries: Mapping[str, Mapping[str, Any]]) -> str:
-        identity = {
+    def _content_identity(entries: Mapping[str, Mapping[str, Any]]) -> dict[str, Any]:
+        return {
             name: {
                 "present": bool(entry["present"]),
                 "sha256": entry.get("sha256"),
@@ -536,7 +548,34 @@ class DataManagementService:
             }
             for name, entry in sorted(entries.items())
         }
+
+    @classmethod
+    def _version_for_entries(
+        cls,
+        entries: Mapping[str, Mapping[str, Any]],
+        build_schema: str | None,
+    ) -> str:
+        """Content-address one source set as built by one builder schema.
+
+        `build_schema=None` 只用來驗證 v1 manifest：那時的 id 只雜湊來源內容。
+        """
+
+        identity: dict[str, Any] = cls._content_identity(entries)
+        if build_schema is not None:
+            identity = {"build_schema": build_schema, "files": identity}
         return f"data-{_sha256_bytes(_canonical_json(identity))}"
+
+    @staticmethod
+    def _manifest_build_schema(manifest: Mapping[str, Any]) -> str | None:
+        """Return the builder schema a source manifest was versioned with (None for v1)."""
+
+        schema = manifest.get("schema_version")
+        if schema == LEGACY_SOURCE_SCHEMA and "build_schema" not in manifest:
+            return None
+        build_schema = manifest.get("build_schema")
+        if schema != SOURCE_SCHEMA or not isinstance(build_schema, str) or not build_schema:
+            raise DataManagementValidationError("來源 manifest 格式無效。")
+        return build_schema
 
     def _entries_from_paths(self, paths: Mapping[str, Path]) -> dict[str, dict[str, Any]]:
         entries: dict[str, dict[str, Any]] = {}
@@ -563,7 +602,7 @@ class DataManagementService:
         action: str,
     ) -> tuple[str, dict[str, Any]]:
         entries = self._entries_from_paths(paths)
-        version = self._version_for_entries(entries)
+        version = self._version_for_entries(entries, self.build_schema)
         destination = self.sources_dir / version
         manifest_path = destination / "manifest.json"
         if manifest_path.exists():
@@ -581,6 +620,7 @@ class DataManagementService:
             manifest = {
                 "schema_version": SOURCE_SCHEMA,
                 "version": version,
+                "build_schema": self.build_schema,
                 "created_at": _now(),
                 "base_version": base_version,
                 "action": action,
@@ -607,7 +647,8 @@ class DataManagementService:
         return {name: root / slot.filename for name, slot in DATA_SLOTS.items()}
 
     def _verify_sources(self, version: str, manifest: Mapping[str, Any]) -> None:
-        if manifest.get("schema_version") != SOURCE_SCHEMA or manifest.get("version") != version:
+        build_schema = self._manifest_build_schema(manifest)
+        if manifest.get("version") != version:
             raise DataManagementValidationError("來源 manifest 格式無效。")
         files = manifest.get("files")
         if not isinstance(files, dict) or set(files) != set(DATA_SLOTS):
@@ -634,7 +675,7 @@ class DataManagementService:
                 "sha256"
             ):
                 raise DataManagementValidationError(f"來源檔已被篡改：{slot.filename}")
-        if self._version_for_entries(files) != version:
+        if self._version_for_entries(files, build_schema) != version:
             raise DataManagementValidationError("來源版本 checksum 不一致。")
 
     def _write_database_build_journal(
@@ -788,7 +829,10 @@ class DataManagementService:
         }
 
     def _initial_database_matches_sources(self, source_manifest: Mapping[str, Any]) -> bool:
-        """Verify provenance before copying a pre-existing database into the workspace."""
+        """Verify provenance before copying a pre-existing database into the workspace.
+
+        來源相同還不夠：舊建庫程式建出的檔案缺新 schema，複製進來就會被當成現行版本。
+        """
 
         if not self._initial_database.is_file():
             return False
@@ -799,12 +843,14 @@ class DataManagementService:
             uri = f"{self._initial_database.as_uri()}?mode=ro"
             with closing(sqlite3.connect(uri, uri=True)) as connection:
                 row = connection.execute(
-                    "SELECT source_sha256 FROM meta_manifest WHERE id = 1"
+                    "SELECT source_sha256, schema_version FROM meta_manifest WHERE id = 1"
                 ).fetchone()
             recorded = json.loads(row[0]) if row and isinstance(row[0], str) else None
         except (json.JSONDecodeError, OSError, sqlite3.Error):
             return False
-        return isinstance(recorded, dict) and recorded == expected
+        return (
+            isinstance(recorded, dict) and recorded == expected and str(row[1]) == self.build_schema
+        )
 
     def _bootstrap(self) -> None:
         version, source_manifest = self._materialize_sources(
@@ -1528,7 +1574,11 @@ class DataManagementService:
         finally:
             if temporary.exists():
                 shutil.rmtree(temporary)
-        if version == base_version:
+        base_manifest = self._load_json(self._source_manifest_path(base_version))
+        if self._content_identity(manifest["files"]) == self._content_identity(
+            base_manifest["files"]
+        ):
+            # 內容沒變、只差建庫 schema 時要走 rebuild，才不會把升級記成一次上傳。
             raise DataManagementStateError("資料內容與目前版本相同。")
         return version, manifest
 
@@ -1591,8 +1641,8 @@ class DataManagementService:
     def _new_failed_change(
         self,
         *,
-        action: Literal["upload", "remove"],
-        slot: str,
+        action: Literal["upload", "remove", "rebuild"],
+        slot: str | None,
         actor: str,
         candidate_version: str,
         request_reason: str,
@@ -1805,6 +1855,52 @@ class DataManagementService:
                 slot=None,
                 actor=actor,
                 candidate_version=version,
+                database_metadata=database_metadata,
+                request_reason=request_reason,
+            )
+
+    def stage_rebuild(
+        self,
+        *,
+        actor: str,
+        reason: str = "",
+        note: str | None = None,
+    ) -> dict[str, Any]:
+        """Rebuild the active sources with the current builder; publishing still needs review.
+
+        建庫程式的 schema 升版後，作用中版本仍是舊程式建的。來源不變，只換建庫程式，
+        結果也可能不同（例如多了檢視），所以照樣先建候選、由另一個人核准才上線。
+        """
+
+        actor = _clean_text(actor, field="actor", maximum=80)
+        request_reason = _request_reason(reason, note)
+        with self._transaction():
+            validated = self._validated_active_and_audit()[0]
+            base_version = str(validated["version"])
+            if self._manifest_build_schema(validated["source_manifest"]) == self.build_schema:
+                raise DataManagementStateError("目前版本已由現行建庫程式建置，不需要重建。")
+            candidate_version, _manifest = self._materialize_sources(
+                self._source_paths(base_version),
+                base_version=base_version,
+                action="rebuild",
+            )
+            try:
+                _database, database_metadata = self._build_or_reuse_database(candidate_version)
+            except DataManagementError as error:
+                self._new_failed_change(
+                    action="rebuild",
+                    slot=None,
+                    actor=actor,
+                    candidate_version=candidate_version,
+                    request_reason=request_reason,
+                    error_type=type(error).__name__,
+                )
+                raise
+            return self._new_change(
+                action="rebuild",
+                slot=None,
+                actor=actor,
+                candidate_version=candidate_version,
                 database_metadata=database_metadata,
                 request_reason=request_reason,
             )
@@ -2101,12 +2197,17 @@ class DataManagementService:
             changes = self.list_changes(limit=500)
             audits = self._read_audit()
             self._validate_active_audit(active, audits)
+            active_build_schema = self._manifest_build_schema(validated["source_manifest"])
             return {
                 "schema_version": "powerquery-data-status-v1",
                 "workspace_ready": True,
                 "active_version": active["version"],
                 "active_revision": active["revision"],
                 "active_database": active["database"],
+                # null = v1 版本（建庫 schema 未記錄），一律視為需要重建。
+                "active_build_schema": active_build_schema,
+                "build_schema": self.build_schema,
+                "rebuild_required": active_build_schema != self.build_schema,
                 "sources": sources["files"],
                 "supported_slots": {
                     name: {
@@ -2135,6 +2236,8 @@ class DataManagementService:
 
 __all__ = [
     "AUDIT_SCHEMA",
+    "LEGACY_SOURCE_SCHEMA",
+    "SOURCE_SCHEMA",
     "DATA_SLOTS",
     "ACTIVE_SCHEMA",
     "AuditIntegrityError",

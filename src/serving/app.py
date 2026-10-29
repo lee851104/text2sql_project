@@ -9,7 +9,7 @@ from collections.abc import Mapping, Sequence
 from contextlib import suppress
 from pathlib import Path
 from threading import RLock
-from typing import Annotated, Literal
+from typing import Annotated, Literal, cast
 from weakref import WeakSet
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
@@ -20,7 +20,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, StringConstraints
 
-from ingest.build_db import build_database
+from ingest.build_db import SCHEMA_VERSION, build_database
 from ingest.validate import PROJECT_ROOT, resolve_configured_paths
 from serving.accounts import (
     Account,
@@ -58,28 +58,24 @@ from text2sql.realtime_scope import ALL_PLANTS, RealtimeScope
 
 # 這幾句不含內部細節，可以原樣回給前端；其餘一律換成通用訊息。
 SAFE_RUNTIME_ERRORS = {
-    "線上模式尚未設定 API key。",
-    "線上模式需要 API key；請在記憶體設定或使用 OPENAI_API_KEY。",
-    "請先執行 `uv sync --extra online`。",
+    "請先執行 `uv sync --extra local`。",
+    "注入式本機 LLM 執行環境無法從設定重建，不能切換資料庫。",
 }
-# provider 可設定之後，這兩類訊息尾端會帶上設定內容（環境變數名、可用的 provider 清單），
-# 不再是固定字串，用整句比對會漏掉。它們講的是設定檔而不是內部狀態，所以整句仍可外流 ——
-# 漏掉的代價是「你沒設 key」與「provider 名字打錯」都被遮成一句沒有指向性的通用錯誤，
-# 而那兩件事正是最需要當場說清楚的。
-SAFE_RUNTIME_ERROR_PREFIXES = (
-    "線上模式需要 API key；",
-    "不支援的線上 provider：",
-)
+# 這類訊息尾端會帶上設定內容（可用的 provider 清單），不是固定字串，用整句比對會漏掉。
+# 它們講的是設定檔而不是內部狀態，所以整句仍可外流 —— 漏掉的代價是「provider 名字打錯」
+# 被遮成一句沒有指向性的通用錯誤，而那正是最需要當場說清楚的。
+SAFE_RUNTIME_ERROR_PREFIXES = ("不支援的本機 LLM provider：",)
 SWAGGER_UI_VERSION = "5.32.15"
 SWAGGER_UI_JS_SRI = "sha384-m7zaGj7MPzU+G4lz2eyy73GxK9bbRDr9bB2CSdj8wodg2wu/Wnt6wsoLP3JD+RS9"
 SWAGGER_UI_CSS_SRI = "sha384-fgyWYkUAamzuI8mJFu/xpRP0JWCJRwkwUwsYDoOYVHUJ8NQE5cENn8ib3ppwFFSX"
 GENERIC_RUNTIME_ERROR = (
-    "線上執行環境初始化失敗；請確認 online 套件、API key 與模型設定。原設定未變更。"
+    "本機 LLM 執行環境初始化失敗；請確認 local 套件、Ollama 與模型設定。原設定未變更。"
 )
 GENERIC_CONFIGURATION_ERROR = "執行環境設定無效；請檢查 configs、provider 與模型設定。"
 DATA_WORKSPACE_NAME = ".powerquery-data"
 
 ANONYMOUS_SCOPE_ENV = "POWERQUERY_ANONYMOUS_QUERY_SCOPE"
+RUNTIME_MODE_ENV = "POWERQUERY_RUNTIME_MODE"
 COVERAGE_CONFIG_PATH = PROJECT_ROOT / "configs" / "coverage.yaml"
 SELF_APPROVAL_ENV = "POWERQUERY_ALLOW_SELF_APPROVAL"
 DEFAULT_ANONYMOUS_SCOPE = "all"
@@ -137,6 +133,22 @@ def _build_auth_manager(roster_path: Path) -> tuple[AdminAuthManager, dict[str, 
     return AdminAuthManager.from_roster(accounts), {
         account.username: account for account in accounts
     }
+
+
+def _configured_runtime_mode(environ: Mapping[str, str] | None = None) -> RuntimeMode | None:
+    """Startup mode from `POWERQUERY_RUNTIME_MODE`; unset means auto.
+
+    公開離線服務靠它固定成 offline：auto 在這台機器開著 Ollama 時會變成本機 LLM，
+    等於把本機模型開給網路上的訪客用。打錯字直接失敗，不默默退回 auto。
+    """
+
+    source = os.environ if environ is None else environ
+    value = source.get(RUNTIME_MODE_ENV, "").strip().casefold()
+    if not value:
+        return None
+    if value not in {"offline", "local", "auto"}:
+        raise ValueError(f"{RUNTIME_MODE_ENV} 必須是 offline、local 或 auto。")
+    return cast(RuntimeMode, value)
 
 
 def _self_approval_allowed(environ: Mapping[str, str] | None = None) -> bool:
@@ -250,15 +262,14 @@ class QueryRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     question: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)]
-    execution_mode: Literal["offline", "online", "auto"] | None = None
+    execution_mode: Literal["offline", "local", "auto"] | None = None
     query_scope: Literal["trusted", "raw", "auto"] = "trusted"
 
 
 class RuntimeSettingsRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    mode: Literal["offline", "online", "auto"]
-    api_key: SecretStr | None = None
+    mode: Literal["offline", "local", "auto"]
     model: Annotated[
         str | None,
         StringConstraints(strip_whitespace=True, min_length=1, max_length=120),
@@ -346,6 +357,15 @@ class DataRollbackRequest(BaseModel):
     ] = None
 
 
+class DataRebuildRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    reason: Annotated[
+        str | None,
+        StringConstraints(strip_whitespace=True, max_length=500),
+    ] = None
+
+
 def _configured_database(root: Path) -> Path:
     return resolve_configured_paths(root)["database"].resolve()
 
@@ -362,7 +382,7 @@ def create_app(
 ) -> FastAPI:
     assets = (static_dir or Path(__file__).with_name("static")).resolve()
     application = FastAPI(
-        title="PowerQuery TW API",
+        title="GridLens TW API",
         version="0.3.0",
         description="台電開放資料的可信任 Text2SQL 查詢介面",
         docs_url=None,
@@ -452,6 +472,7 @@ def create_app(
             source_paths=sources,
             initial_database=initial_database,
             build_database=build_candidate,
+            build_schema=SCHEMA_VERSION,
             switch_runtime=switch_managed_runtime,
             allow_self_approval=_self_approval_allowed(),
         )
@@ -477,6 +498,7 @@ def create_app(
                         application.state.runtime_manager = RuntimeManager(
                             root=PROJECT_ROOT,
                             database=Path(snapshot["database"]),
+                            default_mode=_configured_runtime_mode(),
                         )
                         application.state.data_manager = managed
                     except (DataManagementError, FileNotFoundError, OSError) as error:
@@ -788,8 +810,8 @@ def create_app(
             raise HTTPException(status_code=409, detail=_safe_runtime_error(error)) from error
         return {
             "success": True,
-            "demo": not service.online_llm,
-            "online_llm": service.online_llm,
+            "demo": not service.local_llm,
+            "local_llm": service.local_llm,
             "mode": mode,
             "data_range": {"start": service.data_range[0], "end": service.data_range[1]},
             "realtime": application.state.realtime_panel.status(),
@@ -842,10 +864,6 @@ def create_app(
         updates: dict[str, object] = {"mode": payload.mode}
         if "model" in payload.model_fields_set and payload.model is not None:
             updates["model"] = payload.model
-        if "api_key" in payload.model_fields_set:
-            updates["api_key"] = (
-                payload.api_key.get_secret_value() if payload.api_key is not None else None
-            )
         try:
             status = manager.configure_and_status(**updates)
         except (RuntimeError, TypeError, ValueError) as error:
@@ -856,7 +874,6 @@ def create_app(
                     details={
                         "requested_mode": payload.mode,
                         "requested_model": payload.model,
-                        "api_key_supplied": "api_key" in payload.model_fields_set,
                         "error_type": type(error).__name__,
                     },
                 )
@@ -865,14 +882,9 @@ def create_app(
             required_data_manager().record_audit(
                 "runtime_configuration_changed",
                 actor=principal.username,
-                details={
-                    "before": before,
-                    "after": status,
-                    "api_key_changed": "api_key" in payload.model_fields_set,
-                },
+                details={"before": before, "after": status},
             )
-            # Runtime configuration has its own memory-only boundary; a data audit
-            # workspace may be unavailable in embedded/test deployments.
+            # A data audit workspace may be unavailable in embedded/test deployments.
         return {"success": True, "data": status}
 
     @application.get("/api/corpus/entries")
@@ -1154,6 +1166,20 @@ def create_app(
                 application.state.learning_pipelines = WeakSet()
         return {"success": True, "data": change}
 
+    @application.post("/api/data/changes/rebuild")
+    def stage_data_rebuild(
+        payload: DataRebuildRequest,
+        principal: ManageMutation,
+    ) -> dict[str, object]:
+        try:
+            change = required_data_manager().stage_rebuild(
+                actor=principal.username,
+                reason=payload.reason or "",
+            )
+        except DataManagementError as error:
+            raise _data_http_error(error) from error
+        return {"success": True, "data": change}
+
     @application.post("/api/data/versions/{version}/rollback")
     def stage_data_rollback(
         version: str,
@@ -1180,8 +1206,14 @@ def create_app(
 
         service = current_runtime()
         views, limitations = load_coverage_document(COVERAGE_CONFIG_PATH)
+        realtime_engine = getattr(service.pipeline, "realtime", None)
         try:
-            data = describe_coverage(service.database, views=views, limitations=limitations)
+            data = describe_coverage(
+                service.database,
+                views=views,
+                limitations=limitations,
+                realtime=realtime_engine.coverage() if realtime_engine is not None else None,
+            )
         except sqlite3.Error as error:
             raise HTTPException(status_code=503, detail="目前無法讀取資料涵蓋範圍。") from error
         return {"success": True, "data": data}
@@ -1387,10 +1419,26 @@ def create_app(
                 return dict(fallback)
         if response["success"] and isinstance(response.get("data"), dict):
             tables = [str(table) for table in response["data"].get("tables", ())]
+            realtime_answer = isinstance(response["data"].get("realtime"), dict)
             try:
-                if data_snapshot is None:
+                if realtime_answer:
+                    # 即時資料不在受控資料版本裡（RT-1 規格 §3.1），出處是收集器的資料時間。
+                    provenance = {
+                        "database_version": "realtime",
+                        "database_sha256": None,
+                        "data_sources": [
+                            {
+                                "dataset": "d006001",
+                                "title": "台電各機組發電量即時資訊",
+                                "data_time": response["data"]["realtime"].get("data_time"),
+                                "views": tables,
+                            }
+                        ],
+                    }
+                elif data_snapshot is None:
                     raise ValueError("data snapshot unavailable")
-                provenance = data_provenance(tables, data_snapshot)
+                else:
+                    provenance = data_provenance(tables, data_snapshot)
             # KeyError 也接住：出處是查詢結果的補充說明，組不出來就降級成「不明」，
             # 不該讓一個已經成功的查詢變成 500。
             except (DataManagementError, HTTPException, KeyError, OSError, ValueError):

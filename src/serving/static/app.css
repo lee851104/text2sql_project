@@ -93,7 +93,7 @@ input, select, textarea { color: var(--ink); }
 .mode-shortcut { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; margin-left: auto; padding: 7px 11px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted-strong); background: var(--card); font-size: .75rem; font-weight: 700; white-space: nowrap; }
 .mode-shortcut:hover { border-color: #afc7e2; color: var(--accent); }
 .mode-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--warn); }
-.mode-shortcut[data-mode="online"] .mode-dot { background: var(--ok); }
+.mode-shortcut[data-mode="local"] .mode-dot { background: var(--ok); }
 .mode-shortcut[data-mode="auto"] .mode-dot { background: var(--violet); }
 .workspace { min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; scroll-behavior: smooth; }
 .view-panel { width: min(1280px, 100%); min-height: 100%; margin: 0 auto; padding: 34px clamp(20px, 4vw, 52px) 64px; animation: rise .22s ease-out; }
@@ -269,7 +269,7 @@ pre { overflow: auto; padding: 13px; border-radius: 9px; color: #dceaff; backgro
 .mode-option input { position: absolute; opacity: 0; pointer-events: none; }
 .mode-option-icon { display: grid; place-items: center; width: 43px; height: 43px; border-radius: 11px; font-weight: 850; }
 .mode-option-icon.offline { color: var(--ok); background: var(--ok-soft); }
-.mode-option-icon.online { color: var(--accent); background: var(--accent-soft); }
+.mode-option-icon.local { color: var(--accent); background: var(--accent-soft); }
 .mode-option-icon.auto { color: var(--violet); background: var(--violet-soft); }
 .mode-option strong, .mode-option small { display: block; }
 .mode-option strong { font-size: .82rem; }

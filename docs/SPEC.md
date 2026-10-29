@@ -1,4 +1,4 @@
-# PowerQuery TW 系統規格與細節
+# GridLens TW 系統規格與細節
 
 > [README](../README.md) 回答「這個專案解決什麼問題、怎麼跑起來」。
 > 這份文件回答「怎麼做的、為什麼這樣做、踩過什麼坑」。
@@ -57,7 +57,7 @@ flowchart LR
     DB --> E
 ```
 
-離線模式走的是同一條路的左半邊：由規則 router 直接產生 SQL，不呼叫遠端模型，但**守門與執行完全共用同一套程式**。線上模式只是在規則沒有涵蓋時，多接一段 LLM 生成。
+離線模式走的是同一條路的左半邊：由規則 router 直接產生 SQL，不呼叫任何模型，但**守門與執行完全共用同一套程式**。本機 LLM 模式只是在規則沒有涵蓋時，多接一段本機 Ollama 生成。
 
 ### 1.2 雙守門機制
 
@@ -93,7 +93,7 @@ staging corpus → benchmark 回歸通過 → 正式 corpus
 
 這裡的「自動訓練」是**自動擴充高品質語料並重建檢索索引**，不是讓模型直接把每次回答當成正確答案。未經驗證的查詢不得進入正式 corpus，benchmark 也不得成為訓練資料，以防止錯誤累積與評測洩漏。
 
-規則路由產生的確定性結果通過全部關卡後可自動發布；線上模型產生的內容只會成為 `pending_review` 候選，等人工審核。詳細狀態機與 API 見 [SERVING.md](SERVING.md#語料治理與來源調閱)。
+規則路由產生的確定性結果通過全部關卡後可自動發布；本機模型產生的內容只會成為 `pending_review` 候選，等人工審核。詳細狀態機與 API 見 [SERVING.md](SERVING.md#語料治理與來源調閱)。
 
 ### 1.4 自動圖表回答
 
@@ -359,7 +359,7 @@ v_*             提供給 Text2SQL 的中文語意檢視
 
 驗收基準：語意陷阱命中率至少 95%、誤攔率不高於 5%，並獨立呈現 `in_corpus=false` 題組結果。另以 ablation study 比較移除檢索、對齊資訊與語意守門後的表現差異，量化各模組的實際貢獻。
 
-`make eval` 在固定 SQLite 快照上執行四份版控題庫（`golden_questions` 80 題、`eval_questions` 60 題、`trap_questions` 45 題、`attack_questions` 15 題），不需要 API key。指標定義與產出檔見 [EVALUATION.md](EVALUATION.md)。
+`make eval` 在固定 SQLite 快照上執行四份版控題庫（`golden_questions` 80 題、`eval_questions` 60 題、`trap_questions` 45 題、`attack_questions` 15 題），不需要模型或網路。指標定義與產出檔見 [EVALUATION.md](EVALUATION.md)。
 
 ---
 
@@ -375,7 +375,7 @@ v_*             提供給 Text2SQL 的中文語意檢視
 
 而「資料庫有哪些資料可以查詢」「我可以問什麼」這種**後設問句不做成語料**：它的答案是 schema 層級的說明，不是資料列，硬產 SQL 只能去查 `sqlite_master`，而那正是 `SqlGuard` 該擋的東西。為了回答這個問題在白名單上開一個口，代價遠大於收益。改由語意守門回 `clarify`，附上可直接點的替代問句並指向資料總覽。
 
-**問服務自己也是同一類**：「目前有接 API 嗎」「現在是線上還是離線」「用的是哪個模型」的答案在 `/api/health`，不在任何 view 裡，同樣在守門就澄清（`SYSTEM_STATUS_QUESTION`）。比對前先用 `compact_question()` 去空白並統一異體字 —— 實測「資料庫有**甚**麼內容」與「資料庫有**什**麼內容」只差一個字形，前者卻會一路掉到 SQL 錯誤。
+**問服務自己也是同一類**：「目前有接 API 嗎」「現在是本機模型還是離線」「用的是哪個模型」的答案在 `/api/health`，不在任何 view 裡，同樣在守門就澄清（`SYSTEM_STATUS_QUESTION`）。比對前先用 `compact_question()` 去空白並統一異體字 —— 實測「資料庫有**甚**麼內容」與「資料庫有**什**麼內容」只差一個字形，前者卻會一路掉到 SQL 錯誤。
 
 **意圖判對但問句缺參數時反問而不是猜**（`MISSING_PARAMETER`）。「某天機組尖峰功率排行榜」沒有說是哪一天，任何模型都推不出來，能做的只有挑一天然後回一張看起來完全正常的表。這一層放在管線最後，模型答得出來的題目走不到它。
 
@@ -432,4 +432,6 @@ text2SQL_project/
 
 ### 已知待修
 
-- **版本 id 只由來源內容雜湊決定，不含建置程式的 schema 版本。** 來源資料沒變時，即使建庫程式新增了資料表，服務端也拿不到新 schema；若強制用新程式重建同一組來源，產出的 checksum 與版本紀錄不符會被整合性檢查拒絕。建議把 schema 版本納入版本 id。詳見 [log.md](../log.md) 的 CP-039。
+目前沒有。
+
+- ~~**版本 id 只由來源內容雜湊決定，不含建置程式的 schema 版本。**~~ 已修（[log.md](../log.md) CP-080）：版本 id 改由來源內容加 `build_db.SCHEMA_VERSION` 一起決定；舊程式建的作用中版本會標成需要重建，經人工核准的 `rebuild` 異動升上去。問題的來龍去脈見 CP-039。

@@ -19,7 +19,7 @@
     query: ["查詢中心", "安全地把自然語言轉成可追溯資料答案", "queryHeading"],
     overview: ["資料總覽", "掌握資料涵蓋並從常用分析開始", "overviewHeading"],
     data: ["資料管理", "管理資料檔、人工審核、資料庫版本與完整稽核", "dataHeading"],
-    settings: ["API 與模型", "切換離線規則或線上模型服務", "settingsHeading"],
+    settings: ["本機 LLM", "切換離線規則或本機模型", "settingsHeading"],
     docs: ["API 文件", "查閱端點、請求格式與回應契約", "docsHeading"]
   };
 
@@ -238,7 +238,7 @@
     });
     byId("pageTitle").textContent = meta[0];
     byId("pageSubtitle").textContent = meta[1];
-    document.title = meta[0] + "｜PowerQuery TW";
+    document.title = meta[0] + "｜GridLens TW";
     setSidebarOpen(false, false);
     workspace.scrollTop = 0;
     if (!options || options.focus !== false) window.setTimeout(function () { byId(meta[2]).focus(); }, 0);
@@ -603,8 +603,8 @@
       actions.appendChild(button);
     });
     var errorText = String(payload.error || "") + " " + String(payload.error_code || "");
-    if (/API|api.?key|online|線上|金鑰/i.test(errorText)) {
-      var settingsButton = element("button", "suggestion", "前往 API 設定");
+    if (/LLM_|本機 LLM|Ollama/i.test(errorText)) {
+      var settingsButton = element("button", "suggestion", "前往本機 LLM 設定");
       settingsButton.type = "button";
       settingsButton.addEventListener("click", function () { showView("settings"); });
       actions.appendChild(settingsButton);
@@ -660,7 +660,7 @@
   function loadHealth() {
     return api("/api/health").then(function (health) {
       byId("statusDot").className = "status-dot connected";
-      byId("statusText").textContent = health.demo ? "離線分析服務已就緒" : "線上分析服務已就緒";
+      byId("statusText").textContent = health.demo ? "離線分析服務已就緒" : "本機 LLM 分析服務已就緒";
       byId("demoBanner").hidden = !health.demo;
     }).catch(function (error) {
       byId("statusDot").className = "status-dot failed";
@@ -697,6 +697,11 @@
         valueText(counts.units) + " 台機組",
         "燃料別：" + (data.fuels || []).join("、")
       ];
+      var realtime = data.realtime || {};
+      if (realtime.available) {
+        // 即時資料在另一個資料庫，期間跟著收集器走；問句帶「現在、今天、昨天」才查它。
+        facts.push("即時資料 " + valueText(realtime.first_day) + " 起，最新 " + valueText(realtime.latest_data_time));
+      }
       byId("coverageFacts").textContent = facts.join("　·　");
       renderCoverageList(byId("coverageAnswerable"), data.answerable, {
         title: function (item) { return item.title; },
@@ -947,7 +952,7 @@
   }
 
   function modeLabel(mode) {
-    if (mode === "online") return "線上 API";
+    if (mode === "local") return "本機 LLM";
     if (mode === "auto") return "自動判斷";
     if (mode === "default") return "沿用預設";
     return "離線規則";
@@ -966,21 +971,21 @@
 
   function renderRuntime(info) {
     runtimeInfo = info || {};
-    activeMode = ["auto", "offline", "online"].indexOf(runtimeInfo.active_mode) >= 0 ? runtimeInfo.active_mode : "offline";
-    var defaultMode = ["auto", "offline", "online"].indexOf(runtimeInfo.default_mode) >= 0 ? runtimeInfo.default_mode : activeMode;
+    activeMode = ["auto", "offline", "local"].indexOf(runtimeInfo.active_mode) >= 0 ? runtimeInfo.active_mode : "offline";
+    var defaultMode = ["auto", "offline", "local"].indexOf(runtimeInfo.default_mode) >= 0 ? runtimeInfo.default_mode : activeMode;
     byId("activeModeLabel").textContent = modeLabel(activeMode);
     byId("modeShortcut").setAttribute("data-mode", activeMode);
     byId("summaryActiveMode").textContent = modeLabel(activeMode);
     byId("summaryDefaultMode").textContent = modeLabel(defaultMode);
-    byId("summaryOnlineConfigured").textContent = runtimeInfo.online_configured ? "已設定" : "尚未設定";
+    byId("summaryLocalAvailable").textContent = runtimeInfo.local_available ? "已連線" : "未偵測到";
     byId("summaryProvider").textContent = valueText(runtimeInfo.provider);
+    byId("summaryBaseUrl").textContent = valueText(runtimeInfo.base_url);
     byId("summaryModel").textContent = valueText(runtimeInfo.model);
     byId("offlineCapability").textContent = capabilityText(runtimeInfo.offline_capability);
     var radio = document.querySelector("input[name='runtimeMode'][value='" + defaultMode + "']");
     if (radio) radio.checked = true;
     if (runtimeInfo.model && runtimeInfo.model !== "—" && document.activeElement !== byId("modelInput")) byId("modelInput").value = runtimeInfo.model;
-    byId("runtimeSaveStatus").textContent = defaultMode === "online" && !runtimeInfo.online_configured ? "需要 API key" : "已同步";
-    byId("clearRuntimeKey").disabled = runtimeRequestActive || !runtimeInfo.online_configured;
+    byId("runtimeSaveStatus").textContent = defaultMode === "local" && !runtimeInfo.local_available ? "Ollama 未連線" : "已同步";
   }
 
   function loadRuntime(announceResult) {
@@ -991,7 +996,7 @@
       loadHealth();
       if (announceResult) announce("執行模式已同步", false);
     }).catch(function (error) {
-      renderRuntime({ default_mode: "auto", active_mode: "offline", online_configured: false, provider: "—", model: "—" });
+      renderRuntime({ default_mode: "auto", active_mode: "offline", local_available: false, provider: "—", model: "—", base_url: "—" });
       byId("runtimeSaveStatus").textContent = error && (error.status === 401 || error.status === 403) ? "需要管理登入" : "無法讀取";
       if (error && (error.status === 401 || error.status === 403)) {
         byId("runtimeFeedback").className = "inline-feedback error";
@@ -1008,21 +1013,18 @@
       byId("runtimeFeedback").className = "inline-feedback error";
       byId("runtimeFeedback").textContent = "請先到「資料管理」登入，再套用執行設定。";
       byId("runtimeFeedback").hidden = false;
-      announce("API 與模型設定需要管理登入", true);
+      announce("本機 LLM 設定需要管理登入", true);
       return;
     }
     if (runtimeRequestActive) return;
     var chosen = document.querySelector("input[name='runtimeMode']:checked");
-    var keyInput = byId("apiKeyInput");
     var modelInput = byId("modelInput");
     var feedback = byId("runtimeFeedback");
     var save = byId("saveRuntime");
     var body = { mode: chosen ? chosen.value : "auto" };
     if (modelInput.value.trim()) body.model = modelInput.value.trim();
-    if (keyInput.value.trim()) body.api_key = keyInput.value.trim();
     runtimeRequestActive = true;
     save.disabled = true;
-    byId("clearRuntimeKey").disabled = true;
     feedback.hidden = true;
     byId("runtimeSaveStatus").textContent = "套用中…";
     api("/api/runtime/llm", { method: "PUT", body: body }).then(function (payload) {
@@ -1031,7 +1033,7 @@
       feedback.className = "inline-feedback";
       feedback.textContent = "設定已套用。後續查詢會使用「" + modeLabel(info.active_mode || body.mode) + "」。";
       feedback.hidden = false;
-      announce("API 與模型設定已套用", false);
+      announce("本機 LLM 設定已套用", false);
     }).catch(function (error) {
       feedback.className = "inline-feedback error";
       feedback.textContent = "設定未套用：" + error.message;
@@ -1039,61 +1041,8 @@
       byId("runtimeSaveStatus").textContent = "儲存失敗";
       announce(error.message, true);
     }).finally(function () {
-      keyInput.value = "";
-      keyInput.type = "password";
-      byId("toggleApiKey").textContent = "顯示";
-      byId("toggleApiKey").setAttribute("aria-label", "顯示 API key");
       runtimeRequestActive = false;
       save.disabled = false;
-      byId("clearRuntimeKey").disabled = !runtimeInfo.online_configured;
-    });
-  }
-
-  function clearRuntimeKey() {
-    if (!adminSession) {
-      byId("runtimeFeedback").className = "inline-feedback error";
-      byId("runtimeFeedback").textContent = "請先到「資料管理」登入，再清除記憶體金鑰。";
-      byId("runtimeFeedback").hidden = false;
-      announce("清除 API key 需要管理登入", true);
-      return;
-    }
-    if (runtimeRequestActive) return;
-    var button = byId("clearRuntimeKey");
-    var save = byId("saveRuntime");
-    var keyInput = byId("apiKeyInput");
-    var feedback = byId("runtimeFeedback");
-    runtimeRequestActive = true;
-    button.disabled = true;
-    save.disabled = true;
-    keyInput.value = "";
-    keyInput.type = "password";
-    byId("toggleApiKey").textContent = "顯示";
-    byId("toggleApiKey").setAttribute("aria-label", "顯示 API key");
-    feedback.hidden = true;
-    byId("runtimeSaveStatus").textContent = "清除中…";
-    api("/api/runtime/llm", {
-      method: "PUT",
-      body: { mode: "offline", api_key: null }
-    }).then(function (payload) {
-      var info = businessData(payload);
-      renderRuntime(info);
-      loadHealth();
-      feedback.className = "inline-feedback";
-      feedback.textContent = info.online_configured
-        ? "已切換離線並清除程序內金鑰；啟動環境仍提供 OPENAI_API_KEY。"
-        : "程序記憶體內的 API key 已清除，預設模式已切換為離線。";
-      feedback.hidden = false;
-      announce("記憶體內 API key 已清除", false);
-    }).catch(function (error) {
-      feedback.className = "inline-feedback error";
-      feedback.textContent = "金鑰未清除：" + error.message;
-      feedback.hidden = false;
-      byId("runtimeSaveStatus").textContent = "清除失敗";
-      announce(error.message, true);
-    }).finally(function () {
-      runtimeRequestActive = false;
-      save.disabled = false;
-      button.disabled = !runtimeInfo.online_configured;
     });
   }
 
@@ -1372,6 +1321,7 @@
     var active = datasetItems.filter(function (item) { return stateBucket(dataItemState(item)) === "active"; }).length;
     byId("activeDatasetCount").textContent = valueText(itemValue(counts, ["active_datasets", "active_files", "active"], active));
     byId("activeDatabaseVersion").textContent = valueText(activeVersion || "—");
+    renderRebuildNotice(data);
     var datasetSelect = byId("datasetName");
     var selectedDataset = datasetSelect.value;
     datasetSelect.replaceChildren(element("option", "", "選擇要新增或替換的資料槽"));
@@ -1401,7 +1351,8 @@
       replace: "替換資料檔",
       remove: "停用資料檔",
       disable: "停用資料檔",
-      rollback: "回退資料庫版本"
+      rollback: "回退資料庫版本",
+      rebuild: "以現行建庫程式重建"
     };
     return labels[value] || String(value || "資料異動");
   }
@@ -1918,6 +1869,81 @@
       managementRequestActive = false;
       if (formElement.isConnected) setFormDisabled(formElement, false);
     });
+  }
+
+  function renderRebuildNotice(data) {
+    var notice = byId("rebuildNotice");
+    notice.hidden = data.rebuild_required !== true;
+    if (notice.hidden) return;
+    var built = data.active_build_schema == null ? "未記錄" : "v" + data.active_build_schema;
+    byId("rebuildNoticeText").textContent = "作用中的資料庫是舊版建庫程式建的（schema " + built +
+      "，現行 v" + data.build_schema + "），新增的資料表與檢視還查不到。重建一樣要經人工核准才上線。";
+  }
+
+  function stageDataRebuild(reasonInput, formElement, feedback) {
+    if (managementRequestActive || !reasonInput.reportValidity()) return;
+    managementRequestActive = true;
+    setFormDisabled(formElement, true);
+    feedback.className = "review-feedback";
+    feedback.textContent = "正在用現行建庫程式建立候選資料庫；目前作用中版本不會立即改變…";
+    feedback.hidden = false;
+    adminMutation("/api/data/changes/rebuild", {
+      method: "POST",
+      body: { reason: reasonInput.value.trim() }
+    }).then(function (payload) {
+      businessData(payload);
+      closeDataChangeDialog();
+      selectManagementTab("changes", { focus: false });
+      announce("重建要求已送交人工審核", false);
+      return refreshDataManagement(false);
+    }).catch(function (error) {
+      feedback.className = "review-feedback error";
+      feedback.textContent = "重建異動未建立：" + error.message;
+      announce(error.message, true);
+    }).finally(function () {
+      managementRequestActive = false;
+      if (formElement.isConnected) setFormDisabled(formElement, false);
+    });
+  }
+
+  function openRebuildDialog(trigger) {
+    dataChangeDialogReturnFocus = trigger || document.activeElement;
+    byId("dataChangeDialogTitle").textContent = "建立重建異動";
+    var body = byId("dataChangeDialogBody");
+    body.replaceChildren();
+    var section = element("section", "dialog-section review-section");
+    section.setAttribute("aria-labelledby", "rebuildReviewTitle");
+    var title = element("h3", "", "送出重建申請");
+    title.id = "rebuildReviewTitle";
+    section.appendChild(title);
+    section.appendChild(element("p", "", "用目前的資料檔、現行建庫程式重建一份候選資料庫。資料檔不變，但查詢結果可能因新 schema 而不同，所以一樣要由另一個帳號核准後才上線。"));
+    var formElement = element("form", "review-form");
+    var label = element("label", "review-field");
+    label.appendChild(element("span", "", "重建原因"));
+    var reason = element("textarea");
+    reason.name = "reason";
+    reason.rows = 3;
+    reason.maxLength = 500;
+    reason.required = true;
+    reason.placeholder = "例如：建庫程式升到新 schema，需要新的資料表";
+    label.appendChild(reason);
+    formElement.appendChild(label);
+    var feedback = element("div", "review-feedback");
+    feedback.hidden = true;
+    feedback.setAttribute("role", "status");
+    formElement.appendChild(feedback);
+    var actions = element("div", "review-actions");
+    var submit = element("button", "review-button", "建立重建異動");
+    submit.type = "submit";
+    actions.appendChild(submit);
+    formElement.appendChild(actions);
+    formElement.addEventListener("submit", function (event) {
+      event.preventDefault();
+      stageDataRebuild(reason, formElement, feedback);
+    });
+    section.appendChild(formElement);
+    body.appendChild(section);
+    openModal(byId("dataChangeDialog"), "closeDataChangeDialog");
   }
 
   function openVersionRollbackDialog(index, trigger) {
@@ -2460,6 +2486,8 @@
     if (changeButton) openDataChangeDialog(Number(changeButton.getAttribute("data-change-index")), changeButton);
     var versionButton = event.target.closest("[data-version-index]");
     if (versionButton) openVersionRollbackDialog(Number(versionButton.getAttribute("data-version-index")), versionButton);
+    var rebuildButton = event.target.closest("#openRebuildDialog");
+    if (rebuildButton) openRebuildDialog(rebuildButton);
     var sourceButton = event.target.closest("[data-source-dataset]");
     if (sourceButton) {
       var dataset = sourceButton.getAttribute("data-source-dataset");
@@ -2507,14 +2535,6 @@
   byId("corpusSearch").addEventListener("input", renderCorpusList);
   byId("corpusStateFilter").addEventListener("change", renderCorpusList);
   byId("runtimeForm").addEventListener("submit", saveRuntime);
-  byId("clearRuntimeKey").addEventListener("click", clearRuntimeKey);
-  byId("toggleApiKey").addEventListener("click", function () {
-    var key = byId("apiKeyInput");
-    var show = key.type === "password";
-    key.type = show ? "text" : "password";
-    this.textContent = show ? "隱藏" : "顯示";
-    this.setAttribute("aria-label", (show ? "隱藏" : "顯示") + " API key");
-  });
   byId("closeCorpusDialog").addEventListener("click", closeCorpusDialog);
   byId("closeDatasetDialog").addEventListener("click", closeDatasetDialog);
   byId("closeDataChangeDialog").addEventListener("click", closeDataChangeDialog);

@@ -7,68 +7,112 @@ from types import SimpleNamespace
 import pytest
 
 from text2sql.llm import (
+    LOCAL_API_KEY,
     DisabledLLM,
     LLMIncompleteError,
     LLMRefusedError,
     LLMUnavailableError,
-    OpenAILLM,
+    LocalLLM,
     classify_error,
     is_unavailable,
     parse_generated_query,
 )
 
+OLLAMA = "http://127.0.0.1:11434/v1"
 
-def test_openai_adapter_uses_bounded_client_without_nested_sdk_retries(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+
+def _fake_sdk(monkeypatch: pytest.MonkeyPatch) -> tuple[dict, dict]:
+    """裝一個假的 openai 套件，回傳 (建 client 的參數, 送出的請求參數)。"""
+
     client_options: dict[str, object] = {}
     request_options: dict[str, object] = {}
 
-    class FakeResponses:
+    class FakeCompletions:
         def create(self, **kwargs: object) -> SimpleNamespace:
             request_options.update(kwargs)
-            return SimpleNamespace(output_text='{"sql":"SELECT 1 LIMIT 1","params":[]}')
+            message = SimpleNamespace(content='{"sql":"SELECT 1 LIMIT 1","params":[]}')
+            return SimpleNamespace(choices=[SimpleNamespace(message=message)])
 
     class FakeOpenAI:
         def __init__(self, **kwargs: object):
             client_options.update(kwargs)
-            self.responses = FakeResponses()
+            self.chat = SimpleNamespace(completions=FakeCompletions())
 
     monkeypatch.setitem(sys.modules, "openai", SimpleNamespace(OpenAI=FakeOpenAI))
+    return client_options, request_options
 
-    adapter = OpenAILLM(
-        api_key="sk-test-timeout-only",
-        model="test-model",
-        timeout_seconds=7.5,
-    )
+
+def test_local_adapter_talks_only_to_the_configured_ollama_without_sdk_retries(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """只連 llm.yaml 指定的本機端點；SDK 自己的重試關掉，重試次數由管線決定。"""
+
+    client_options, request_options = _fake_sdk(monkeypatch)
+
+    adapter = LocalLLM(base_url=OLLAMA, model="qwen3:8b", timeout_seconds=7.5, temperature=0)
     output = adapter.generate("test prompt")
 
     assert client_options == {
-        "api_key": "sk-test-timeout-only",
+        "api_key": LOCAL_API_KEY,
+        "base_url": OLLAMA,
         "timeout": 7.5,
         "max_retries": 0,
     }
-    assert request_options["model"] == "test-model"
-    assert request_options["store"] is False
-    param_types = request_options["text"]["format"]["schema"]["properties"]["params"]["items"][
-        "anyOf"
-    ]
+    assert request_options["model"] == "qwen3:8b"
+    assert request_options["messages"] == [{"role": "user", "content": "test prompt"}]
+    assert request_options["response_format"]["json_schema"]["strict"] is True
+    param_types = request_options["response_format"]["json_schema"]["schema"]["properties"][
+        "params"
+    ]["items"]["anyOf"]
     assert param_types == [
         {"type": "string"},
         {"type": "number"},
         {"type": "boolean"},
         {"type": "null"},
     ]
+    assert request_options["temperature"] == 0
     assert output.startswith("{")
 
 
-def test_openai_adapter_rejects_non_positive_timeout() -> None:
+def test_local_adapter_needs_no_api_key_from_the_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """地端模式不讀任何 *_API_KEY；環境裡有沒有雲端金鑰都不影響它。"""
+
+    client_options, _request_options = _fake_sdk(monkeypatch)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    LocalLLM(base_url=OLLAMA, model="m")
+
+    assert client_options["api_key"] == LOCAL_API_KEY
+
+
+def test_local_adapter_rejects_non_positive_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
+    _fake_sdk(monkeypatch)
     with pytest.raises(ValueError, match="timeout_seconds"):
-        OpenAILLM(api_key="sk-test", timeout_seconds=0)
+        LocalLLM(base_url=OLLAMA, timeout_seconds=0)
+
+
+def test_local_adapter_requires_an_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:
+    """沒有 base_url 時 SDK 會退回 OpenAI 官方雲端 —— 地端版不能有這條路。"""
+
+    _fake_sdk(monkeypatch)
+    with pytest.raises(ValueError, match="base_url"):
+        LocalLLM(base_url="")
+
+
+def test_model_falls_back_to_the_environment_then_the_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _fake_sdk(monkeypatch)
+    monkeypatch.delenv("OLLAMA_MODEL", raising=False)
+    assert LocalLLM(base_url=OLLAMA).model == "qwen3:8b"
+    monkeypatch.setenv("OLLAMA_MODEL", "gemma3:4b")
+    assert LocalLLM(base_url=OLLAMA).model == "gemma3:4b"
 
 
 def test_disabled_llm_reports_unavailability_rather_than_a_generic_failure() -> None:
-    with pytest.raises(LLMUnavailableError):
+    with pytest.raises(LLMUnavailableError, match="Ollama"):
         DisabledLLM().generate("任何 prompt")
 
 
@@ -90,114 +134,36 @@ def test_service_outages_are_told_apart_from_a_bad_answer(name: str, unavailable
     assert is_unavailable(LLMUnavailableError("未啟用")) is True
 
 
-def _fake_sdk(monkeypatch: pytest.MonkeyPatch) -> tuple[dict, dict]:
-    """裝一個假的 openai 套件，回傳 (建 client 的參數, 送出的請求參數)。"""
-
-    client_options: dict[str, object] = {}
-    request_options: dict[str, object] = {}
-
-    class FakeCompletions:
-        def create(self, **kwargs: object) -> SimpleNamespace:
-            request_options.update(kwargs)
-            message = SimpleNamespace(content='{"sql":"SELECT 1 LIMIT 1","params":[]}')
-            return SimpleNamespace(choices=[SimpleNamespace(message=message)])
-
-    class FakeResponses:
-        def create(self, **kwargs: object) -> SimpleNamespace:
-            request_options.update(kwargs)
-            return SimpleNamespace(output_text='{"sql":"SELECT 1 LIMIT 1","params":[]}')
-
-    class FakeOpenAI:
-        def __init__(self, **kwargs: object):
-            client_options.update(kwargs)
-            self.responses = FakeResponses()
-            self.chat = SimpleNamespace(completions=FakeCompletions())
-
-    monkeypatch.setitem(sys.modules, "openai", SimpleNamespace(OpenAI=FakeOpenAI))
-    return client_options, request_options
-
-
-def test_chat_completions_provider_sends_base_url_and_the_compatible_endpoint(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """第三方講「OpenAI 相容」指的是 chat/completions，不是 OpenAI 自家的 responses。
-
-    只換 base_url 而不換端點會打到一個對方沒有的路徑，所以兩者必須一起切換。
-    """
-
-    client_options, request_options = _fake_sdk(monkeypatch)
-
-    adapter = OpenAILLM(
-        api_key="gmi-test-key",
-        model="meta-llama/Llama-3.3-70B-Instruct",
-        base_url="https://api.gmi-serving.com/v1",
-        api="chat_completions",
-        temperature=0,
-    )
-    output = adapter.generate("test prompt")
-
-    assert client_options["base_url"] == "https://api.gmi-serving.com/v1"
-    assert request_options["messages"] == [{"role": "user", "content": "test prompt"}]
-    assert "input" not in request_options, "chat completions 不該送 responses 的欄位"
-    assert request_options["response_format"]["json_schema"]["strict"] is True
-    assert request_options["temperature"] == 0
-    assert output.startswith("{")
-
-
-def test_default_provider_still_omits_base_url_entirely(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """沒指定 base_url 就不能送這個鍵 —— 傳 None 進去會蓋掉 SDK 自己的預設。"""
-
-    client_options, _request_options = _fake_sdk(monkeypatch)
-
-    OpenAILLM(api_key="sk-test", model="test-model")
-
-    assert "base_url" not in client_options
-
-
-def test_structured_output_can_be_turned_off_for_endpoints_that_lack_it(
+def test_structured_output_can_be_turned_off_for_models_that_lack_it(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """關掉之後不送 schema，格式改由 prompt 要求與寬容解析負責；安全仍由 SqlGuard 顧。"""
 
     _client_options, request_options = _fake_sdk(monkeypatch)
 
-    adapter = OpenAILLM(api_key="k", model="m", api="chat_completions", structured_output=False)
-    adapter.generate("test prompt")
+    LocalLLM(base_url=OLLAMA, model="m", structured_output=False).generate("test prompt")
 
     assert "response_format" not in request_options
 
 
 def test_temperature_is_omitted_when_unset(monkeypatch: pytest.MonkeyPatch) -> None:
-    """OpenAI 的 reasoning 模型不吃 temperature，所以 null 要是「不送」而不是送 0。"""
+    """null 要是「不送」而不是送 0：交給模型自己的預設。"""
 
     _client_options, request_options = _fake_sdk(monkeypatch)
 
-    OpenAILLM(api_key="k", model="m").generate("test prompt")
+    LocalLLM(base_url=OLLAMA, model="m").generate("test prompt")
 
     assert "temperature" not in request_options
 
 
-def test_unknown_api_fails_at_construction(monkeypatch: pytest.MonkeyPatch) -> None:
-    _fake_sdk(monkeypatch)
-    with pytest.raises(ValueError, match="不支援的 api"):
-        OpenAILLM(api_key="k", api="grpc")
+def test_extra_body_carries_ollama_specific_switches(monkeypatch: pytest.MonkeyPatch) -> None:
+    """qwen3 的推理開關不在 SDK 的型別裡，要從 extra_body 送。"""
 
+    _client_options, request_options = _fake_sdk(monkeypatch)
 
-def test_api_key_env_is_configurable_per_provider(monkeypatch: pytest.MonkeyPatch) -> None:
-    """每家一個環境變數；認錯名字的話，設了 GMI key 的人會被當成沒有 key。"""
+    LocalLLM(base_url=OLLAMA, model="m", extra_body={"reasoning_effort": "none"}).generate("p")
 
-    _fake_sdk(monkeypatch)
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    monkeypatch.setenv("GMI_API_KEY", "gmi-from-environment")
-
-    adapter = OpenAILLM(api_key_env="GMI_API_KEY", model_env="GMI_MODEL", default_model="llama")
-
-    assert adapter.model == "llama"
-    with pytest.raises(RuntimeError, match="GMI_API_KEY"):
-        monkeypatch.delenv("GMI_API_KEY")
-        OpenAILLM(api_key_env="GMI_API_KEY")
+    assert request_options["extra_body"] == {"reasoning_effort": "none"}
 
 
 # ── 錯誤分類：SDK 丟的是子類別，名稱完全比對一個都接不到 ──────────────────
@@ -207,7 +173,7 @@ class _StatusError(Exception):
     """替身：只帶 `status_code`，模擬 SDK 的 APIStatusError 子類別。
 
     分類刻意靠這個屬性而不靠類別名稱，所以這裡不需要 import openai —— CI 沒裝
-    online extra 也跑得動，而且第三方相容端點自己包的例外只要帶狀態碼就一樣分得出來。
+    local extra 也跑得動，而且第三方相容端點自己包的例外只要帶狀態碼就一樣分得出來。
     """
 
     def __init__(self, status_code: int):
@@ -261,13 +227,13 @@ def test_bad_model_output_is_the_only_thing_worth_regenerating() -> None:
 def test_the_real_sdk_exceptions_carry_the_status_code_we_classify_on() -> None:
     """分類靠 `status_code` 這個屬性，所以要確認 SDK 真的有給。
 
-    沒裝 online extra 的 CI 會 skip；裝了的話，SDK 換版把屬性搬走就會在這裡紅。
+    沒裝 local extra 的 CI 會 skip；裝了的話，SDK 換版把屬性搬走就會在這裡紅。
     對照版本：openai 2.54.0。
     """
 
     openai = pytest.importorskip("openai")
     httpx = pytest.importorskip("httpx")
-    request = httpx.Request("POST", "https://api.example/v1/chat/completions")
+    request = httpx.Request("POST", "http://127.0.0.1:11434/v1/chat/completions")
     for cls, status in (
         (openai.BadRequestError, 400),
         (openai.AuthenticationError, 401),
@@ -279,20 +245,6 @@ def test_the_real_sdk_exceptions_carry_the_status_code_we_classify_on() -> None:
 
 
 # ── 回應完成狀態：文字剛好能解析，不代表模型講完了 ──────────────────────
-
-
-def _responses_client(monkeypatch: pytest.MonkeyPatch, payload: object) -> None:
-    class FakeResponses:
-        def create(self, **kwargs: object) -> object:
-            del kwargs
-            return payload
-
-    class FakeOpenAI:
-        def __init__(self, **kwargs: object):
-            del kwargs
-            self.responses = FakeResponses()
-
-    monkeypatch.setitem(sys.modules, "openai", SimpleNamespace(OpenAI=FakeOpenAI))
 
 
 def _chat_client(monkeypatch: pytest.MonkeyPatch, payload: object) -> None:
@@ -312,68 +264,7 @@ def _chat_client(monkeypatch: pytest.MonkeyPatch, payload: object) -> None:
 VALID_OUTPUT = '{"sql":"SELECT 1 LIMIT 1","params":[]}'
 
 
-def test_an_incomplete_response_is_refused_even_when_its_text_parses(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """截斷處剛好落在合法 JSON 之後，文字就看不出問題 —— 但它不是模型想講的全部。"""
-
-    _responses_client(
-        monkeypatch,
-        SimpleNamespace(
-            output_text=VALID_OUTPUT,
-            status="incomplete",
-            incomplete_details=SimpleNamespace(reason="max_output_tokens"),
-        ),
-    )
-
-    with pytest.raises(LLMIncompleteError, match="max_output_tokens"):
-        OpenAILLM(api_key="sk-test", model="m").generate("prompt")
-
-
-def test_a_refusal_is_not_mistaken_for_an_unparseable_answer(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """拒答拿去跑 SQL 修復迴圈，等於為一個不會改變的答案付三次錢。"""
-
-    _responses_client(
-        monkeypatch,
-        SimpleNamespace(
-            output_text="",
-            status="completed",
-            output=[
-                SimpleNamespace(
-                    content=[SimpleNamespace(type="refusal", refusal="我不能協助這個請求")]
-                )
-            ],
-        ),
-    )
-
-    with pytest.raises(LLMRefusedError, match="我不能協助這個請求"):
-        OpenAILLM(api_key="sk-test", model="m").generate("prompt")
-
-
-def test_a_completed_response_still_comes_back(monkeypatch: pytest.MonkeyPatch) -> None:
-    """新增的檢查不能把正常回應也擋掉。"""
-
-    _responses_client(
-        monkeypatch,
-        SimpleNamespace(output_text=VALID_OUTPUT, status="completed", incomplete_details=None),
-    )
-
-    assert OpenAILLM(api_key="sk-test", model="m").generate("prompt") == VALID_OUTPUT
-
-
-def test_a_compatible_endpoint_without_status_metadata_still_works(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """相容端點可能整個 status 欄位都沒有；沒有資訊不等於有問題。"""
-
-    _responses_client(monkeypatch, SimpleNamespace(output_text=VALID_OUTPUT))
-
-    assert OpenAILLM(api_key="sk-test", model="m").generate("prompt") == VALID_OUTPUT
-
-
-def test_chat_completions_length_finish_reason_is_truncation(
+def test_a_length_finish_reason_is_truncation_even_when_the_text_parses(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _chat_client(
@@ -389,7 +280,7 @@ def test_chat_completions_length_finish_reason_is_truncation(
     )
 
     with pytest.raises(LLMIncompleteError, match="length"):
-        OpenAILLM(api_key="sk-test", model="m", api="chat_completions").generate("prompt")
+        LocalLLM(base_url=OLLAMA, model="m").generate("prompt")
 
 
 def test_chat_completions_refusal_field_is_honoured(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -406,7 +297,7 @@ def test_chat_completions_refusal_field_is_honoured(monkeypatch: pytest.MonkeyPa
     )
 
     with pytest.raises(LLMRefusedError):
-        OpenAILLM(api_key="sk-test", model="m", api="chat_completions").generate("prompt")
+        LocalLLM(base_url=OLLAMA, model="m").generate("prompt")
 
 
 def test_chat_completions_without_choices_says_so_instead_of_crashing(
@@ -417,7 +308,7 @@ def test_chat_completions_without_choices_says_so_instead_of_crashing(
     _chat_client(monkeypatch, SimpleNamespace(choices=[]))
 
     with pytest.raises(LLMIncompleteError, match="choices"):
-        OpenAILLM(api_key="sk-test", model="m", api="chat_completions").generate("prompt")
+        LocalLLM(base_url=OLLAMA, model="m").generate("prompt")
 
 
 def test_chat_completions_empty_content_is_reported_not_regenerated(
@@ -435,7 +326,25 @@ def test_chat_completions_empty_content_is_reported_not_regenerated(
     )
 
     with pytest.raises(LLMIncompleteError):
-        OpenAILLM(api_key="sk-test", model="m", api="chat_completions").generate("prompt")
+        LocalLLM(base_url=OLLAMA, model="m").generate("prompt")
+
+
+def test_a_completed_answer_still_comes_back(monkeypatch: pytest.MonkeyPatch) -> None:
+    """這些檢查不能把正常回應也擋掉。"""
+
+    _chat_client(
+        monkeypatch,
+        SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    finish_reason="stop",
+                    message=SimpleNamespace(content=VALID_OUTPUT, refusal=None),
+                )
+            ]
+        ),
+    )
+
+    assert LocalLLM(base_url=OLLAMA, model="m").generate("prompt") == VALID_OUTPUT
 
 
 # ── 本地輸出驗證：strict schema 不是每條路徑都有 ────────────────────────
@@ -470,10 +379,3 @@ def test_ordinary_params_still_pass() -> None:
     raw = json.dumps({"sql": "SELECT 1", "params": ["煤", 2024, 1.5, True, None]})
 
     assert parse_generated_query(raw).params == ("煤", 2024, 1.5, True, None)
-
-
-def test_disabled_llm_names_the_variable_the_active_provider_actually_reads() -> None:
-    """用 GMI 的人被指去設 OPENAI_API_KEY，會照做，然後繼續不能用。"""
-
-    with pytest.raises(LLMUnavailableError, match="GMI_API_KEY"):
-        DisabledLLM(api_key_env="GMI_API_KEY").generate("任何 prompt")

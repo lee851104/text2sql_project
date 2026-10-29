@@ -1,4 +1,4 @@
-# PowerQuery TW 公開離線服務
+# GridLens TW 公開離線服務
 
 ## 架構
 
@@ -8,14 +8,14 @@
 訪客瀏覽器
   -> Tailscale Funnel HTTPS 8443
   -> http://127.0.0.1:8766
-  -> PowerQuery TW（offline）
+  -> GridLens TW（offline）
 ```
 
 原本的本機服務仍使用 `http://127.0.0.1:8765/`。LH 專案使用的 HTTPS 443 與本機 8000 不會被變更。
 
-公開程序啟動前會移除 `OPENAI_API_KEY`，並建立**兩組**強管理員帳密（`powerquery-admin-1`、`powerquery-admin-2`），兩者都有審核權。知道帳密的使用者可透過公開網址登入資料中心、審核與修改資料，或在執行環境介面輸入 OpenAI API key 啟用付費線上模型。API key 只保存在服務記憶體，服務重啟後需要重新輸入。
+公開程序啟動時設 `POWERQUERY_RUNTIME_MODE=offline`，只用離線規則，不把這台機器的本機模型開給網路上的訪客；並建立**兩組**強管理員帳密（`powerquery-admin-1`、`powerquery-admin-2`），兩者都有審核權。知道帳密的使用者可透過公開網址登入資料中心、審核與修改資料，或在「本機 LLM」頁把模式切到本機模型（服務重啟後回到離線）。
 
-**公開網址的查詢需要登入。** 執行模式與 API key 是行程全域的，匿名可查等於任何訪客都在燒管理員輸入的那把 key，所以啟動程序會設 `POWERQUERY_ANONYMOUS_QUERY_SCOPE=denied`。
+**公開網址的查詢需要登入。** 執行模式是行程全域的，管理員切到本機 LLM 後匿名可查，等於任何訪客都在用這台機器的模型，所以啟動程序會設 `POWERQUERY_ANONYMOUS_QUERY_SCOPE=denied`。
 
 兩組帳密而不是一組，是因為四眼原則禁止提案人核准自己的變更：只有一個帳號時公開環境無法發布任何資料。兩個互為審核者，示範時也剛好能演完整流程（A 上傳 → A 自審被擋 → B 核准 → 資料上線）。
 
@@ -79,9 +79,9 @@ Text2SQL 查詢失敗的結構化紀錄仍位於 `data/processed/.powerquery-dat
 
 ## 公開前注意事項
 
-- 公開 Funnel 的任何人只要知道網址就能存取查詢頁面；取得管理員帳密的人還能修改資料並設定付費模型。
-- 請勿把 `.env`、API key、管理員密碼或完整服務日誌提供給公開訪客。
-- OpenAI API key 啟用後，公開訪客選擇線上模式所產生的費用會計入該 API key 所屬帳戶。
+- 公開 Funnel 的任何人只要知道網址就能存取查詢頁面；取得管理員帳密的人還能修改資料並切換到本機模型。
+- 請勿把 `.env`、管理員密碼或完整服務日誌提供給公開訪客。
+- 切到本機 LLM 後，公開訪客的查詢會占用這台機器的 CPU／GPU；長尾問題每題可能要十幾秒到數分鐘。
 - 如需回報查詢問題，優先提供資料中心下載的 `powerquery-query-errors.jsonl`；若服務無法啟動，再提供 `logs/public-offline-launcher.log` 與最新的 stderr log。
 # 全量原始資料查詢
 

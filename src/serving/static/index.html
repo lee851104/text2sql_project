@@ -4,20 +4,20 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content">
   <meta name="description" content="以自然語言安全查詢、管理與追蹤台電開放資料語料">
-  <title>查詢中心｜PowerQuery TW</title>
-  <link rel="stylesheet" href="/static/app.css?v=20261006">
-  <link rel="stylesheet" href="/static/styles.css?v=20261006">
+  <title>查詢中心｜GridLens TW</title>
+  <link rel="stylesheet" href="/static/app.css?v=20261025b">
+  <link rel="stylesheet" href="/static/styles.css?v=20261025b">
   <script src="https://cdn.plot.ly/plotly-basic-4.0.0.min.js"
           integrity="sha384-pob47bLDprs//iBIQpGg2VYPBbDGMuH6Fyu26Rdf2XvV5y78KBv8pT1xS/5MhP/8"
           crossorigin="anonymous" defer></script>
-  <script src="/static/app.js?v=20261006" defer></script>
+  <script src="/static/app.js?v=20261025b" defer></script>
 </head>
 <body>
   <div class="app-shell">
     <aside class="sidebar" id="sidebar" tabindex="-1" aria-label="PowerQuery 工作導覽">
       <div class="brand">
-        <span class="brand-mark" aria-hidden="true">P</span>
-        <div><strong>PowerQuery TW</strong><span>台電資料智慧分析台</span></div>
+        <span class="brand-mark" aria-hidden="true">G</span>
+        <div><strong>GridLens TW</strong><span>台電資料智慧分析台</span></div>
         <button class="sidebar-close" id="sidebarClose" type="button" aria-label="關閉導覽">×</button>
       </div>
 
@@ -25,7 +25,7 @@
         <span class="status-dot" id="statusDot" aria-hidden="true"></span>
         <span id="statusText">正在連線…</span>
       </div>
-      <div class="demo-banner" id="demoBanner" role="note" hidden>目前使用離線規則模式；固定分析可直接執行，長尾問題需切換線上 API。</div>
+      <div class="demo-banner" id="demoBanner" role="note" hidden>目前使用離線規則模式；固定分析可直接執行，長尾問題需啟動本機 Ollama 並切換到本機 LLM。</div>
 
       <nav class="primary-nav" aria-label="主要功能">
         <button class="nav-item" type="button" data-view="query" aria-current="page">
@@ -38,7 +38,7 @@
           <span class="nav-icon" aria-hidden="true">◎</span><span><strong>資料管理</strong><small>資料檔、語料、版本與稽核</small></span>
         </button>
         <button class="nav-item" type="button" data-view="settings">
-          <span class="nav-icon" aria-hidden="true">⚙</span><span><strong>API 與模型</strong><small>離線／線上執行設定</small></span>
+          <span class="nav-icon" aria-hidden="true">⚙</span><span><strong>本機 LLM</strong><small>離線規則／本機模型設定</small></span>
         </button>
         <button class="nav-item" type="button" data-view="docs">
           <span class="nav-icon code-icon" aria-hidden="true">{ }</span><span><strong>API 文件</strong><small>端點與請求格式</small></span>
@@ -141,7 +141,7 @@
                 <select id="executionMode" aria-label="這次查詢的執行模式">
                   <option value="">沿用預設模式</option>
                   <option value="offline">離線規則</option>
-                  <option value="online">線上 API</option>
+                  <option value="local">本機 LLM</option>
                   <option value="auto">自動判斷</option>
                 </select>
               </label>
@@ -243,6 +243,7 @@
               <button class="text-button" id="dataLogout" type="button">登出</button>
             </section>
             <div class="credential-warning" id="defaultCredentialWarning" role="note" hidden>目前仍使用示範用預設帳密；正式部署前請用環境變數替換。</div>
+            <div class="credential-warning rebuild-notice" id="rebuildNotice" role="note" hidden><span id="rebuildNoticeText">作用中的資料庫是舊版建庫程式建的。</span><button class="entry-open" id="openRebuildDialog" type="button">建立重建異動</button></div>
 
             <div class="metric-grid management-metrics" aria-label="資料管理摘要">
               <article class="metric-card compact"><div><p>啟用資料檔</p><strong id="activeDatasetCount">—</strong></div></article>
@@ -367,7 +368,7 @@
         </section>
 
         <section class="view-panel" id="settingsView" data-panel="settings" aria-labelledby="settingsHeading" hidden>
-          <header class="page-heading"><div><p class="eyebrow">RUNTIME SETTINGS</p><h2 id="settingsHeading" tabindex="-1">API 與模型執行模式</h2><p>離線版使用本機規則處理可重現題型；線上版將長尾問題交給已設定的模型。</p></div></header>
+          <header class="page-heading"><div><p class="eyebrow">RUNTIME SETTINGS</p><h2 id="settingsHeading" tabindex="-1">本機 LLM 執行模式</h2><p>離線規則處理可重現題型；本機 LLM 在這台機器上用 Ollama 處理規則接不住的長尾問題，問句與資料都不離開本機。</p></div></header>
 
           <div class="settings-layout">
             <section class="surface settings-form-card" aria-labelledby="runtimeFormTitle">
@@ -375,17 +376,15 @@
               <form id="runtimeForm">
                 <fieldset class="mode-options">
                   <legend class="sr-only">預設執行模式</legend>
-                  <label class="mode-option"><input type="radio" name="runtimeMode" value="auto"><span class="mode-option-icon auto" aria-hidden="true">A</span><span><strong>自動判斷</strong><small>有可用金鑰時走線上，否則安全回到離線規則。</small></span><span class="radio-check" aria-hidden="true">✓</span></label>
-                  <label class="mode-option"><input type="radio" name="runtimeMode" value="offline"><span class="mode-option-icon offline" aria-hidden="true">◉</span><span><strong>離線規則</strong><small>不傳送資料到外部服務，適合固定且已驗證的題型。</small></span><span class="radio-check" aria-hidden="true">✓</span></label>
-                  <label class="mode-option"><input type="radio" name="runtimeMode" value="online"><span class="mode-option-icon online" aria-hidden="true">↗</span><span><strong>線上 API</strong><small>使用模型理解長尾問題；需要有效的 API key。</small></span><span class="radio-check" aria-hidden="true">✓</span></label>
+                  <label class="mode-option"><input type="radio" name="runtimeMode" value="auto"><span class="mode-option-icon auto" aria-hidden="true">A</span><span><strong>自動判斷</strong><small>偵測到本機 Ollama 時用本機 LLM，否則安全回到離線規則。</small></span><span class="radio-check" aria-hidden="true">✓</span></label>
+                  <label class="mode-option"><input type="radio" name="runtimeMode" value="offline"><span class="mode-option-icon offline" aria-hidden="true">◉</span><span><strong>離線規則</strong><small>只用已驗證的規則，固定題型可重現，不需要模型。</small></span><span class="radio-check" aria-hidden="true">✓</span></label>
+                  <label class="mode-option"><input type="radio" name="runtimeMode" value="local"><span class="mode-option-icon local" aria-hidden="true">⌂</span><span><strong>本機 LLM</strong><small>規則接不住的長尾問題交給本機 Ollama 模型；需要先 ollama pull 模型。</small></span><span class="radio-check" aria-hidden="true">✓</span></label>
                 </fieldset>
 
                 <div class="form-grid">
-                  <label class="field"><span>模型名稱</span><input id="modelInput" name="model" type="text" maxlength="120" placeholder="例如：gpt-5.4-mini" autocomplete="off"><small>留空會沿用後端目前設定。</small></label>
-                  <label class="field"><span>API key</span><span class="password-field"><input id="apiKeyInput" name="api_key" type="password" maxlength="512" placeholder="只在需要新增或替換時輸入" autocomplete="new-password"><button id="toggleApiKey" type="button" aria-label="顯示 API key">顯示</button></span><small>只送往本機後端；不會寫入 localStorage 或顯示既有 key。首次啟用線上 adapter 前，請先執行 uv sync --extra online。</small></label>
+                  <label class="field"><span>模型名稱</span><input id="modelInput" name="model" type="text" maxlength="120" placeholder="例如：qwen3:8b" autocomplete="off"><small>Ollama 裡已下載的模型名稱；留空會沿用後端目前設定。首次使用前請先執行 uv sync --extra local。</small></label>
                 </div>
                 <div class="form-actions">
-                  <button class="secondary-button" id="clearRuntimeKey" type="button">清除記憶體金鑰並切離線</button>
                   <button class="primary-button" id="saveRuntime" type="submit">套用執行設定</button>
                 </div>
               </form>
@@ -397,12 +396,13 @@
               <dl class="summary-list">
                 <div><dt>作用中模式</dt><dd id="summaryActiveMode">—</dd></div>
                 <div><dt>預設模式</dt><dd id="summaryDefaultMode">—</dd></div>
-                <div><dt>線上 API</dt><dd id="summaryOnlineConfigured">—</dd></div>
-                <div><dt>供應商</dt><dd id="summaryProvider">—</dd></div>
+                <div><dt>本機 Ollama</dt><dd id="summaryLocalAvailable">—</dd></div>
+                <div><dt>模式設定</dt><dd id="summaryProvider">—</dd></div>
+                <div><dt>端點</dt><dd id="summaryBaseUrl">—</dd></div>
                 <div><dt>模型</dt><dd id="summaryModel">—</dd></div>
               </dl>
               <div class="capability-note"><strong>離線能力</strong><p id="offlineCapability">讀取中…</p></div>
-              <div class="security-note"><span aria-hidden="true">◇</span><p><strong>金鑰處理原則</strong><br>瀏覽器不保存 API key。重新載入後，輸入欄位永遠保持空白。</p></div>
+              <div class="security-note"><span aria-hidden="true">◇</span><p><strong>資料不出本機</strong><br>本機 LLM 只連 configs/llm.yaml 指定的 Ollama 端點，不需要 API key，也不呼叫任何雲端服務。</p></div>
             </aside>
           </div>
         </section>
@@ -424,15 +424,14 @@
             </nav>
 
             <div class="docs-content">
-              <section class="surface doc-section" id="docsQuery"><div class="endpoint-title"><span class="method post">POST</span><div><h3>/api/query</h3><p>執行自然語言查詢，可逐次指定離線或線上模式。</p></div></div><pre><code>{
+              <section class="surface doc-section" id="docsQuery"><div class="endpoint-title"><span class="method post">POST</span><div><h3>/api/query</h3><p>執行自然語言查詢，可逐次指定離線規則或本機 LLM 模式。</p></div></div><pre><code>{
   "question": "2026年7月備轉容量率最低是哪一天？",
   "execution_mode": "offline"
 }</code></pre><p class="doc-note">成功回應包含 SQL、欄位、列資料、圖表規格、統計與語意揭露。</p></section>
 
-              <section class="surface doc-section" id="docsRuntime"><div class="endpoint-title"><span class="method put">PUT</span><div><h3>/api/runtime/llm</h3><p>查看或切換預設執行模式。只有更新金鑰時才需傳 <code>api_key</code>。</p></div></div><pre><code>{
-  "mode": "online",
-  "model": "gpt-5.4-mini",
-  "api_key": "&lt;只傳給本機後端&gt;"
+              <section class="surface doc-section" id="docsRuntime"><div class="endpoint-title"><span class="method put">PUT</span><div><h3>/api/runtime/llm</h3><p>查看或切換預設執行模式（<code>offline</code>、<code>local</code>、<code>auto</code>）與本機模型。</p></div></div><pre><code>{
+  "mode": "local",
+  "model": "qwen3:8b"
 }</code></pre></section>
 
               <section class="surface doc-section" id="docsDataManagement"><div class="endpoint-title"><span class="method get">GET</span><div><h3>/api/data/status · changes · versions · events</h3><p>登入後調閱作用中資料檔、待審異動、不可變資料庫版本與完整稽核鏈；上傳、停用與審核端點均需 <code>X-PowerQuery-CSRF</code>。</p></div></div></section>

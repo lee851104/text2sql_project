@@ -310,7 +310,7 @@ def _rag_ablation(corpus_path: Path, eval_items: list[dict[str, Any]]) -> dict[s
         "metric": "top1_intent_accuracy",
         "enabled": accuracy(enabled),
         "disabled_default_other": accuracy(disabled),
-        "note": "這是檢索器本身的離線指標，不假裝是線上 LLM 準確率。",
+        "note": "這是檢索器本身的離線指標，不假裝是本機 LLM 的準確率。",
     }
 
 
@@ -335,13 +335,13 @@ def _ablation(
             "1": execution_accuracy,
             "2": execution_accuracy,
             "3": execution_accuracy,
-            "note": "規則路由在第一次就產生候選；需線上 LLM 測試才能估計重生收益。",
+            "note": "規則路由在第一次就產生候選；重生收益要看本機 LLM 評測（eval.llm_eval）。",
         },
         "routing": {
             "metric": "offline_execution_accuracy",
             "enabled": execution_accuracy,
             "disabled": None,
-            "disabled_status": "not_run_without_online_llm",
+            "disabled_status": "measured_by_llm_eval",
             "rule_coverage": execution["rule_coverage"],
         },
     }
@@ -511,11 +511,12 @@ def _write_markdown(report: dict[str, Any], path: Path, *, history_path: Path) -
         "| --- | --- | --- |",
         f"| 離線 `{report['mode']}` "
         f"| 規則路由，覆蓋 {_rate(execution['rule_coverage'])} | ✅ 以下全部指標 |",
-        "| 線上（OpenAI Responses API） | 規則沒接才由 LLM 生成 "
-        f"| ❌ 未量測（`{ablation['routing']['disabled_status']}`） |",
+        "| 本機 LLM（Ollama） | 規則沒接才由 LLM 生成 "
+        f"| ❌ 本表未量測（`{ablation['routing']['disabled_status']}`） |",
         "",
-        "兩種模式共用同一套守門，但線上的答題準確率要有 API key 才量得到，",
-        "因此不在 CI、也不在本表。**這一欄是空的，不是滿的。**",
+        "兩種模式共用同一套守門，但本機 LLM 的答題準確率要有 Ollama 與模型才量得到，",
+        "因此不在 CI、也不在本表，另見 `python -m eval.llm_eval` 的報告。"
+        "**這一欄是空的，不是滿的。**",
         "",
         "## 驗收條件",
         "",
@@ -589,7 +590,7 @@ def _write_markdown(report: dict[str, Any], path: Path, *, history_path: Path) -
             f"{attempt} 次 {_rate(ablation['max_attempts'][attempt])}"
             for attempt in ("1", "2", "3")
         )
-        + "。規則在第一次就產生候選，重生的收益要有線上 LLM 才量得到。",
+        + "。規則在第一次就產生候選，重生的收益要看本機 LLM 評測。",
         "",
         "## 沒過的題目",
         "",
@@ -630,8 +631,8 @@ def _write_markdown(report: dict[str, Any], path: Path, *, history_path: Path) -
         "",
         "## 這些數字的界線",
         "",
-        "- 關閉規則路由的線上對照在沒有 API key 時不執行，不會拿標準答案假裝模型輸出。",
-        "- 本報告只涵蓋版控題庫。線上真實查詢目前只記錄失敗（`src/serving/query_log.py`），",
+        "- 關閉規則路由的對照需要本機 LLM，離線評測不執行，不會拿標準答案假裝模型輸出。",
+        "- 本報告只涵蓋版控題庫。服務上的真實查詢目前只記錄失敗（`src/serving/query_log.py`），",
         "  **成功但答錯的問句不在任何指標裡** —— 那類錯誤的結果看起來完全正常。",
         "- 指標定義、陷阱雙數字的理由與離線結果的界線見 [EVALUATION.md](../docs/EVALUATION.md)。",
         "",

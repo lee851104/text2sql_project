@@ -21,6 +21,7 @@ from ingest.realtime.archive import (
 )
 from ingest.realtime.config import RealtimeConfig
 from ingest.realtime.decisions import Decisions
+from ingest.realtime.history import replay_history
 from ingest.realtime.maintenance import (
     closed_through,
     days_needing_rollup,
@@ -48,6 +49,7 @@ class RebuildReport:
     rejected: int
     corrupted: int
     unparsed: int
+    history_imports: int = 0
 
 
 def fetch_times(config: RealtimeConfig) -> dict[str, str]:
@@ -131,6 +133,8 @@ def rebuild(
         for day in days_needing_rollup(connection, now, config):
             rollup_day(connection, day, now, config)
         purge(connection, cutoff=purge_cutoff(now, config), now=now)
+        # d006010 的封存也是真實來源的一部分（RT-2）：重建要連歷史一起重放。
+        history_reports = replay_history(connection, config, decisions, now=now)
         write_manifest(
             connection,
             build_kind="rebuild" if files else "create",
@@ -138,4 +142,4 @@ def rebuild(
             decisions=decisions,
             now=now,
         )
-    return RebuildReport(len(files), ingested, rejected, corrupted, unparsed)
+    return RebuildReport(len(files), ingested, rejected, corrupted, unparsed, len(history_reports))

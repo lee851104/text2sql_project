@@ -170,3 +170,52 @@ def test_the_unreadable_fragment_is_reported_whole() -> None:
     entities = extract_entities(question)
     assert entities.date_range is None
     assert unparsed_date(question, entities) == "2026年13月40日"
+
+
+# 日期區間：單日規則只抓第一天，「4月1日到4月10日」曾經靜默變成問一天。
+@pytest.mark.parametrize(
+    ("written", "start", "end"),
+    [
+        ("2026年4月1日到2026年5月10日大潭出力", "2026-04-01", "2026-05-10"),
+        ("2026年4月1日至4月10日燃氣出力", "2026-04-01", "2026-04-10"),
+        ("2026年7月20日~25日台中#1最高出力", "2026-07-20", "2026-07-25"),
+        ("2026年7月20日～7月25日備轉容量率", "2026-07-20", "2026-07-25"),
+        ("115年7月1日到7月3日尖峰負載", "2026-07-01", "2026-07-03"),
+        ("今年7月1日到7月3日備轉容量率", "2026-07-01", "2026-07-03"),
+        ("2026/7/1~2026/7/15備轉容量率", "2026-07-01", "2026-07-15"),
+        ("2026/7/1到7/15備轉容量率", "2026-07-01", "2026-07-15"),
+        ("2025年12月30日到2026年1月2日尖峰負載", "2025-12-30", "2026-01-02"),
+        ("2026年4月1日-4月10日燃氣出力", "2026-04-01", "2026-04-10"),
+        ("2026年4月1日-10日燃氣出力", "2026-04-01", "2026-04-10"),
+        ("2026/4/1-2026/4/10尖峰負載", "2026-04-01", "2026-04-10"),
+        ("2026/4/1-4/10尖峰負載", "2026-04-01", "2026-04-10"),
+        ("2026-04-01-2026-04-10尖峰負載", "2026-04-01", "2026-04-10"),
+        ("2026-04-01 - 04-10尖峰負載", "2026-04-01", "2026-04-10"),
+    ],
+)
+def test_a_day_range_is_a_range_not_its_first_day(written: str, start: str, end: str) -> None:
+    entities = extract_entities(written, reference_date=date(2026, 10, 25))
+
+    assert entities.date_range == DateRange(start, end)
+    assert entities.explicit_date is None
+
+
+def test_a_range_of_one_day_is_that_day() -> None:
+    entities = extract_entities("2026年7月20日到7月20日出力", reference_date=date(2026, 10, 25))
+
+    assert entities.explicit_date == "2026-07-20"
+
+
+@pytest.mark.parametrize(
+    "written",
+    [
+        "2026年7月10日到7月1日備轉容量率",
+        "2026年2月30日到3月2日尖峰負載",
+        "2026/7/10-2026/7/1備轉容量率",
+    ],
+)
+def test_an_impossible_range_is_asked_about_not_shortened(written: str) -> None:
+    entities = extract_entities(written, reference_date=date(2026, 10, 25))
+
+    assert entities.date_range is None
+    assert unparsed_date(written, entities) is not None

@@ -9,27 +9,29 @@ from ingest.build_db import build_database
 from ingest.validate import PROJECT_ROOT
 from serving import runtime as runtime_module
 from serving.runtime import RuntimeManager, _provider_settings, build_runtime
-from text2sql.llm import DisabledLLM
+from text2sql.llm import DisabledLLM, FakeLLM
 
 
-class StubOpenAILLM:
-    calls: list[tuple[str | None, str | None, float]] = []
-    # provider 設定（base_url／api／temperature…）原樣收下，供 provider 相關的測試檢查。
+class StubLocalLLM:
+    # 收下的設定（base_url／timeout／extra_body…）原樣保留，供設定相關的測試檢查。
     options: list[dict[str, object]] = []
 
-    def __init__(
-        self,
-        *,
-        model: str | None = None,
-        api_key: str | None = None,
-        timeout_seconds: float = 30.0,
-        **provider_options: object,
-    ):
-        self.calls.append((model, api_key, timeout_seconds))
-        self.options.append(provider_options)
+    def __init__(self, **options: object):
+        self.options.append(options)
 
     def generate(self, prompt: str) -> str:
         raise AssertionError(f"not expected in runtime tests: {prompt}")
+
+
+def _always(value: bool):
+    calls: list[str] = []
+
+    def probe(base_url: str) -> bool:
+        calls.append(base_url)
+        return value
+
+    probe.calls = calls  # type: ignore[attr-defined]
+    return probe
 
 
 @pytest.fixture(scope="module")
@@ -41,346 +43,217 @@ def database(tmp_path_factory: pytest.TempPathFactory) -> Path:
 
 @pytest.fixture(autouse=True)
 def pin_provider(monkeypatch: pytest.MonkeyPatch) -> None:
-    """把 `build_runtime` 讀到的 provider 釘成 openai。
+    """把 provider 釘成 ollama，並換掉轉接層。
 
-    這個檔案大半在驗 runtime 的機制 —— 模式切換、憑證來源、快取失效、key 輪替 ——
-    與使用者選了哪一家無關。不釘住的話，只要有人把 `configs/llm.yaml` 改成別家，
-    這些測試就會整批紅：憑證改讀另一個環境變數、預設模型換成另一個名字。
-    那是設定變了，不是程式壞了，讓它染紅會蓋掉真正的迴歸。
-
-    專門驗 provider 切換的那幾筆自己讀設定檔，不經過這裡。
+    這個檔案驗的是 runtime 的機制 —— 模式切換、Ollama 探測、快取、換資料庫 ——
+    與預設開不開推理無關。環境變數 POWERQUERY_LLM_PROVIDER 或 llm.yaml 換成推理模式時，
+    這些測試不該整批紅。專門驗設定檔的那幾筆自己讀檔。
     """
 
-    original = runtime_module._yaml
-
-    def pinned(path: Path) -> dict[str, object]:
-        config = original(path)
-        if path.name == "llm.yaml":
-            return {**config, "provider": "openai"}
-        return config
-
-    monkeypatch.setattr(runtime_module, "_yaml", pinned)
+    monkeypatch.delenv(runtime_module.PROVIDER_ENV, raising=False)
+    monkeypatch.delenv("OLLAMA_MODEL", raising=False)
+    monkeypatch.setattr(runtime_module, "LocalLLM", StubLocalLLM)
+    StubLocalLLM.options.clear()
 
 
-def test_build_runtime_offline_ignores_environment_key(
+def test_offline_never_builds_the_local_adapter_or_probes(
     database: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setenv("OPENAI_API_KEY", "environment-secret")
-    monkeypatch.setenv("OPENAI_MODEL", "   ")
     monkeypatch.setattr(
         runtime_module,
-        "OpenAILLM",
-        lambda **_kwargs: pytest.fail("offline mode must not construct the online adapter"),
+        "LocalLLM",
+        lambda **_kwargs: pytest.fail("offline mode must not construct the local adapter"),
     )
+    probe = _always(True)
 
-    service = build_runtime(
-        database=database,
-        root=PROJECT_ROOT,
-        mode="offline",
-        model="offline-model",
-    )
+    service = build_runtime(database=database, mode="offline", model="offline-model", probe=probe)
 
     assert service.mode == "offline"
-    assert service.online_llm is False
-    assert service.source == "offline"
+    assert service.local_llm is False
     assert service.model == "offline-model"
     assert service.root == PROJECT_ROOT.resolve()
     assert isinstance(service.pipeline.llm, DisabledLLM)
-    assert "environment-secret" not in repr(service)
+    assert probe.calls == [], "離線模式不該去連 Ollama"
 
 
-def test_offline_default_ignores_invalid_online_model_environment(
+def test_local_mode_uses_the_configured_ollama_endpoint(database: Path) -> None:
+    service = build_runtime(database=database, mode="local", model="qwen3:8b")
+
+    assert service.mode == "local"
+    assert service.local_llm is True
+    assert service.provider == "ollama"
+    assert service.base_url == "http://127.0.0.1:11434/v1"
+    sent = StubLocalLLM.options[-1]
+    assert sent["base_url"] == "http://127.0.0.1:11434/v1"
+    assert sent["model"] == "qwen3:8b"
+    assert sent["timeout_seconds"] == 120.0
+    assert sent["extra_body"] == {"reasoning_effort": "none"}
+    assert sent["temperature"] == 0.0
+
+
+def test_local_mode_does_not_quietly_fall_back_when_ollama_is_down(database: Path) -> None:
+    """明講要本機 LLM 就給它；Ollama 沒開時讓使用者看到真正的失敗，而不是悄悄換成規則。"""
+
+    probe = _always(False)
+    service = build_runtime(database=database, mode="local", probe=probe)
+
+    assert service.mode == "local"
+    assert probe.calls == []
+
+
+@pytest.mark.parametrize(("available", "expected"), [(True, "local"), (False, "offline")])
+def test_auto_mode_follows_whether_ollama_answers(
+    database: Path, available: bool, expected: str
+) -> None:
+    probe = _always(available)
+
+    service = build_runtime(database=database, mode="auto", probe=probe)
+
+    assert service.mode == expected
+    assert service.requested_mode == "auto"
+    assert probe.calls == ["http://127.0.0.1:11434/v1"]
+
+
+def test_the_cloud_mode_name_is_gone(database: Path) -> None:
+    with pytest.raises(ValueError, match="offline、local 或 auto"):
+        build_runtime(database=database, mode="online")  # type: ignore[arg-type]
+
+
+def test_model_comes_from_ollama_model_then_the_default(
     database: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    monkeypatch.setenv("OPENAI_MODEL", "   ")
-
-    service = build_runtime(database=database, mode="offline")
-
-    assert service.mode == "offline"
-    assert service.model == "gpt-5.4-mini"
+    assert build_runtime(database=database, mode="offline").model == "qwen3:8b"
+    monkeypatch.setenv("OLLAMA_MODEL", "gemma3:4b")
+    assert build_runtime(database=database, mode="offline").model == "gemma3:4b"
+    monkeypatch.setenv("OLLAMA_MODEL", "   ")
+    assert build_runtime(database=database, mode="offline").model == "qwen3:8b"
 
 
-def test_auto_mode_preserves_environment_model_until_key_becomes_available(
-    database: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    monkeypatch.setenv("OPENAI_MODEL", "environment-model")
-    monkeypatch.setattr(runtime_module, "OpenAILLM", StubOpenAILLM)
-    manager = RuntimeManager(database=database, default_mode="auto")
-
-    assert manager.active_runtime.mode == "offline"
-    assert manager.status()["model"] == "environment-model"
-
-    monkeypatch.setenv("OPENAI_API_KEY", "later-key")
-    online = manager.get_runtime()
-
-    assert online.mode == "online"
-    assert online.model == "environment-model"
-
-
-@pytest.mark.parametrize(
-    ("mode", "argument_key", "environment_key", "expected_source"),
-    [
-        ("online", "memory-secret", None, "memory"),
-        ("auto", None, "environment-secret", "environment"),
-    ],
-)
-def test_build_runtime_selects_online_without_exposing_key(
-    database: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    mode: str,
-    argument_key: str | None,
-    environment_key: str | None,
-    expected_source: str,
-) -> None:
-    StubOpenAILLM.calls.clear()
-    monkeypatch.setattr(runtime_module, "OpenAILLM", StubOpenAILLM)
-    if environment_key is None:
-        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    else:
-        monkeypatch.setenv("OPENAI_API_KEY", environment_key)
-
-    service = build_runtime(
-        database=database,
-        mode=mode,  # type: ignore[arg-type]
-        model="selected-model",
-        api_key=argument_key,
-    )
-    secret = argument_key or environment_key
-
-    assert service.mode == "online"
-    assert service.online_llm is True
-    assert service.source == expected_source
-    assert service.model == "selected-model"
-    assert StubOpenAILLM.calls == [("selected-model", secret, 30.0)]
-    assert secret is not None
-    assert secret not in repr(service)
-
-
-def test_explicit_online_requires_a_key(database: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-
-    with pytest.raises(RuntimeError, match="API key"):
-        build_runtime(database=database, mode="online")
-
-
-def test_manager_accepts_injected_runtime_and_reports_safe_status(
-    database: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+def test_manager_status_reports_ollama_without_any_credential_fields(database: Path) -> None:
     service = build_runtime(database=database, mode="offline", model="configured-model")
-    manager = RuntimeManager(service)
+    manager = RuntimeManager(service, probe=_always(False))
 
     assert manager.active_runtime is service
     assert manager.get_runtime("offline") is service
     assert manager.status() == {
         "default_mode": "offline",
         "active_mode": "offline",
-        "online_configured": False,
-        "provider": "openai",
+        "local_available": False,
+        "provider": "ollama",
         "model": "configured-model",
-        "source": "offline",
+        "base_url": "http://127.0.0.1:11434/v1",
         "offline_capability": True,
     }
 
 
-def test_injected_auto_runtime_preserves_requested_default(
+def test_auto_manager_switches_to_local_once_ollama_comes_up(
     database: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    service = build_runtime(database=database, mode="auto")
-    manager = RuntimeManager(service)
+    state = {"up": False}
+    manager = RuntimeManager(database=database, default_mode="auto", probe=lambda _url: state["up"])
+    assert manager.active_runtime.mode == "offline"
 
-    assert service.mode == "offline"
-    assert service.requested_mode == "auto"
-    assert manager.default_mode == "auto"
-
-    monkeypatch.setenv("OPENAI_API_KEY", "later-environment-secret")
-    monkeypatch.setattr(runtime_module, "OpenAILLM", StubOpenAILLM)
-    assert manager.get_runtime().mode == "online"
+    state["up"] = True
+    # 快取期間內沿用上次的結果，不必每個查詢都多等一次連線。
+    assert manager.get_runtime().mode == "offline"
+    monkeypatch.setattr(runtime_module, "PROBE_TTL_SECONDS", 0.0)
+    assert manager.get_runtime().mode == "local"
 
 
-def test_injected_runtime_rejects_inconsistent_model_or_key_overrides(
-    database: Path,
-) -> None:
+def test_configuring_auto_probes_right_away(database: Path) -> None:
+    state = {"up": False}
+    manager = RuntimeManager(
+        database=database, default_mode="offline", probe=lambda _url: state["up"]
+    )
+    manager.status()
+
+    state["up"] = True
+    configured = manager.configure(mode="auto")
+
+    assert configured.mode == "local", "剛按下套用就該看到 Ollama 現在的狀態"
+
+
+def test_injected_runtime_rejects_a_model_override(database: Path) -> None:
     service = build_runtime(database=database, mode="offline")
 
     with pytest.raises(ValueError, match="不可同時覆寫"):
         RuntimeManager(service, model="different-model")
-    with pytest.raises(ValueError, match="不可同時覆寫"):
-        RuntimeManager(service, api_key="different-key")
 
 
-def test_injected_online_runtime_remains_usable_without_retaining_its_key(
-    database: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    monkeypatch.setattr(runtime_module, "OpenAILLM", StubOpenAILLM)
-    service = build_runtime(
-        database=database,
-        mode="online",
-        model="injected-model",
-        api_key="injected-secret",
-    )
+def test_injected_local_runtime_is_kept_instead_of_rebuilt(database: Path) -> None:
+    """測試帶進來的 FakeLLM 不能被換成真的 Ollama。"""
 
-    manager = RuntimeManager(service)
-    selected = manager.get_runtime()
+    built = build_runtime(database=database, mode="local")
+    built.pipeline.llm = FakeLLM([])
+    manager = RuntimeManager(built, probe=_always(False))
 
-    assert selected.pipeline is service.pipeline
-    assert selected.source == "injected"
-    assert manager.status()["online_configured"] is True
-    assert "injected-secret" not in repr(manager)
-
-    assert manager.configure(mode="online").source == "injected"
+    assert manager.get_runtime().pipeline is built.pipeline
+    assert manager.get_runtime("auto").pipeline is built.pipeline
+    assert manager.status()["local_available"] is True
     assert manager.configure(mode="offline").mode == "offline"
-    assert manager.configure(mode="online").source == "injected"
+    assert manager.configure(mode="local").pipeline is built.pipeline
 
 
-def test_caller_supplied_environment_runtime_is_purged_when_key_is_removed(
+def test_injected_local_runtime_refuses_a_database_switch(database: Path, tmp_path: Path) -> None:
+    replacement = tmp_path / "power-version-2.db"
+    shutil.copyfile(database, replacement)
+    manager = RuntimeManager(build_runtime(database=database, mode="local"))
+
+    with pytest.raises(RuntimeError, match="注入式"):
+        manager.switch_database(replacement)
+
+
+def test_failed_configuration_preserves_previous_state(
     database: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(runtime_module, "OpenAILLM", StubOpenAILLM)
-    monkeypatch.setenv("OPENAI_API_KEY", "temporary-environment-secret")
-    service = build_runtime(database=database, mode="online")
-    manager = RuntimeManager(service)
-
-    monkeypatch.delenv("OPENAI_API_KEY")
-    status = manager.status()
-
-    assert status["online_configured"] is False
-    assert status["active_mode"] == "offline"
-    assert status["source"] == "offline"
-
-
-def test_caller_supplied_environment_runtime_detects_key_rotation_during_handoff(
-    database: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(runtime_module, "OpenAILLM", StubOpenAILLM)
-    monkeypatch.setenv("OPENAI_API_KEY", "environment-key-a")
-    service = build_runtime(database=database, mode="online")
-
-    monkeypatch.setenv("OPENAI_API_KEY", "environment-key-b")
-    manager = RuntimeManager(service)
-    selected = manager.get_runtime("auto")
-
-    assert selected.pipeline is not service.pipeline
-    assert selected.source == "environment"
-    assert StubOpenAILLM.calls[-1][1] == "environment-key-b"
-
-
-def test_failed_online_configuration_preserves_previous_state(
-    database: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     service = build_runtime(database=database, mode="offline", model="stable-model")
-    manager = RuntimeManager(service)
+    manager = RuntimeManager(service, probe=_always(False))
     previous_status = manager.status()
 
-    class BrokenOpenAILLM:
+    class BrokenLocalLLM:
         def __init__(self, **_kwargs: object):
             raise RuntimeError("adapter setup failed")
 
-    monkeypatch.setattr(runtime_module, "OpenAILLM", BrokenOpenAILLM)
+    monkeypatch.setattr(runtime_module, "LocalLLM", BrokenLocalLLM)
     with pytest.raises(RuntimeError, match="adapter setup failed"):
-        manager.configure(mode="online", model="replacement-model", api_key="do-not-leak")
+        manager.configure(mode="local", model="replacement-model")
 
     assert manager.active_runtime is service
     assert manager.status() == previous_status
     assert manager.default_mode == "offline"
-    assert "do-not-leak" not in repr(manager)
-    assert "do-not-leak" not in repr(manager.status())
 
 
-def test_manager_switches_modes_per_query_and_keeps_key_in_memory(
-    database: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    monkeypatch.setattr(runtime_module, "OpenAILLM", StubOpenAILLM)
+def test_manager_switches_modes_per_query(database: Path) -> None:
     service = build_runtime(database=database, mode="offline", model="initial-model")
-    manager = RuntimeManager(service)
+    manager = RuntimeManager(service, probe=_always(True))
 
-    configured = manager.configure(
-        mode="online",
-        model="online-model",
-        api_key="memory-only-secret",
-    )
+    configured = manager.configure(mode="local", model="qwen3:8b")
     offline = manager.get_runtime("offline")
     automatic = manager.get_runtime("auto")
 
-    assert configured.mode == "online"
-    assert configured.source == "memory"
+    assert configured.mode == "local"
     assert offline.mode == "offline"
-    assert automatic.mode == "online"
     assert automatic is configured
-    assert manager.default_mode == "online"
-    assert manager.status()["online_configured"] is True
-    assert manager.status()["active_mode"] == "online"
-    assert "memory-only-secret" not in repr(manager)
-    assert "memory-only-secret" not in repr(manager.status())
+    assert manager.default_mode == "local"
+    assert manager.status()["active_mode"] == "local"
     with pytest.raises(TypeError):
         vars(manager)
 
 
-def test_environment_source_survives_cached_mode_switch(
-    database: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setenv("OPENAI_API_KEY", "environment-secret")
-    monkeypatch.setattr(runtime_module, "OpenAILLM", StubOpenAILLM)
-    manager = RuntimeManager(database=database, default_mode="offline")
-
-    online = manager.get_runtime("online")
-    manager.get_runtime("offline")
-    automatic = manager.get_runtime("auto")
-
-    assert online.source == "environment"
-    assert automatic is online
-    assert manager.status()["source"] == "environment"
-
-
-def test_removed_environment_key_purges_cached_online_runtime(
-    database: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setenv("OPENAI_API_KEY", "environment-secret")
-    monkeypatch.setattr(runtime_module, "OpenAILLM", StubOpenAILLM)
-    manager = RuntimeManager(database=database, default_mode="online")
-
-    assert manager.active_runtime.mode == "online"
-    monkeypatch.delenv("OPENAI_API_KEY")
-
-    status = manager.status()
-    assert status["online_configured"] is False
-    assert status["active_mode"] == "offline"
-    assert manager._online_runtime is None
-    assert manager.get_runtime("auto").mode == "offline"
-    with pytest.raises(RuntimeError, match="API key"):
-        manager.get_runtime("online")
-
-
-def test_concurrent_mode_selection_returns_complete_runtimes(
-    database: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    monkeypatch.setattr(runtime_module, "OpenAILLM", StubOpenAILLM)
-    manager = RuntimeManager(
-        database=database,
-        default_mode="auto",
-        api_key="thread-secret",
-    )
-    modes = ["offline", "online", "auto"] * 6
+def test_concurrent_mode_selection_returns_complete_runtimes(database: Path) -> None:
+    manager = RuntimeManager(database=database, default_mode="auto", probe=_always(True))
+    modes = ["offline", "local", "auto"] * 6
 
     with ThreadPoolExecutor(max_workers=6) as executor:
         results = list(executor.map(manager.get_runtime, modes))
 
-    assert {item.mode for item in results} == {"offline", "online"}
+    assert {item.mode for item in results} == {"offline", "local"}
     assert all(item.database == database.resolve() for item in results)
-    assert "thread-secret" not in repr(manager.status())
 
 
 def test_database_switch_is_atomic_and_old_runtime_remains_usable(
-    database: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    database: Path, tmp_path: Path
 ) -> None:
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     replacement = tmp_path / "power-version-2.db"
     shutil.copyfile(database, replacement)
     manager = RuntimeManager(database=database, default_mode="offline")
@@ -395,10 +268,7 @@ def test_database_switch_is_atomic_and_old_runtime_remains_usable(
     assert manager.get_runtime("offline").database == replacement.resolve()
 
 
-def test_failed_database_switch_keeps_previous_runtime(
-    database: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+def test_failed_database_switch_keeps_previous_runtime(database: Path, tmp_path: Path) -> None:
     manager = RuntimeManager(database=database, default_mode="offline")
     previous = manager.active_runtime
 
@@ -416,88 +286,54 @@ def test_the_runtime_takes_the_retrieval_floors_from_config(database: Path) -> N
     # 要用 fixture 現建的快照。省略 database 會落回 data/processed/power.db，
     # 那個檔不進版控 —— 本機跑得過，CI 只會拿到 FileNotFoundError。
     pipeline = build_runtime(database=database, mode="offline").pipeline
+    assert pipeline.top_k == int(config["top_k"])
     assert pipeline.min_score == float(config["min_score"])
     assert pipeline.relative_score == float(config["relative_score"])
     assert pipeline.min_score > 0.0, "設定檔給了門檻，管線卻沒吃到"
 
 
-# ── provider 設定：兩家都留，靠設定切換 ──────────────────────────────────
+def test_evaluation_can_turn_retrieval_off(database: Path) -> None:
+    """RAG 對照實驗靠這個：0 筆範例，其餘 prompt 不變。"""
+
+    pipeline = build_runtime(database=database, mode="offline", retrieval_top_k=0).pipeline
+
+    assert pipeline.top_k == 0
+    assert pipeline.retriever.retrieve("2026年7月台中#1尖峰出力", top_k=0) == []
 
 
-def test_provider_block_overrides_the_top_level_defaults() -> None:
-    config = {
-        "provider": "gmi",
-        "model_env": "OPENAI_MODEL",
-        "default_model": "gpt-5.4-mini",
-        "request_timeout_seconds": 30,
-        "providers": {
-            "gmi": {
-                "api": "chat_completions",
-                "base_url": "https://api.gmi-serving.com/v1",
-                "model_env": "GMI_MODEL",
-                "default_model": "llama",
-            }
-        },
-    }
-
-    settings = _provider_settings(config, "gmi")
-
-    assert settings["default_model"] == "llama", "provider 的值要蓋過頂層"
-    assert settings["base_url"] == "https://api.gmi-serving.com/v1"
-    assert settings["request_timeout_seconds"] == 30, "沒覆寫的頂層設定要保留"
+# ── 設定檔：只有本機模型 ─────────────────────────────────────────────────
 
 
 def test_unknown_provider_fails_instead_of_quietly_falling_back() -> None:
-    """打錯 provider 名字要當場失敗。
+    """打錯名字要當場失敗；默默換成另一種模式，評測數字會對不上。"""
 
-    默默退回 openai 的話，使用者會以為自己在打 GMI —— 帳單、模型與結果三邊都對不上，
-    而且從服務狀態上完全看不出來。
-    """
-
-    with pytest.raises(ValueError, match="不支援的線上 provider"):
-        _provider_settings({"providers": {"openai": {}, "gmi": {}}}, "gemini")
+    with pytest.raises(ValueError, match="不支援的本機 LLM provider"):
+        _provider_settings({"providers": {"ollama": {}}}, "gpt")
 
 
-def test_config_without_a_providers_block_still_builds() -> None:
-    """舊版 llm.yaml（沒有 providers 這段）要照樣跑得起來。"""
+def test_the_provider_environment_variable_switches_modes(
+    database: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv(runtime_module.PROVIDER_ENV, "ollama-reasoning")
 
-    config = {"model_env": "OPENAI_MODEL", "default_model": "gpt-5.4-mini"}
+    service = build_runtime(database=database, mode="local")
 
-    assert _provider_settings(config, "openai") == config
+    assert service.provider == "ollama-reasoning"
+    assert StubLocalLLM.options[-1]["timeout_seconds"] == 600.0
+    assert StubLocalLLM.options[-1]["extra_body"] is None, "推理模式不送 reasoning_effort"
 
 
-def test_shipped_config_describes_both_providers_completely() -> None:
-    """設定檔本身也要被釘住：少一個欄位就會在接上去的那一刻才爆。"""
+def test_shipped_config_only_talks_to_a_local_ollama() -> None:
+    """設定檔本身也要被釘住：地端是這個專題的前提，不能有任何雲端端點或金鑰欄位。"""
 
     config = yaml.safe_load((PROJECT_ROOT / "configs/llm.yaml").read_text(encoding="utf-8"))
 
-    openai = _provider_settings(config, "openai")
-    assert openai["api"] == "responses"
-    assert openai["base_url"] is None, "官方端點要走 SDK 預設，不能寫死"
-    assert openai["api_key_env"] == "OPENAI_API_KEY"
-    assert openai["temperature"] is None, "reasoning 模型不吃 temperature"
-
-    gmi = _provider_settings(config, "gmi")
-    assert gmi["api"] == "chat_completions"
-    assert gmi["base_url"] == "https://api.gmi-serving.com/v1"
-    assert gmi["api_key_env"] == "GMI_API_KEY"
-    assert gmi["model_env"] == "GMI_MODEL"
-    assert gmi["temperature"] == 0, "Llama 類模型預設不是 0，SQL 生成會不穩定"
-
-
-def test_runtime_passes_the_provider_settings_to_the_adapter(
-    database: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """設定要真的傳到轉接層，而不是只存在 yaml 裡。"""
-
-    monkeypatch.setenv("OPENAI_API_KEY", "environment-secret")
-    monkeypatch.setattr(runtime_module, "OpenAILLM", StubOpenAILLM)
-    StubOpenAILLM.options.clear()
-
-    service = build_runtime(database=database, mode="online")
-
-    assert service.api_key_env == "OPENAI_API_KEY"
-    sent = StubOpenAILLM.options[-1]
-    assert sent["api"] == "responses"
-    assert sent["base_url"] is None
-    assert sent["api_key_env"] == "OPENAI_API_KEY"
+    assert config["provider"] == "ollama"
+    assert set(config["providers"]) == {"ollama", "ollama-reasoning"}
+    for name in config["providers"]:
+        settings = _provider_settings(config, name)
+        assert settings["base_url"].startswith("http://127.0.0.1:"), name
+        assert not any("key" in key for key in settings), f"{name} 不該有金鑰欄位"
+        assert settings["temperature"] == 0, "同一句每次生出不同 SQL，評測會失去意義"
+        assert settings["model_env"] == "OLLAMA_MODEL"
+    assert _provider_settings(config, "ollama")["extra_body"] == {"reasoning_effort": "none"}

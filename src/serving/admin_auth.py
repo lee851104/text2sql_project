@@ -301,7 +301,7 @@ class AdminAuthManager:
 
         if self.using_default_credentials:
             warnings.warn(
-                "PowerQuery TW 正在使用公開的預設管理員帳密；"
+                "GridLens TW 正在使用公開的預設管理員帳密；"
                 f"請以 {ADMIN_USERNAME_ENV} 與 {ADMIN_PASSWORD_ENV} 覆寫。",
                 DefaultCredentialsWarning,
                 stacklevel=2,

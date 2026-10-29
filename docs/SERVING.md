@@ -1,4 +1,4 @@
-# PowerQuery TW 使用方式
+# GridLens TW 使用方式
 
 ## 啟動
 
@@ -7,7 +7,7 @@
 安裝好 [uv](https://docs.astral.sh/uv/) 後，直接雙擊專案根目錄的 [`啟動.bat`](../啟動.bat)。啟動器會自動：
 
 1. 從批次檔所在的專案目錄執行，因此 OneDrive、中文或含空白路徑均可使用。
-2. 首次使用或 `pyproject.toml`／`uv.lock` 改變時同步離線、線上與開發依賴。
+2. 首次使用或 `pyproject.toml`／`uv.lock` 改變時同步開發與本機 LLM（`local`）依賴。
 3. 建立必要目錄，並只在 `data/processed/power.db` 不存在時建庫。
 4. 啟動 <http://127.0.0.1:8765/>，健康檢查成功後才開啟預設瀏覽器；若服務已在執行則直接沿用。
 
@@ -24,10 +24,10 @@ uv run python -m ingest.build_db
 uv run powerquery --serve
 ```
 
-開啟 <http://127.0.0.1:8000> 即可使用。只需要離線規則時不必安裝線上額外依賴；要啟用 OpenAI 長尾查詢時改用：
+開啟 <http://127.0.0.1:8000> 即可使用。只需要離線規則時不必安裝額外依賴；要讓本機 Ollama 處理長尾查詢時改用：
 
 ```powershell
-uv sync --extra dev --extra online
+uv sync --extra dev --extra local
 ```
 
 Windows 手動重建 `data/processed/power.db` 前，請先在服務視窗按 `Ctrl+C`。仍在執行的服務、SQLite 檢視器或同步程式可能鎖住檔案。網頁內的「資料管理」使用不可變資料庫版本與原子切換，不覆寫目前正在使用的資料庫，因此展示熱插拔時不需要停止服務。
@@ -43,7 +43,7 @@ uv run powerquery --json "天然氣機組共有幾台？"
 
 ## 即時資料收集器
 
-> RT-1 階段：收集器只負責收資料，查詢頁與 API 要到 RT-3 才查得到這些資料。設計見[即時機組發電量設計規格](superpowers/specs/2026-09-24-realtime-ingest-design.md)。
+> 收集器只負責收資料；總覽頁的面板（RT-3a）與查詢中心的即時問句（RT-3b，見下方「[用中文查即時資料](#用中文查即時資料)」）唯讀使用它。設計見[即時機組發電量設計規格](superpowers/specs/2026-09-24-realtime-ingest-design.md)。
 
 收集器是獨立的常駐程式，每 10 分鐘向台電抓一次「各機組發電量即時資訊」（`d006001`）。原始回應先 gzip 封存到 `data/realtime/archive/`，再寫進 `data/processed/realtime.db`。它和網頁服務互不相干：重啟服務不影響收集，收集器也不必跟著服務一起啟動。每小時的維護（重新套用人工決定、對帳、彙總與清除）若出錯只會記錄，不會中斷抓取。
 
@@ -60,6 +60,8 @@ uv run python -m ingest.realtime status    # 健康狀態；加 --json 給程式
 uv run python -m ingest.realtime once      # 立刻抓一次、做一次維護就結束
 uv run python -m ingest.realtime rebuild   # 從封存重建 realtime.db（收集器必須先停）
 uv run python -m ingest.realtime stop      # 要求收集器停止，最多等 60 秒
+uv run python -m ingest.realtime history import <d006010.json>  # 匯入歷史（收集器必須先停）
+uv run python -m ingest.realtime history download               # 下載最新 d006010（約 200 MB）再匯入
 ```
 
 `status` 的結束碼：0 正常、1 落後超過 30 分鐘、2 收集器沒在跑或資料庫不存在。`run`／`once`／`rebuild` 遇到未預期的錯誤時，會以繁體中文印出原因並以結束碼 1 結束；`once` 這一次抓取失敗時也以結束碼 1 結束。結束碼 3 表示已有另一份收集器拿著鎖，啟動批次檔把它當成正常停止，不會重啟。設定檔有誤時，每個指令都會印出「設定錯誤」並以結束碼 1 結束。
@@ -73,12 +75,24 @@ uv run python -m ingest.realtime stop      # 要求收集器停止，最多等 6
 | `data/processed/realtime.db` | 10 分鐘明細（保留 14 天）、每日估算發電量（永久）、缺口紀錄 |
 | `logs/realtime-collector-*.log` | 收集器的執行紀錄，由收集器自己寫入（批次檔不轉存輸出） |
 | `taipower_align/realtime_units.csv` | 每條序列的人工決定：個別或彙總、屬於哪座電廠 |
+| `data/realtime/history/archive/` | 匯入過的 `d006010` 原檔（gzip），重建時一併重放 |
+| `taipower_align/realtime_history_units.csv` | `d006010` 序列 → 即時機組的人工對照 |
 
 `data/` 與 `logs/` 都不進版控。
 
 ### 升級
 
 停止收集器 → 更新程式 → 重新啟動收集器（schema 版本不符時會自動從封存重建）→ 重啟網頁服務。修改 `realtime_units.csv` 不需要重建，收集器每小時會自動套用；如果決定檔或電廠檔壞了（例如用 Excel 另存成非 UTF-8），只會記一則警告，繼續使用上一份好的決定。
+
+### 歷史回補（d006010）
+
+台電的「各機組過去發電量」（`d006010`）每月更新一次，涵蓋約三個月，實測**晚約四個月**（2026-09-30 更新的檔案是 2026-03-01～05-31）。所以它補的是收集器啟動以前的日子，不會和即時收集重疊；兩者之間的空檔補不回來。每月匯入一次就能把歷史往後延。
+
+- **收集器每天自動檢查一次**（`configs/realtime.yaml` 的 `history.check_hours: 24`，0 表示關閉）：只發 HEAD 看台電的版本標記，有新版才下載（約 200 MB）並匯入，原始下載檔匯入後刪除。失敗只記錄，隔一天再試。手動的 `history import`／`download` 照樣可用。
+- 匯入只存每日彙總，並封存原檔；`rebuild` 會連歷史一起重放。重複匯入同一份檔案不會有任何變化。
+- 同一天同一部機組兩邊都有時，取樣點數多的為準，一樣多取即時。
+- `d006010` 沒有民營電廠與購電彙總列：問「四月風力發了多少度」只會是台電自有的那部分，答案會附上這個限制。
+- 設計見 [RT-2 規格](superpowers/specs/2026-10-25-realtime-history-design.md)。
 
 ### 資料治理
 
@@ -91,7 +105,7 @@ uv run python -m ingest.realtime stop      # 要求收集器停止，最多等 6
 - **查詢中心**：自然語言查詢、單次執行模式、常用問題，以及只保存非敏感問句的瀏覽器本機歷史。
 - **資料總覽**：即時發電（收集器狀態、各類型總出力、今日趨勢）、資料期間、尖峰紀錄、機組與歲修筆數，以及主題式分析入口。
 - **資料管理**：登入後管理資料檔、待審資料異動、語料審查、資料庫版本與雜湊鏈稽核紀錄。
-- **API 與模型**：登入後設定 `offline`、`online`、`auto`、模型及程序記憶體內 API key。
+- **本機 LLM**：登入後設定 `offline`、`local`、`auto` 與 Ollama 模型，並看到 Ollama 目前是否連得上。
 - **API 文件**：本機端點與請求範例；完整 schema 位於 `/openapi.json`。
 
 手機版導覽具備焦點鎖定與畫面外隱藏。Plotly CDN 無法載入時會使用相同資料的本機 SVG，不會顯示撐大的失效圖片。
@@ -119,9 +133,51 @@ uv run python -m ingest.realtime stop      # 要求收集器停止，最多等 6
 | 訪客（`POWERQUERY_ANONYMOUS_QUERY_SCOPE=all`） | 全部 |
 | 訪客（`denied`） | 只有狀態列，沒有數字 |
 
-- 面板不經過 Text2SQL；查詢中心目前**還查不到**即時資料。
+- 面板不經過 Text2SQL，用寫死的 SQL；查詢中心的即時問句見下一節。
 - 收集器沒在跑時，面板照常顯示最後一筆，並標出「收集器目前沒有在執行」。網頁服務不會啟動或停止收集器。
 - API：`GET /api/health` 的 `realtime` 欄位只有狀態，任何人都看得到；`GET /api/realtime/overview` 回傳面板數字，套用上表的權限。電廠帳號遇到兩邊電廠名冊不一致時回 409 `RT_SCOPE_MISMATCH`；`realtime.db` 讀不出來時回 503。
+
+## 用中文查即時資料
+
+問句帶「現在、即時、此刻、剛剛、今天、今日、昨天、昨日、前天」，或「目前、最新」加上出力／發電，就改查 `realtime.db`，
+不經過歷史快照的守門與路由。例：
+
+- 現在風力發多少電？／現在各類型發電量／現在台中#6出力多少？／現在出力最高的前 5 部機組
+- 現在哪些機組在歲修？／現在哪些機組通訊異常？／現在台中發電廠出力多少？
+- 今天太陽能估計發了多少度電？／今天大潭CC#8最高出力／昨天燃煤發電量
+- 匯入 `d006010` 之後：2026年4月台中#5發電量／2026年4月1日到4月10日燃氣發電量
+
+規則：
+
+- **分流看用詞，不看機組名**：兩邊有約 21 個同名機組（例如 `台中#1`）。「哪一些機組目前維修中」「資料最新一天的尖峰負載」
+  沒有出力用詞，照舊查歷史快照。
+- **只查 `v_rt_*`**：同一句 SQL 混用 `power.db` 的檢視回 `RT_CROSS_DATABASE`（兩邊的機組名稱沒有對照）。
+- **權限與面板相同**：電廠帳號只看到自己電廠與 shared 的機組，歸屬未定的看不到；兩邊電廠名冊不一致回 `RT_SCOPE_MISMATCH`。
+- **答案一定附資料時間**，另依情況揭露：落後或收集器停止、品質警告、彙總／未定列、發電量是估算（10 分鐘瞬間值 ÷ 6）、
+  資料完整度低於 90%、儲能與儲能負載相抵、今天還沒過完、問到收集開始以前（`RT_BEFORE_FIRST_DAY`）。
+- **指名的機組或類型不在即時資料裡**（例如已除役的 `台中#1`、`核能`）回 `RT_NOT_IN_REALTIME` 並建議相近名稱，不會改答全系統合計。
+- 規則接不住的問法（最低、平均、比較、趨勢⋯）交給 LLM；離線模式回 `RT_CLARIFY` 並給例句。
+- 即時 SQL **不進語料學習**（結果每 10 分鐘就變）。`/api/coverage` 的 `realtime` 欄位列出即時資料的起始日與最新時段。
+
+### 本機 LLM（Ollama）
+
+這個專題唯一的 LLM。不連外網、不需要 API key：
+
+1. 安裝 [Ollama](https://ollama.com)，`ollama pull qwen3:8b`。
+2. `uv sync --extra local`（Ollama 的 OpenAI 相容端點用的 client；`啟動.bat` 會自動做）。
+3. 啟動服務。預設 `auto` 偵測得到 Ollama 就用；要換推理模式設 `POWERQUERY_LLM_PROVIDER`，換模型用 `OLLAMA_MODEL`。
+
+| provider | 推理 | 規則接不住的 20 題 | 每題時間 | 逾時 |
+|---|---|---|---|---|
+| `ollama`（建議） | 關 | 答對 6 | 中位數 11 秒 | 120 秒 |
+| `ollama-reasoning` | 開 | 答對 10 | 中位數約 6 分鐘，7 題寫不完 | 600 秒 |
+
+數字來自 `python -m eval.llm_eval`（見 README「本機 LLM 評測」）。兩種模式都會檢查 LLM 寫的 SQL：值不在欄位的值清單、
+`LIKE` 沒有萬用字元、數字被當成字串、0 筆或被 LIMIT 截斷時，把原因交回模型重寫。
+
+`auto` 模式每 30 秒最多確認一次 Ollama 在不在（只問 `/v1/models`，1 秒逾時）；在就用本機 LLM，不在就退回離線規則。
+規則接得住的題目照樣不打 LLM。`local` 模式不偵測：Ollama 沒開時 LLM 那一步明確失敗（`LLM_UNAVAILABLE`），規則與澄清照常運作。
+公開服務以 `POWERQUERY_RUNTIME_MODE=offline` 固定只用規則。
 
 ## 資料管理登入
 
@@ -183,7 +239,7 @@ $writeHeaders = @{
 | `daily_long_csv` | `daily_long.csv` | 是 | 否 |
 | `outage_csv` | `outage.csv` | 是 | 是 |
 
-上傳上限為 64 MiB。系統會檢查副檔名、UTF-8、NUL、重複／缺少欄位、空資料及跨檔資料品質，再建立候選 SQLite、來源 manifest 與 checksum。上傳、移除和回退都只建立 `pending_review` 變更，不會立刻影響查詢；只有登入者按下人工核准後，才會驗證候選 checksum、原子切換 runtime 與 active pointer。拒絕、建置失敗、舊基線衝突及發布失敗都保留紀錄。
+上傳上限為 64 MiB。系統會檢查副檔名、UTF-8、NUL、重複／缺少欄位、空資料及跨檔資料品質，再建立候選 SQLite、來源 manifest 與 checksum。上傳、移除、回退和重建都只建立 `pending_review` 變更，不會立刻影響查詢；只有登入者按下人工核准後，才會驗證候選 checksum、原子切換 runtime 與 active pointer。拒絕、建置失敗、舊基線衝突及發布失敗都保留紀錄。
 
 適合展示的熱插拔流程：
 
@@ -203,19 +259,23 @@ $writeHeaders = @{
 - `POST /api/data/changes/{change_id}/review`：人工核准或拒絕。
 - `GET /api/data/versions`：不可變的已發布版本。
 - `POST /api/data/versions/{version}/rollback`：建立回退候選；仍需再呼叫 review 才會套用。
+- `POST /api/data/changes/rebuild`：用作用中的來源檔、現行建庫程式建立重建候選；仍需再呼叫 review 才會套用。作用中版本已是現行 schema 時回 409。
 - `GET /api/data/events`：驗證過完整 hash chain 後回傳稽核事件。
+
+資料版本 id 由「來源內容＋建庫程式的 schema 版本（`build_db.SCHEMA_VERSION`）」一起雜湊決定，所以同一組來源用新 schema 建出來是另一個版本，不會被當成篡改。升級程式後，服務照常以原本的作用中版本啟動；`/api/data/status` 的 `rebuild_required` 會變成 `true`（`active_build_schema` 與 `build_schema` 不同；舊版工作區的版本沒有記錄 schema，顯示 `null`），「資料管理」頁上方也會出現提示。按「建立重建異動」後由另一個帳號核准，新的資料表與檢視才會上線。改了 `schema.sql` 一定要把 `SCHEMA_VERSION` 加一，`tests/test_database.py` 會檢查。
 
 執行期工作區位於資料庫旁的 `.powerquery-data/`，包含不可變來源、候選／已發布資料庫、變更 manifest、`active.json`、短暫的 build／mutation／publish journals、append-only `audit.jsonl`、獨立 `audit-head.json` 與錨點永久建立標記。build journal 綁定候選 DB 與確切來源 checksum；mutation journal 確保 staged、failed、rejected 狀態與稽核事件成對恢復；版本檔、核准異動與稽核事件會先落盤，`active.json` 才作為發布的最後 commit point。若程序中途終止，下次 transaction 會從 journal 完成或安全拒絕。稽核事件依操作記錄登入帳號、動作、版本或 checksum 等細節，並以 `previous_hash`／`event_hash` 串接；錨點可偵測整檔遺失、截尾，active revision 也會與發布事件交叉核對。若來源、DB、manifest、指標或稽核歷史遭修改，查詢與所有管理讀取／異動都會 fail closed，而不是默默接受。含 `password`、`secret`、`token`、`credential` 或 `api_key` 等欄位會在稽核邊界遮罩。
 
-## 離線、線上與自動模式
+## 離線規則、本機 LLM 與自動模式
 
 `RuntimeManager` 支援三種模式：
 
-- `offline`：只使用已審核的規則路由與本機唯讀 SQLite，不呼叫遠端模型；未涵蓋的長尾問題會清楚拒答。
-- `online`：保留相同 SQL 與語意護欄，規則未涵蓋時使用 OpenAI Responses API。
-- `auto`：有可用 API key 時使用線上 runtime，否則退回離線模式。
+- `offline`：只使用已審核的規則路由與本機唯讀 SQLite，不呼叫任何模型；未涵蓋的長尾問題會清楚拒答或反問。
+- `local`：保留相同 SQL 與語意護欄，規則未涵蓋時交給本機 Ollama（[configs/llm.yaml](../configs/llm.yaml) 的 `base_url`）。
+- `auto`（預設）：偵測得到 Ollama 時同 `local`，否則同 `offline`。
 
-API key 可在啟動前由 `OPENAI_API_KEY` 提供，模型可由 `OPENAI_MODEL` 指定；也可登入後在「API 與模型」或 `PUT /api/runtime/llm` 設定。經 API 設定的 key 只存在伺服器程序記憶體，重啟即失效，狀態 API 只回 `online_configured`。線上 adapter 使用 [OpenAI Responses API](https://developers.openai.com/api/reference/cli/resources/responses/methods/create)，並設定 `store=false`。
+啟動時的預設模式可用 `POWERQUERY_RUNTIME_MODE`（`offline`／`local`／`auto`）指定，打錯字會讓服務起不來而不是默默退回 `auto`。
+登入後可在「本機 LLM」或 `PUT /api/runtime/llm` 切換模式與模型；狀態 API 回報 `local_available` 與端點位址。沒有任何金鑰或雲端端點可設定。
 
 `GET /api/runtime/llm` 需要管理 session；`PUT` 另外需要最新 CSRF 與同源 headers。單次公開查詢仍可用 `execution_mode` 覆寫模式，且不變更預設設定：
 
@@ -230,7 +290,7 @@ API key 可在啟動前由 `OPENAI_API_KEY` 提供，模型可由 `OPENAI_MODEL`
 
 每次透過 Web/API 成功完成的查詢都會交給隔離的語料學習服務評估。這裡的「學習」是新增 Text2SQL 檢索範例，不是背景微調模型。
 
-- 規則路由與線上 LLM 產生的新候選一律先通過去識別、重複、benchmark 洩漏、SQL／語意、結果重播及檢索回歸檢查。
+- 規則路由與本機 LLM 產生的新候選一律先通過去識別、重複、benchmark 洩漏、SQL／語意、結果重播及檢索回歸檢查。
 - 通過自動檢查的候選一律停在 `pending_review`；router 和 LLM 都沒有自動發布例外。只有登入者按人工核准，並以當下資料與語料基線重新驗證成功後，才會發布及熱重載檢索索引。
 - 失敗或拒答不加入候選；無效或重複候選可直接成為 `rejected`／`ignored`，但絕不會因此進入 active corpus。
 - 候選保存去識別問句、SQL、參數、來源、資料表、驗證結果、結果 checksum 及 `data_provenance`，不保存查詢結果 rows。來源資訊可追到資料版本、資料槽、顯示檔名、SHA-256、大小與語意 view。
@@ -255,6 +315,6 @@ API key 可在啟動前由 `OPENAI_API_KEY` 提供，模型可由 `OPENAI_MODEL`
 - `/docs` 以 nonce CSP、固定版號與 SRI 載入 Swagger UI；第一次使用互動檢視器需要連至 jsDelivr。主工作台內建文件不需要該 CDN。
 - 後端只允許受限的 `line`、`bar`、`scatter` 圖表；前端載入不到 Plotly 時退回原生 SVG。
 - 瀏覽器取消按鈕只停止等待與顯示，不中止已在後端執行的查詢。
-- 服務預設綁定 `127.0.0.1`。若要對外提供，必須覆寫預設帳密、限制 allowed hosts，並由可信任反向代理提供 TLS。記憶體內 OpenAI API key 不等於 API 身分驗證。
-- 送給線上模型的 prompt 會帶上「封閉集合」欄位的值（值少於 25 個、非純數字、串起來不長的欄位，例如 `v_unit."燃料"`）。這些值從作用中資料庫現讀，隨資料更新而變。目的是讓模型用資料實際的值當參數，而不是從問句抄詞 —— 後者會產生結構正確但查不到東西的 SQL，回 0 筆且不報錯。機組名、日期、各種量測值不在此列，它們是資料而不是列舉。
+- 服務預設綁定 `127.0.0.1`。若要對外提供，必須覆寫預設帳密、限制 allowed hosts，並由可信任反向代理提供 TLS。
+- 送給本機模型的 prompt 會帶上「封閉集合」欄位的值（值少於 25 個、非純數字、串起來不長的欄位，例如 `v_unit."燃料"`）。這些值從作用中資料庫現讀，隨資料更新而變。目的是讓模型用資料實際的值當參數，而不是從問句抄詞 —— 後者會產生結構正確但查不到東西的 SQL，回 0 筆且不報錯。機組名、日期、各種量測值不在此列，它們是資料而不是列舉。
 - prompt 另外列出**同名而值不同**的欄位。目前有三組：`燃料` 在 `v_outage` 是「燃煤／燃氣」而在 `v_unit` 是「煤／天然氣」；`縣市` 在 `v_unit` 含鄉鎮而在 `v_re_generation` 只到縣市；`電廠` 在 `v_peak` 有殘差桶的複合值。光列出值不足以讓模型發現這些差異，所以比對由服務做掉並明講。粒度差異另外在語料的 `documentation` 有一條規則說明該怎麼處理。

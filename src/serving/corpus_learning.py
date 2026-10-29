@@ -579,6 +579,14 @@ class CorpusLearningService:
                     "status": "ignored",
                     "reason": "plant_scoped_query",
                 }
+            if any(str(table).startswith("v_rt_") for table in data.get("tables", ())):
+                # 即時結果每 10 分鐘就變，學習流程重放 SQL 比對結果 checksum 必定失敗；
+                # 而且「現在」的答案本來就不該成為固定範例（RT-3b 規格 §2）。
+                return {
+                    "accepted": False,
+                    "status": "ignored",
+                    "reason": "realtime_query",
+                }
             return self.submit(
                 question=str(data["question"]),
                 sql=str(data["sql"]),

@@ -26,3 +26,9 @@ rollup:
   day_closed_after: "00:15"         # 一定要加引號：沒加引號的 10:15 會被 YAML 讀成整數 615
 status:
   stale_after_minutes: 30
+history:                            # RT-2：d006010 各機組過去發電量（每月更新，實測約晚 4 個月、涵蓋 3 個月）
+  url: https://service.taipower.com.tw/data/opendata/apply/file/d006010/001.json
+  timeout_seconds: 600
+  max_bytes: 500000000              # 一份約 196 MB
+  # 每天問一次（HEAD）有沒有新版，有才下載匯入。台電的檔案滾動三個月，沒匯入的月份過了就拿不到。
+  check_hours: 24

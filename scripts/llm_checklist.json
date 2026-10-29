@@ -1,5 +1,5 @@
 {
-  "note": "線上模式的人工驗收清單，給 scripts/eval_online.py 讀。這不是評測題庫，所以放在 scripts/ 而不是 benchmarks/：後者由 test_no_leakage 釘死只能有那四份版控題庫，而且 corpus_learning 會 glob benchmarks/*_questions.json 禁止裡面的問句進入語料 —— 這份清單的題目正是要拿來補語料的，混進去會自相矛盾。",
+  "note": "本機 LLM 模式的人工驗收清單，給 scripts/eval_checklist.py 讀。這不是評測題庫，所以放在 scripts/ 而不是 benchmarks/：後者由 test_no_leakage 釘死只能有那四份版控題庫，而且 corpus_learning 會 glob benchmarks/*_questions.json 禁止裡面的問句進入語料 —— 這份清單的題目正是要拿來補語料的，混進去會自相矛盾。",
   "expect_fields": "contains / not_contains 比對回傳的資料列；sql_contains 比對產生的 SQL；source 是 router 或 llm；disclosure_codes 是必須出現的揭露代碼；error_code 是預期被擋下的代碼。沒給 expect 的題目判定為 manual，等第一次實跑之後再填。",
   "questions": [
     {
@@ -56,7 +56,7 @@
     {
       "id": "chk-capacity-rank",
       "question": "裝置容量前三大的電廠各在哪個縣市",
-      "why": "跨欄位組合的長尾題，router 應該沒有規則接。用來確認線上模式真的有在接手，而不是全部被規則吃掉。同時再驗一次縣市粒度。"
+      "why": "跨欄位組合的長尾題，router 應該沒有規則接。用來確認本機 LLM 真的有在接手，而不是全部被規則吃掉。同時再驗一次縣市粒度。"
     },
     {
       "id": "chk-out-of-range",

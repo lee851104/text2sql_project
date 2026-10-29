@@ -39,7 +39,7 @@ class FakeRuntime:
     def __init__(self) -> None:
         self.pipeline = FakePipeline()
         self.executor = FakeExecutor()
-        self.online_llm = False
+        self.local_llm = False
         self.data_range = ("2025-01-01", "2026-07-31")
         self.mode = "offline"
         self.provider = "offline"
@@ -56,10 +56,10 @@ class FakeRuntimeManager:
         return {
             "default_mode": "offline",
             "active_mode": "offline",
-            "online_configured": False,
-            "provider": "offline",
+            "local_available": False,
+            "provider": "ollama",
             "model": "offline-router",
-            "source": "offline",
+            "base_url": "http://127.0.0.1:11434/v1",
             "offline_capability": True,
         }
 

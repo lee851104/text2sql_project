@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import hashlib
 import sqlite3
 from pathlib import Path
 
 import pytest
 
 from ingest import build_db as build_db_module
-from ingest.build_db import DatabasePublishError, build_database
+from ingest.build_db import SCHEMA_VERSION, DatabasePublishError, build_database
 from ingest.validate import PROJECT_ROOT, validate_configured_files
 
 
@@ -177,3 +178,22 @@ def test_cli_formats_database_publish_error_without_traceback(
     error = capsys.readouterr().err
     assert error == "錯誤：請先停止服務再重試\n"
     assert "Traceback" not in error
+
+
+# schema.sql 的內容雜湊。資料版本 id 含 SCHEMA_VERSION，改了 DDL 卻沒升版，
+# 服務端就會沿用舊 schema 的資料庫（log.md CP-039）。改 schema.sql 時：
+# 把 build_db.SCHEMA_VERSION 加一，並在這裡加上新版本的雜湊。
+SCHEMA_FINGERPRINTS = {
+    "5": "890fe936192d0db74ac23819096983f64f897f6be2c8affaa1431b4afc8a7a12",
+}
+
+
+def test_schema_changes_bump_the_schema_version() -> None:
+    """Only DDL is fingerprinted; a loader change that alters content needs a manual bump."""
+
+    schema_path = PROJECT_ROOT / "src" / "ingest" / "schema.sql"
+    ddl = schema_path.read_bytes().replace(b"\r\n", b"\n")
+
+    assert SCHEMA_FINGERPRINTS.get(SCHEMA_VERSION) == hashlib.sha256(ddl).hexdigest(), (
+        "schema.sql 變了：請把 build_db.SCHEMA_VERSION 加一，並把新雜湊加進 SCHEMA_FINGERPRINTS。"
+    )

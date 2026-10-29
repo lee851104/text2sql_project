@@ -18,9 +18,13 @@ from serving.coverage import (
     verify_limitations,
 )
 from serving.runtime import build_runtime
+from text2sql.realtime_query import REALTIME_ALLOWED_COLUMNS
 from text2sql.sql_guard import ALLOWED_COLUMNS
 
 COVERAGE_PATH = PROJECT_ROOT / "configs" / "coverage.yaml"
+# 兩個資料庫的可查詢檢視。power.db 由 SqlGuard 管，realtime.db 由即時路徑的守門管；
+# 兩邊的名字不重疊，所以合併後仍能一一對應到 coverage.yaml。
+QUERYABLE_COLUMNS = {**ALLOWED_COLUMNS, **REALTIME_ALLOWED_COLUMNS}
 
 
 @pytest.fixture(scope="module")
@@ -37,7 +41,7 @@ def test_every_declared_limitation_still_holds(document) -> None:
 
     _views, limitations = document
 
-    stale = verify_limitations(limitations, ALLOWED_COLUMNS)
+    stale = verify_limitations(limitations, QUERYABLE_COLUMNS)
 
     assert stale == (), "限制說明已經不成立，請更新 configs/coverage.yaml：" + "；".join(stale)
 
@@ -77,7 +81,29 @@ def test_a_limitation_without_a_condition_is_refused(tmp_path: Path) -> None:
 def test_every_described_view_is_one_the_guard_allows(document) -> None:
     views, _limitations = document
 
-    assert set(views) == set(ALLOWED_COLUMNS), "檢視說明與可查詢的檢視必須一一對應"
+    assert set(views) == set(QUERYABLE_COLUMNS), "檢視說明與可查詢的檢視必須一一對應"
+
+
+def test_the_two_databases_never_share_a_view_name() -> None:
+    assert not set(ALLOWED_COLUMNS) & set(REALTIME_ALLOWED_COLUMNS)
+
+
+def test_realtime_views_are_listed_only_when_realtime_data_exists(tmp_path: Path, document) -> None:
+    views, limitations = document
+    database = tmp_path / "power.db"
+    build_database(database, root=PROJECT_ROOT)
+
+    without = describe_coverage(database, views=views, limitations=limitations)
+    with_realtime = describe_coverage(
+        database,
+        views=views,
+        limitations=limitations,
+        realtime={"available": True, "first_day": "2026-10-04", "latest_data_time": "x"},
+    )
+
+    assert not {item["view"] for item in without["answerable"]} & set(REALTIME_ALLOWED_COLUMNS)
+    assert set(REALTIME_ALLOWED_COLUMNS) <= {item["view"] for item in with_realtime["answerable"]}
+    assert with_realtime["realtime"]["first_day"] == "2026-10-04"
 
 
 @pytest.mark.integration

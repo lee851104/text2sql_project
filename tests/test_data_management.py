@@ -5,6 +5,7 @@ import csv
 import hashlib
 import io
 import json
+import sqlite3
 from pathlib import Path
 from typing import Any
 
@@ -13,6 +14,7 @@ import pytest
 import serving.data_management as data_management
 from serving.data_management import (
     DATA_SLOTS,
+    LEGACY_SOURCE_SCHEMA,
     AuditIntegrityError,
     DataManagementConflictError,
     DataManagementNotFoundError,
@@ -21,6 +23,8 @@ from serving.data_management import (
     DataManagementValidationError,
     SeparationOfDutiesError,
 )
+
+BUILD_SCHEMA = "test-1"
 
 
 def _csv_bytes(slot: str, marker: str = "baseline") -> bytes:
@@ -78,7 +82,7 @@ class Harness:
 
 
 def _service(
-    tmp_path: Path, *, allow_self_approval: bool = False
+    tmp_path: Path, *, allow_self_approval: bool = False, build_schema: str = BUILD_SCHEMA
 ) -> tuple[DataManagementService, Harness, dict[str, Path]]:
     inputs = tmp_path / "inputs"
     inputs.mkdir(parents=True)
@@ -95,6 +99,7 @@ def _service(
         source_paths=paths,
         initial_database=database,
         build_database=harness.build,
+        build_schema=build_schema,
         switch_runtime=harness.switch,
         allow_self_approval=allow_self_approval,
     )
@@ -111,12 +116,15 @@ def _reopen(
     harness: Harness,
     paths: dict[str, Path],
     tmp_path: Path,
+    *,
+    build_schema: str = BUILD_SCHEMA,
 ) -> DataManagementService:
     return DataManagementService(
         workspace=service.workspace,
         source_paths=paths,
         initial_database=tmp_path / "ignored.db",
         build_database=harness.build,
+        build_schema=build_schema,
         switch_runtime=harness.switch,
     )
 
@@ -704,6 +712,7 @@ def test_publish_journal_recovers_failure_before_active_commit(
         source_paths=paths,
         initial_database=tmp_path / "ignored.db",
         build_database=harness.build,
+        build_schema=BUILD_SCHEMA,
         switch_runtime=harness.switch,
     )
 
@@ -768,6 +777,7 @@ def test_data_uri_upload_and_reopening_existing_workspace(tmp_path: Path) -> Non
         source_paths=paths,
         initial_database=tmp_path / "ignored.db",
         build_database=harness.build,
+        build_schema=BUILD_SCHEMA,
         switch_runtime=harness.switch,
     )
 
@@ -783,14 +793,14 @@ def test_public_audit_hook_redacts_credentials_and_extends_chain(tmp_path: Path)
         "runtime_settings_changed",
         actor="administrator",
         details={
-            "mode": "online",
+            "mode": "local",
             "api_key": "must-not-be-written",
             "nested": {"access-token": "also-secret", "model": "example-model"},
         },
     )
 
     assert event["details"] == {
-        "mode": "online",
+        "mode": "local",
         "api_key": "[REDACTED]",
         "nested": {"access-token": "[REDACTED]", "model": "example-model"},
     }
@@ -888,3 +898,226 @@ def test_a_single_operator_override_still_marks_the_publication(tmp_path: Path) 
     events = service.list_audit(limit=200)
     published = [event for event in events if event["event"] == "change_approved"]
     assert published[-1]["details"]["self_approved"] is True
+
+
+# --- 建庫 schema 納入資料版本 id（SPEC 已知待修，log.md CP-039） ---
+
+
+def _write_json(path: Path, payload: dict[str, Any]) -> None:
+    path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+
+
+def _legacy_service(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> tuple[DataManagementService, Harness, dict[str, Path]]:
+    """Bootstrap a workspace the way the pre-fix code did: ids hash the sources only."""
+
+    original = DataManagementService._version_for_entries.__func__
+    with monkeypatch.context() as patch:
+        patch.setattr(
+            DataManagementService,
+            "_version_for_entries",
+            classmethod(lambda cls, entries, _schema: original(cls, entries, None)),
+        )
+        service, harness, paths = _service(tmp_path)
+        version = service.active_version
+    manifest_path = service.workspace / "sources" / version / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest.pop("build_schema")
+    manifest["schema_version"] = LEGACY_SOURCE_SCHEMA
+    _write_json(manifest_path, manifest)
+    return service, harness, paths
+
+
+def test_a_new_builder_schema_gives_the_same_sources_a_new_version(tmp_path: Path) -> None:
+    service, harness, paths = _service(tmp_path)
+    baseline = service.active_version
+
+    upgraded = _reopen(service, harness, paths, tmp_path, build_schema="test-2")
+
+    # 啟動本身不發布任何東西：作用中版本不變，只標出需要重建。
+    assert upgraded.active_version == baseline
+    status = upgraded.status()
+    assert status["active_build_schema"] == BUILD_SCHEMA
+    assert status["build_schema"] == "test-2"
+    assert status["rebuild_required"] is True
+
+    change = upgraded.stage_rebuild(actor="maintainer", reason="builder schema bump")
+
+    assert change["action"] == "rebuild"
+    assert change["slot"] is None
+    assert change["status"] == "pending_review"
+    assert change["base_version"] == baseline
+    assert change["candidate_version"] != baseline
+    assert upgraded.active_version == baseline
+    assert len(harness.builds) == 2
+    rebuilt = upgraded.list_sources(version=change["candidate_version"])
+    assert rebuilt["build_schema"] == "test-2"
+    for slot in DATA_SLOTS:
+        assert rebuilt["files"][slot]["sha256"] == status["sources"][slot]["sha256"]
+
+
+def test_a_rebuild_still_needs_a_second_reviewer(tmp_path: Path) -> None:
+    service, harness, paths = _service(tmp_path)
+    baseline = service.active_version
+    upgraded = _reopen(service, harness, paths, tmp_path, build_schema="test-2")
+    change = upgraded.stage_rebuild(actor="maintainer", reason="builder schema bump")
+
+    with pytest.raises(SeparationOfDutiesError):
+        upgraded.review(change["id"], approve=True, reviewer="maintainer")
+    assert upgraded.active_version == baseline
+
+    upgraded.review(change["id"], approve=True, reviewer="reviewer")
+
+    assert upgraded.active_version == change["candidate_version"]
+    assert harness.switches[-1] == upgraded.workspace / change["candidate_database"]
+    assert upgraded.status()["rebuild_required"] is False
+    events = [event["event"] for event in upgraded.list_audit(limit=200)]
+    assert events.count("change_approved") == 1
+
+
+def test_rebuild_is_refused_when_the_active_version_is_current(tmp_path: Path) -> None:
+    service, harness, _paths = _service(tmp_path)
+
+    with pytest.raises(DataManagementStateError, match="不需要重建"):
+        service.stage_rebuild(actor="maintainer", reason="nothing to do")
+
+    assert len(harness.builds) == 1
+    assert service.list_changes() == []
+
+
+def test_rolling_back_to_an_old_build_marks_the_workspace_for_rebuild(tmp_path: Path) -> None:
+    service, harness, paths = _service(tmp_path)
+    baseline = service.active_version
+    upgraded = _reopen(service, harness, paths, tmp_path, build_schema="test-2")
+    rebuild = upgraded.stage_rebuild(actor="maintainer", reason="builder schema bump")
+    upgraded.review(rebuild["id"], approve=True, reviewer="reviewer")
+
+    rollback = upgraded.stage_rollback(baseline, actor="maintainer", reason="new view is wrong")
+    upgraded.review(rollback["id"], approve=True, reviewer="reviewer")
+
+    assert upgraded.active_version == baseline
+    assert upgraded.status()["rebuild_required"] is True
+
+
+def test_identical_content_under_a_new_schema_is_not_an_upload(tmp_path: Path) -> None:
+    """只差建庫 schema 時要走 rebuild；記成一次上傳會讓稽核紀錄說錯發生了什麼。"""
+
+    service, harness, paths = _service(tmp_path)
+    upgraded = _reopen(service, harness, paths, tmp_path, build_schema="test-2")
+    encoded = base64.b64encode(_csv_bytes("outage_csv")).decode("ascii")
+
+    with pytest.raises(DataManagementStateError, match="相同"):
+        upgraded.stage_upload("outage_csv", encoded, actor="maintainer")
+
+
+def test_an_upload_on_an_old_build_is_built_with_the_current_builder(tmp_path: Path) -> None:
+    service, harness, paths = _service(tmp_path)
+    upgraded = _reopen(service, harness, paths, tmp_path, build_schema="test-2")
+    encoded, _payload = _encoded("outage_csv", "newer outage")
+
+    change = upgraded.stage_upload("outage_csv", encoded, actor="maintainer")
+    upgraded.review(change["id"], approve=True, reviewer="reviewer")
+
+    assert upgraded.status()["rebuild_required"] is False
+
+
+def test_a_legacy_workspace_still_opens_and_is_marked_for_rebuild(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    service, harness, paths = _legacy_service(tmp_path, monkeypatch)
+    legacy = json.loads(service.active_path.read_text(encoding="utf-8"))["version"]
+
+    reopened = _reopen(service, harness, paths, tmp_path)
+
+    assert reopened.active_version == legacy
+    status = reopened.status()
+    assert status["active_build_schema"] is None
+    assert status["rebuild_required"] is True
+
+    change = reopened.stage_rebuild(actor="maintainer", reason="adopt schema-aware ids")
+    reopened.review(change["id"], approve=True, reviewer="reviewer")
+
+    assert reopened.active_version == change["candidate_version"] != legacy
+    assert reopened.status()["rebuild_required"] is False
+    assert {version["version"] for version in reopened.list_versions()} == {
+        legacy,
+        change["candidate_version"],
+    }
+
+
+def test_relabelling_the_builder_schema_is_detected(tmp_path: Path) -> None:
+    """改 manifest 裡的 build_schema 不能把舊程式建的版本冒充成新的。"""
+
+    service, harness, paths = _service(tmp_path)
+    manifest_path = service.workspace / "sources" / service.active_version / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["build_schema"] = "test-2"
+    _write_json(manifest_path, manifest)
+
+    with pytest.raises(DataManagementValidationError, match="checksum"):
+        _reopen(service, harness, paths, tmp_path, build_schema="test-2")
+
+
+def test_a_v1_manifest_cannot_also_claim_a_builder_schema(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    service, harness, paths = _legacy_service(tmp_path, monkeypatch)
+    legacy = json.loads(service.active_path.read_text(encoding="utf-8"))["version"]
+    manifest_path = service.workspace / "sources" / legacy / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["build_schema"] = BUILD_SCHEMA
+    _write_json(manifest_path, manifest)
+
+    with pytest.raises(DataManagementValidationError, match="manifest"):
+        _reopen(service, harness, paths, tmp_path)
+
+
+def test_build_schema_is_required(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="build_schema"):
+        _service(tmp_path, build_schema=" ")
+
+
+@pytest.mark.parametrize(
+    ("recorded_schema", "copied"),
+    [(BUILD_SCHEMA, True), ("test-0", False)],
+)
+def test_bootstrap_copies_the_initial_database_only_from_the_current_builder(
+    tmp_path: Path, recorded_schema: str, copied: bool
+) -> None:
+    """CP-039 的起點：來源相同、但由舊程式建的 power.db 被複製進來當成現行版本。"""
+
+    inputs = tmp_path / "inputs"
+    inputs.mkdir()
+    paths: dict[str, Path] = {}
+    for slot, definition in DATA_SLOTS.items():
+        paths[slot] = inputs / definition.filename
+        paths[slot].write_bytes(_csv_bytes(slot))
+    source_hashes = {
+        DATA_SLOTS[slot].filename: hashlib.sha256(path.read_bytes()).hexdigest()
+        for slot, path in paths.items()
+    }
+    initial = tmp_path / "power.db"
+    connection = sqlite3.connect(initial)
+    with connection:
+        connection.execute(
+            "CREATE TABLE meta_manifest (id INTEGER PRIMARY KEY, schema_version TEXT,"
+            " source_sha256 TEXT)"
+        )
+        connection.execute(
+            "INSERT INTO meta_manifest VALUES (1, ?, ?)",
+            (recorded_schema, json.dumps(source_hashes)),
+        )
+    connection.close()
+    harness = Harness()
+
+    service = DataManagementService(
+        workspace=tmp_path / "workspace",
+        source_paths=paths,
+        initial_database=initial,
+        build_database=harness.build,
+        build_schema=BUILD_SCHEMA,
+    )
+
+    assert (service.active_database.read_bytes() == initial.read_bytes()) is copied
+    assert len(harness.builds) == (0 if copied else 1)

@@ -42,7 +42,7 @@ jobs:
       - name: Run merge gate
         id: gate
         env:
-          OPENAI_API_KEY: ""
+          POWERQUERY_RUNTIME_MODE: offline
         run: |
           set +e
           uv run python .claude/skills/pre-merge-check/scripts/check_merge.py \

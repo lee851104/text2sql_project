@@ -1,31 +1,44 @@
-"""Construct and safely switch query runtimes for offline and online use."""
+"""Construct and safely switch query runtimes: offline rules or a local LLM."""
 
 from __future__ import annotations
 
-import hashlib
+import logging
 import os
 import sqlite3
+import time
+import urllib.error
+import urllib.request
+from collections.abc import Callable
 from dataclasses import dataclass, field, replace
+from datetime import datetime
 from pathlib import Path
 from threading import RLock
 from typing import Any, Literal, cast
 
 import yaml
 
+from ingest.realtime.config import load_config as load_realtime_config
 from ingest.validate import PROJECT_ROOT
 from text2sql.corpus import column_value_conflicts, column_values
 from text2sql.db import ReadOnlySQLite
-from text2sql.llm import DisabledLLM, OpenAILLM
+from text2sql.llm import DisabledLLM, LocalLLM
 from text2sql.pipeline import Text2SQLPipeline
+from text2sql.realtime_query import RealtimeQueryEngine
 from text2sql.scope_guard import ScopeGuard
 from text2sql.semantic_guard import SemanticGuard
 from text2sql.sql_guard import SqlGuard
 
-RuntimeMode = Literal["offline", "online", "auto"]
-ActiveRuntimeMode = Literal["offline", "online"]
-RuntimeSource = Literal["offline", "memory", "environment", "injected"]
+RuntimeMode = Literal["offline", "local", "auto"]
+ActiveRuntimeMode = Literal["offline", "local"]
+Probe = Callable[[str], bool]
 
 _UNSET = object()
+LOGGER = logging.getLogger(__name__)
+PROVIDER_ENV = "POWERQUERY_LLM_PROVIDER"
+# auto 模式多久重新確認一次 Ollama 在不在。每個查詢都問一次，Ollama 沒開時
+# 連規則接得住的查詢也要多等一個連線逾時。
+PROBE_TTL_SECONDS = 30.0
+PROBE_TIMEOUT_SECONDS = 1.0
 
 
 @dataclass(frozen=True)
@@ -37,18 +50,16 @@ class ServiceRuntime:
     peak_columns: set[str]
     plants: set[str]
     sites: set[str]
-    online_llm: bool
+    local_llm: bool
     root: Path = PROJECT_ROOT
     mode: ActiveRuntimeMode = "offline"
-    model: str = "gpt-5.4-mini"
-    source: RuntimeSource = "offline"
-    provider: str = "openai"
-    # 這個 runtime 的憑證來自哪個環境變數。跟著 runtime 走而不是每次重讀設定，
-    # 是因為 RuntimeManager 要靠它偵測 key 被換掉或移除 —— 認錯變數名的話，
-    # 設了 GMI_API_KEY 的人會因為 OPENAI_API_KEY 是空的而被清掉線上 runtime。
-    api_key_env: str = "OPENAI_API_KEY"
+    model: str = "qwen3:8b"
+    provider: str = "ollama"
+    base_url: str | None = None
     requested_mode: RuntimeMode = "auto"
-    credential_fingerprint: bytes | None = field(default=None, repr=False)
+    # 呼叫端自己帶進來的 runtime（例如測試的 FakeLLM）。它的 LLM 不能從設定重建，
+    # 換資料庫時不能默默換成真的 Ollama。
+    injected: bool = False
 
 
 def _yaml(path: Path) -> dict[str, Any]:
@@ -77,67 +88,79 @@ def _single_column(executor: ReadOnlySQLite, sql: str) -> set[str]:
 
 def _normalise_mode(mode: str) -> RuntimeMode:
     value = mode.strip().lower()
-    if value not in {"offline", "online", "auto"}:
-        raise ValueError("mode 必須是 offline、online 或 auto。")
+    if value not in {"offline", "local", "auto"}:
+        raise ValueError("mode 必須是 offline、local 或 auto。")
     return cast(RuntimeMode, value)
 
 
-def _clean_model(
-    model: str | None,
-    llm_config: dict[str, Any],
-    *,
-    use_environment: bool,
-) -> str:
+def _clean_model(model: str | None, settings: dict[str, Any]) -> str:
     if model is not None:
         configured = model
-    elif use_environment:
-        environment_model = os.getenv(str(llm_config.get("model_env", "OPENAI_MODEL")))
+    else:
+        environment_model = os.getenv(str(settings.get("model_env", "OLLAMA_MODEL")))
         configured = (
             environment_model
             if environment_model and environment_model.strip()
-            else str(llm_config.get("default_model", "gpt-5.4-mini"))
+            else str(settings.get("default_model", "qwen3:8b"))
         )
-    else:
-        configured = str(llm_config.get("default_model", "gpt-5.4-mini"))
     configured = configured.strip()
     if not configured:
         raise ValueError("model 不可為空。")
     return configured
 
 
-def _clean_api_key(api_key: str | None) -> str | None:
-    if api_key is None:
-        return None
-    if not isinstance(api_key, str):
-        raise TypeError("api_key 必須是字串或 None。")
-    return api_key.strip() or None
-
-
-def _credential(api_key: str | None, api_key_env: str) -> tuple[str | None, RuntimeSource]:
-    explicit = _clean_api_key(api_key)
-    if explicit:
-        return explicit, "memory"
-    environment = os.getenv(api_key_env, "").strip()
-    if environment:
-        return environment, "environment"
-    return None, "offline"
-
-
 def _provider_settings(llm_config: dict[str, Any], provider: str) -> dict[str, Any]:
     """Merge the chosen provider's block over the top-level defaults.
 
-    `providers` 整段缺席時回到頂層設定，讓舊的 llm.yaml 照樣跑得起來；
-    但 `providers` 存在而指定的 provider 不在裡面，就是設定打錯了，直接失敗 ——
-    默默退回 openai 會讓人以為自己在打 GMI，帳單和結果都對不上。
+    指定的 provider 不在 `providers` 裡就是設定打錯了，直接失敗 ——
+    默默換成另一種模式會讓人以為自己開了推理，評測結果也對不上。
     """
 
     providers = llm_config.get("providers")
     if not isinstance(providers, dict):
-        return dict(llm_config)
+        raise ValueError("configs/llm.yaml 缺少 providers。")
     block = providers.get(provider)
     if not isinstance(block, dict):
-        raise ValueError(f"不支援的線上 provider：{provider}；可用的是 {sorted(providers)}。")
+        raise ValueError(f"不支援的本機 LLM provider：{provider}；可用的是 {sorted(providers)}。")
     return {**llm_config, **block}
+
+
+def _selected_provider(llm_config: dict[str, Any]) -> str:
+    """`POWERQUERY_LLM_PROVIDER` wins over llm.yaml, so switching modes needs no file edit."""
+
+    override = os.getenv(PROVIDER_ENV, "").strip()
+    return override or str(llm_config.get("provider", "ollama"))
+
+
+def probe_local_llm(base_url: str, timeout_seconds: float = PROBE_TIMEOUT_SECONDS) -> bool:
+    """Is an Ollama server answering at ``base_url``? Only asks for the model list."""
+
+    try:
+        # base_url 來自 llm.yaml，不是使用者輸入。
+        with urllib.request.urlopen(  # noqa: S310
+            base_url.rstrip("/") + "/models", timeout=timeout_seconds
+        ) as response:
+            return 200 <= response.status < 300
+    except (OSError, urllib.error.URLError, ValueError):
+        return False
+
+
+def _realtime_engine(
+    root: Path, guard_config: dict[str, Any], clock: Callable[[], datetime] | None
+) -> RealtimeQueryEngine | None:
+    """The realtime branch; a broken realtime config only disables realtime questions."""
+
+    try:
+        config = load_realtime_config(root)
+    except (OSError, ValueError, KeyError, TypeError, yaml.YAMLError):
+        LOGGER.exception("即時收集設定讀取失敗，即時問句停用")
+        return None
+    return RealtimeQueryEngine(
+        config,
+        max_rows=int(guard_config["sql"]["max_rows"]),
+        timeout_seconds=float(guard_config["sql"]["timeout_seconds"]),
+        clock=clock,
+    )
 
 
 def build_runtime(
@@ -146,12 +169,17 @@ def build_runtime(
     root: Path = PROJECT_ROOT,
     mode: RuntimeMode = "auto",
     model: str | None = None,
-    api_key: str | None = None,
+    realtime_clock: Callable[[], datetime] | None = None,
+    request_timeout_seconds: float | None = None,
+    extra_body: dict[str, Any] | None = None,
+    probe: Probe | None = None,
+    retrieval_top_k: int | None = None,
 ) -> ServiceRuntime:
-    """Build one immutable runtime without retaining a supplied API key.
+    """Build one immutable runtime.
 
-    ``auto`` uses the online adapter only when a key is available. ``offline``
-    always uses deterministic routing, even if the process has an API key.
+    ``offline`` always uses deterministic routing. ``local`` always hands the long tail
+    to Ollama, even when it is down, so the user sees the real failure. ``auto`` uses
+    Ollama only when it answers right now.
     """
 
     requested_mode = _normalise_mode(mode)
@@ -170,41 +198,40 @@ def build_runtime(
     semantic_guard = SemanticGuard.from_database(database, peak_columns=peak_columns)
     scope_guard = _optional_scope_guard(database)
 
-    # provider 決定去哪裡拿 key、拿哪個環境變數，所以要先解析它才問得出憑證。
-    provider = str(llm_config.get("provider", "openai"))
+    provider = _selected_provider(llm_config)
     settings = _provider_settings(llm_config, provider)
-    api_key_env = str(settings.get("api_key_env", "OPENAI_API_KEY"))
+    base_url = str(settings.get("base_url") or "").strip()
+    if not base_url:
+        raise ValueError(f"本機 LLM provider {provider} 缺少 base_url。")
+    if requested_mode == "auto":
+        available = (probe or probe_local_llm)(base_url)
+        active_mode: ActiveRuntimeMode = "local" if available else "offline"
+    else:
+        active_mode = requested_mode
+    selected_model = _clean_model(model, settings)
 
-    key, key_source = _credential(api_key, api_key_env)
-    active_mode: ActiveRuntimeMode = (
-        "online" if requested_mode == "online" or (requested_mode == "auto" and key) else "offline"
+    # 本機模型在一般筆電上生成一句 SQL 要十幾秒到幾分鐘，逾時跟著模式走。
+    request_timeout = (
+        float(request_timeout_seconds)
+        if request_timeout_seconds is not None
+        else float(settings.get("request_timeout_seconds", 120))
     )
-    if active_mode == "online" and key is None:
-        raise RuntimeError(f"線上模式需要 API key；請在記憶體設定或使用 {api_key_env}。")
-    selected_model = _clean_model(
-        model,
-        settings,
-        use_environment=requested_mode != "offline",
-    )
-
-    request_timeout = float(llm_config.get("request_timeout_seconds", 30))
     temperature = settings.get("temperature")
     llm = (
-        OpenAILLM(
+        LocalLLM(
+            base_url=base_url,
             model=selected_model,
-            api_key=key,
             timeout_seconds=request_timeout,
-            base_url=(str(settings["base_url"]) if settings.get("base_url") else None),
-            api=str(settings.get("api", "responses")),
             structured_output=bool(settings.get("structured_output", True)),
             temperature=(None if temperature is None else float(temperature)),
-            api_key_env=api_key_env,
-            model_env=str(settings.get("model_env", "OPENAI_MODEL")),
-            default_model=str(settings.get("default_model", "gpt-5.4-mini")),
+            # 評測可以覆寫 provider 的 extra_body（例如暫時把推理打開），不必改 llm.yaml。
+            extra_body=(extra_body if extra_body is not None else settings.get("extra_body"))
+            or None,
+            model_env=str(settings.get("model_env", "OLLAMA_MODEL")),
+            default_model=str(settings.get("default_model", "qwen3:8b")),
         )
-        if active_mode == "online"
-        # 離線時也要指名這個 provider 讀的是哪個變數，不然使用者會被指去設 OPENAI_API_KEY。
-        else DisabledLLM(api_key_env=api_key_env)
+        if active_mode == "local"
+        else DisabledLLM()
     )
     ngram = retriever_config["character_ngram"]
     sql_guard = SqlGuard(max_rows=int(guard_config["sql"]["max_rows"]))
@@ -223,14 +250,15 @@ def build_runtime(
         sites=sites,
         semantic_guard=semantic_guard,
         scope_guard=scope_guard,
+        realtime=_realtime_engine(root, guard_config, realtime_clock),
         max_attempts=int(llm_config["max_attempts"]),
-        top_k=int(retriever_config["top_k"]),
+        # 評測可以把檢索關掉（0）單獨量 RAG 的效果，不必改 retriever.yaml。
+        top_k=int(retriever_config["top_k"]) if retrieval_top_k is None else retrieval_top_k,
         ngram_min=int(ngram["min"]),
         ngram_max=int(ngram["max"]),
         min_score=float(retriever_config.get("min_score", 0.0)),
         relative_score=float(retriever_config.get("relative_score", 0.0)),
     )
-    source: RuntimeSource = key_source if active_mode == "online" else "offline"
     return ServiceRuntime(
         pipeline=pipeline,
         executor=executor,
@@ -239,38 +267,33 @@ def build_runtime(
         peak_columns=peak_columns,
         plants=plants,
         sites=sites,
-        online_llm=active_mode == "online",
+        local_llm=active_mode == "local",
         root=root,
         mode=active_mode,
         model=selected_model,
-        source=source,
         provider=provider,
-        api_key_env=api_key_env,
+        base_url=base_url,
         requested_mode=requested_mode,
-        credential_fingerprint=(
-            hashlib.sha256(key.encode("utf-8")).digest()
-            if active_mode == "online" and key is not None
-            else None
-        ),
     )
 
 
 class RuntimeManager:
-    """Thread-safe owner of runtime mode and memory-only online credentials."""
+    """Thread-safe owner of the runtime mode: offline rules or a local LLM."""
 
     __slots__ = (
         "_active_runtime",
-        "_api_key",
+        "_base_url",
         "_database",
         "_default_mode",
+        "_local_runtime",
         "_lock",
         "_model",
         "_offline_runtime",
-        "_online_runtime",
-        "_online_signature",
+        "_probe",
+        "_probe_checked_at",
+        "_probe_result",
         "_provider",
         "_root",
-        "_api_key_env",
     )
 
     def __init__(
@@ -281,38 +304,35 @@ class RuntimeManager:
         root: Path = PROJECT_ROOT,
         default_mode: RuntimeMode | None = None,
         model: str | None = None,
-        api_key: str | None = None,
+        probe: Probe | None = None,
     ) -> None:
         self._lock = RLock()
-        self._api_key = _clean_api_key(api_key)
+        self._probe = probe or probe_local_llm
+        self._probe_checked_at: float | None = None
+        self._probe_result = False
 
         if runtime is not None:
             if database is not None:
                 raise ValueError("injected runtime 不可與 database 同時指定。")
-            if model is not None or api_key is not None:
-                raise ValueError("injected runtime 不可同時覆寫 model 或 api_key。")
-            # A caller-supplied online runtime already owns its configured client,
-            # while its credential is intentionally absent from ServiceRuntime.
-            # Mark it as injected so the manager does not mistake that absence for
-            # a removed environment credential and discard the usable adapter.
-            if runtime.mode == "online" and runtime.source == "memory" and self._api_key is None:
-                runtime = replace(runtime, source="injected")
+            if model is not None:
+                raise ValueError("injected runtime 不可同時覆寫 model。")
+            # 呼叫端帶進來的 LLM（例如 FakeLLM）不能從設定重建：標成 injected，
+            # 之後一律沿用它，而不是換成真的 Ollama。
+            if runtime.mode == "local" and not runtime.injected:
+                runtime = replace(runtime, injected=True)
             self._active_runtime = runtime
             self._database = runtime.database
             self._root = runtime.root.resolve()
             self._model = runtime.model.strip()
             self._provider = runtime.provider
-            self._api_key_env = runtime.api_key_env
+            self._base_url = runtime.base_url
             self._default_mode = _normalise_mode(default_mode or runtime.requested_mode)
             self._offline_runtime = runtime if runtime.mode == "offline" else None
-            self._online_runtime = runtime if runtime.mode == "online" else None
-            self._online_signature = (
-                (runtime.model, runtime.credential_fingerprint)
-                if runtime.mode == "online"
-                and runtime.source != "injected"
-                and runtime.credential_fingerprint is not None
-                else None
-            )
+            self._local_runtime = runtime if runtime.mode == "local" else None
+            if runtime.mode == "local":
+                # 注入的本機 runtime 不是真的 Ollama，探測它沒有意義，一律當作可用。
+                self._probe_checked_at = float("inf")
+                self._probe_result = True
             return
 
         selected_default = _normalise_mode(default_mode or "auto")
@@ -321,22 +341,17 @@ class RuntimeManager:
             root=root,
             mode=selected_default,
             model=model,
-            api_key=self._api_key,
+            probe=self._remember_probe,
         )
         self._active_runtime = initial
         self._database = initial.database
         self._root = initial.root
         self._model = initial.model
         self._provider = initial.provider
-        self._api_key_env = initial.api_key_env
+        self._base_url = initial.base_url
         self._default_mode = selected_default
         self._offline_runtime = initial if initial.mode == "offline" else None
-        self._online_runtime = initial if initial.mode == "online" else None
-        self._online_signature = (
-            (initial.model, initial.credential_fingerprint)
-            if initial.mode == "online" and initial.credential_fingerprint is not None
-            else None
-        )
+        self._local_runtime = initial if initial.mode == "local" else None
 
     def __repr__(self) -> str:
         with self._lock:
@@ -344,44 +359,21 @@ class RuntimeManager:
                 "RuntimeManager("
                 f"default_mode={self._default_mode!r}, "
                 f"active_mode={self._active_runtime.mode!r}, "
-                f"model={self._model!r}, online_configured={self._online_configured()!r})"
+                f"model={self._model!r})"
             )
 
-    @staticmethod
-    def _signature(model: str, api_key: str) -> tuple[str, bytes]:
-        return model, hashlib.sha256(api_key.encode("utf-8")).digest()
+    def _remember_probe(self, base_url: str) -> bool:
+        self._probe_result = bool(self._probe(base_url))
+        self._probe_checked_at = time.monotonic()
+        return self._probe_result
 
-    def _current_credential(self) -> tuple[str | None, RuntimeSource]:
-        if self._api_key:
-            return self._api_key, "memory"
-        return _credential(None, self._api_key_env)
-
-    def _drop_stale_online_runtime(self) -> None:
-        """Release cached clients as soon as their credential is no longer current."""
-        cached = self._online_runtime
-        if cached is None or cached.source == "injected":
-            return
-        key, _source = self._current_credential()
-        signature = self._signature(self._model, key) if key else None
-        if key is not None and signature == self._online_signature:
-            return
-
-        self._online_runtime = None
-        self._online_signature = None
-        if self._active_runtime is cached:
-            if self._offline_runtime is None or self._offline_runtime.model != self._model:
-                self._offline_runtime = self._build(
-                    "offline",
-                    model=self._model,
-                    api_key=None,
-                )
-            self._active_runtime = self._offline_runtime
-
-    def _online_configured(self) -> bool:
-        self._drop_stale_online_runtime()
-        key, _source = self._current_credential()
-        injected = self._online_runtime is not None and self._online_runtime.source == "injected"
-        return bool(key or injected)
+    def _local_available(self) -> bool:
+        checked = self._probe_checked_at
+        if checked is not None and time.monotonic() - checked < PROBE_TTL_SECONDS:
+            return self._probe_result
+        if not self._base_url:
+            return False
+        return self._remember_probe(self._base_url)
 
     @property
     def active_runtime(self) -> ServiceRuntime:
@@ -394,72 +386,47 @@ class RuntimeManager:
             return self._default_mode
 
     def status(self) -> dict[str, object]:
-        """Return UI-safe mode metadata; credentials are deliberately omitted."""
+        """Return UI-safe mode metadata."""
 
         with self._lock:
-            self._drop_stale_online_runtime()
             return {
                 "default_mode": self._default_mode,
                 "active_mode": self._active_runtime.mode,
-                "online_configured": self._online_configured(),
+                "local_available": self._local_available(),
                 "provider": self._provider,
                 "model": self._model,
-                "source": self._active_runtime.source,
+                "base_url": self._base_url,
                 "offline_capability": True,
             }
 
-    def _build(
-        self,
-        mode: RuntimeMode,
-        *,
-        model: str,
-        api_key: str | None,
-        source: RuntimeSource = "offline",
-    ) -> ServiceRuntime:
+    def _build(self, mode: ActiveRuntimeMode) -> ServiceRuntime:
         return build_runtime(
             database=self._database,
             root=self._root,
             mode=mode,
-            model=model,
-            api_key=api_key if source == "memory" else None,
+            model=self._model,
         )
+
+    def _effective(self, requested: RuntimeMode) -> ActiveRuntimeMode:
+        if requested == "local" or (requested == "auto" and self._local_available()):
+            return "local"
+        return "offline"
 
     def get_runtime(self, mode: RuntimeMode | None = None) -> ServiceRuntime:
         """Select a runtime for one query without changing the configured default."""
 
         with self._lock:
-            self._drop_stale_online_runtime()
-            requested = _normalise_mode(mode or self._default_mode)
-            key, source = self._current_credential()
-            effective: ActiveRuntimeMode = (
-                "online"
-                if requested == "online" or (requested == "auto" and self._online_configured())
-                else "offline"
-            )
-
+            effective = self._effective(_normalise_mode(mode or self._default_mode))
             if effective == "offline":
                 candidate = self._offline_runtime
                 if candidate is None or candidate.model != self._model:
-                    candidate = self._build("offline", model=self._model, api_key=None)
+                    candidate = self._build("offline")
                     self._offline_runtime = candidate
             else:
-                if key is None:
-                    if self._online_runtime is None or self._online_runtime.source != "injected":
-                        raise RuntimeError("線上模式尚未設定 API key。")
-                    candidate = self._online_runtime
-                else:
-                    signature = self._signature(self._model, key)
-                    candidate = self._online_runtime
-                    if candidate is None or self._online_signature != signature:
-                        candidate = self._build(
-                            "online", model=self._model, api_key=key, source=source
-                        )
-                        self._online_runtime = candidate
-                        self._online_signature = (
-                            candidate.model,
-                            candidate.credential_fingerprint,
-                        )
-
+                candidate = self._local_runtime
+                if candidate is None or (not candidate.injected and candidate.model != self._model):
+                    candidate = self._build("local")
+                    self._local_runtime = candidate
             self._active_runtime = candidate
             return candidate
 
@@ -495,63 +462,45 @@ class RuntimeManager:
         *,
         mode: RuntimeMode | None = None,
         model: str | None | object = _UNSET,
-        api_key: str | None | object = _UNSET,
     ) -> ServiceRuntime:
         """Atomically change defaults; a failed build leaves all prior state intact."""
 
         with self._lock:
-            self._drop_stale_online_runtime()
             candidate_mode = _normalise_mode(mode or self._default_mode)
             candidate_model = self._model if model is _UNSET else str(model or "").strip()
             if not candidate_model:
                 raise ValueError("model 不可為空。")
-            candidate_key = (
-                self._api_key if api_key is _UNSET else _clean_api_key(cast(str | None, api_key))
-            )
-
+            if candidate_mode == "auto" and self._probe_checked_at != float("inf"):
+                # 使用者剛按下套用，就該拿當下的狀態，而不是三十秒前的快取。
+                self._probe_checked_at = None
+            effective = self._effective(candidate_mode)
             reusable_injected = (
-                self._online_runtime
-                if api_key is _UNSET
-                and candidate_key is None
-                and candidate_mode in {"online", "auto"}
-                and self._online_runtime is not None
-                and self._online_runtime.source == "injected"
+                self._local_runtime
+                if effective == "local"
+                and self._local_runtime is not None
+                and self._local_runtime.injected
                 and candidate_model == self._model
                 else None
             )
             # Build before mutating manager state. This is the rollback boundary.
-            # A caller-injected adapter has no recoverable credential by design, so
-            # unchanged online/auto settings reuse that already-built client.
             candidate = reusable_injected or build_runtime(
                 database=self._database,
                 root=self._root,
-                mode=candidate_mode,
+                mode=effective,
                 model=candidate_model,
-                api_key=candidate_key,
             )
 
-            settings_changed = (
-                candidate_model != self._model
-                or candidate_key != self._api_key
-                or api_key is not _UNSET
-            )
+            if candidate_model != self._model:
+                self._offline_runtime = None
+                self._local_runtime = None
             self._default_mode = candidate_mode
             self._model = candidate_model
-            self._api_key = candidate_key
             self._provider = candidate.provider
-            if settings_changed:
-                self._offline_runtime = None
-                self._online_runtime = None
-                self._online_signature = None
+            self._base_url = candidate.base_url
             if candidate.mode == "offline":
                 self._offline_runtime = candidate
             else:
-                self._online_runtime = candidate
-                self._online_signature = (
-                    (candidate.model, candidate.credential_fingerprint)
-                    if candidate.credential_fingerprint is not None
-                    else None
-                )
+                self._local_runtime = candidate
             self._active_runtime = candidate
             return candidate
 
@@ -560,11 +509,10 @@ class RuntimeManager:
         *,
         mode: RuntimeMode | None = None,
         model: str | None | object = _UNSET,
-        api_key: str | None | object = _UNSET,
     ) -> dict[str, object]:
         """Configure the manager and return the resulting state under one lock."""
         with self._lock:
-            self.configure(mode=mode, model=model, api_key=api_key)
+            self.configure(mode=mode, model=model)
             return self.status()
 
     def switch_database(self, database: Path) -> ServiceRuntime:
@@ -579,35 +527,23 @@ class RuntimeManager:
         with self._lock:
             if target == self._database:
                 return self._active_runtime
-
-            self._drop_stale_online_runtime()
-            key, _source = self._current_credential()
-            if (
-                key is None
-                and self._active_runtime.mode == "online"
-                and self._active_runtime.source == "injected"
-            ):
-                raise RuntimeError("注入式線上執行環境沒有可重建的憑證，無法切換資料庫。")
+            if self._active_runtime.injected:
+                raise RuntimeError("注入式本機 LLM 執行環境無法從設定重建，不能切換資料庫。")
 
             # This is the rollback boundary: build_runtime opens and validates the
             # new semantic layer before the active pointer or caches are mutated.
             candidate = build_runtime(
                 database=target,
                 root=self._root,
-                mode=self._default_mode,
+                mode=self._active_runtime.mode,
                 model=self._model,
-                api_key=self._api_key,
             )
 
             self._database = target
             self._offline_runtime = candidate if candidate.mode == "offline" else None
-            self._online_runtime = candidate if candidate.mode == "online" else None
-            self._online_signature = (
-                (candidate.model, candidate.credential_fingerprint)
-                if candidate.mode == "online" and candidate.credential_fingerprint is not None
-                else None
-            )
+            self._local_runtime = candidate if candidate.mode == "local" else None
             self._provider = candidate.provider
+            self._base_url = candidate.base_url
             self._active_runtime = candidate
             return candidate
 

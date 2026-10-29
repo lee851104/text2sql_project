@@ -15,7 +15,7 @@ from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from ingest.realtime import archive, client, maintenance, parse, rebuild, store
+from ingest.realtime import archive, client, history, maintenance, parse, rebuild, store
 from ingest.realtime.config import RealtimeConfig
 from ingest.realtime.decisions import (
     LOAD_ERRORS,
@@ -140,6 +140,7 @@ class Collector:
             if stale:
                 LOGGER.warning("人工決定檔有 %d 列從未出現在來源中", len(stale))
         self._reconcile_archive()
+        self._apply_pending_history(now)
         try:
             self.maintain(now, reload_decisions=False)
         except Exception:
@@ -156,6 +157,82 @@ class Collector:
                 self.connection.close()
                 self.connection = None
         self.config.stop_path.unlink(missing_ok=True)
+
+    def _apply_pending_history(self, now: datetime) -> None:
+        """封存了、還沒匯入的 d006010（例如匯入到一半當掉）在啟動時補上。失敗只記錄。"""
+        try:
+            with store.transaction(self.connection):
+                reports = history.replay_history(
+                    self.connection, self.config, self.decisions, now=now, only_pending=True
+                )
+        except Exception:
+            LOGGER.exception("補匯入 d006010 歷史資料失敗，記錄後繼續啟動")
+            return
+        for report in reports:
+            LOGGER.info(
+                "補匯入 d006010：%s～%s，%d 條序列",
+                report.start_date,
+                report.end_date,
+                report.series,
+            )
+
+    def download_history(self) -> int:
+        """下載最新的 d006010（約 200 MB）再匯入。"""
+        try:
+            source = history.download(self.config)
+        except (OSError, history.HistoryRejected) as error:
+            LOGGER.error("下載 d006010 失敗：%s", error)
+            return EXIT_FAILED
+        LOGGER.info("已下載 %s（%d bytes）", source.name, source.stat().st_size)
+        return self.import_history(source)
+
+    def import_history(self, source: Path) -> int:
+        """匯入一份 d006010。只有收集器會寫 realtime.db，所以要先停收集器（拿得到鎖才做）。"""
+        try:
+            with SingleInstanceLock(self.config.lock_path):
+                now = self.clock()
+                self.decisions = self._load_decisions()
+                connection = self._open_database(now)
+                try:
+                    report = history.import_file(
+                        connection, source, self.config, self.decisions, now=now
+                    )
+                finally:
+                    connection.close()
+        except AlreadyRunning as error:
+            LOGGER.error("%s；請先停止收集器再匯入歷史資料。", error)
+            return EXIT_ALREADY_RUNNING
+        except history.HistoryRejected as error:
+            LOGGER.error("d006010 整份不收（%s）：%s", error.code, error.detail)
+            return EXIT_FAILED
+        if report.skipped:
+            LOGGER.info(
+                "這份 d006010 之前已經匯入過（%s～%s），不重複匯入",
+                report.start_date,
+                report.end_date,
+            )
+            return EXIT_OK
+        LOGGER.info(
+            "匯入 d006010：%s～%s，%d 筆、%d 條序列（%d 條有對照）、%d 天；重複 %d、衝突 %d、"
+            "無法解析 %d、期間外 %d",
+            report.start_date,
+            report.end_date,
+            report.records,
+            report.series,
+            report.mapped_series,
+            report.days,
+            report.duplicates,
+            report.conflicts,
+            report.invalid_values,
+            report.out_of_range,
+        )
+        if report.unmapped:
+            LOGGER.warning(
+                "%d 條序列不在 realtime_history_units.csv，已用原名建成機組：%s",
+                len(report.unmapped),
+                "、".join(f"{kind}|{name}" for kind, name in report.unmapped[:20]),
+            )
+        return EXIT_OK
 
     def _load_decisions(self) -> Decisions | None:
         try:
@@ -433,6 +510,30 @@ class Collector:
         report = maintenance.run_maintenance(self.connection, now, self.config)
         if report.rolled_up or report.purged:
             LOGGER.info("彙總 %s；清除 %s", list(report.rolled_up), list(report.purged))
+        self._auto_import_history(now)
+
+    def _auto_import_history(self, now: datetime) -> None:
+        """每天問一次台電有沒有新的 d006010；失敗只記錄，收集照常（隔 check_hours 再試）。"""
+        assert self.connection is not None
+        try:
+            imported = history.auto_import(
+                self.connection, self.config, self.decisions, now=now, opener=self.opener
+            )
+        except Exception:
+            LOGGER.exception("自動匯入 d006010 失敗，記錄後繼續收集")
+            return
+        if imported is None:
+            return
+        if imported.skipped:
+            LOGGER.info("台電的 d006010 有新版本標記，但內容與已匯入的相同")
+            return
+        LOGGER.info(
+            "自動匯入 d006010：%s～%s，%d 條序列（%d 條有對照）",
+            imported.start_date,
+            imported.end_date,
+            imported.series,
+            imported.mapped_series,
+        )
 
     def _reload_decisions_if_changed(self) -> None:
         current = self.decisions

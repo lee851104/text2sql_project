@@ -57,7 +57,7 @@ def _all_mapping_keys(value: Any) -> set[str]:
 def _reset_offline_runtime(client: TestClient) -> dict[str, object]:
     response = client.put(
         "/api/runtime/llm",
-        json={"mode": "offline", "api_key": None},
+        json={"mode": "offline"},
     )
     assert response.status_code == 200
     return response.json()["data"]
@@ -67,13 +67,16 @@ def _reset_offline_runtime(client: TestClient) -> dict[str, object]:
 def test_health_stats_and_static_frontend(client: TestClient) -> None:
     home = client.get("/")
     assert home.status_code == 200
-    assert "PowerQuery TW" in home.text
+    assert "GridLens TW" in home.text
     assert "default-src 'self'" in home.headers["content-security-policy"]
     for view in ("query", "overview", "data", "settings", "docs"):
         assert f'data-view="{view}"' in home.text
         assert f'data-panel="{view}"' in home.text
     assert 'id="runtimeForm"' in home.text
-    assert 'id="clearRuntimeKey"' in home.text
+    assert 'id="clearRuntimeKey"' not in home.text
+    assert 'id="apiKeyInput"' not in home.text
+    assert 'id="summaryLocalAvailable"' in home.text
+    assert 'option value="local">本機 LLM</option>' in home.text
     assert '<option value="">沿用預設模式</option>' in home.text
     assert 'option value="auto">自動判斷</option>' in home.text
     assert 'id="queryScope"' in home.text
@@ -142,28 +145,40 @@ def test_query_endpoint_returns_traceable_chart_and_rows(client: TestClient) -> 
 
 
 @pytest.mark.e2e
-def test_runtime_status_never_exposes_credentials(client: TestClient) -> None:
+def test_runtime_status_has_no_credential_fields(client: TestClient) -> None:
+    """地端版沒有任何金鑰：狀態裡不該再出現金鑰相關欄位。"""
+
     response = client.get("/api/runtime/llm")
 
     assert response.status_code == 200
     payload = response.json()
     assert payload["success"] is True
     assert _all_mapping_keys(payload).isdisjoint({"api_key", "key", "credential"})
-    assert "OPENAI_API_KEY" not in response.text
+    assert payload["data"]["provider"].startswith("ollama")
+    assert payload["data"]["base_url"].startswith("http://127.0.0.1:")
 
 
 @pytest.mark.e2e
-def test_validation_errors_do_not_reflect_sensitive_input(client: TestClient) -> None:
+def test_runtime_settings_reject_an_api_key_field(client: TestClient) -> None:
+    """金鑰欄位整個拿掉了；送上來就是錯的請求，而且不能回顯內容。"""
+
     secret = "sk-malformed-body-must-not-be-reflected"
 
     response = client.put(
         "/api/runtime/llm",
-        json={"mode": "offline", "api_key": [secret]},
+        json={"mode": "offline", "api_key": secret},
     )
 
     assert response.status_code == 422
     assert secret not in response.text
     assert all("input" not in item for item in response.json()["detail"])
+
+
+@pytest.mark.e2e
+def test_the_cloud_mode_name_is_rejected(client: TestClient) -> None:
+    response = client.put("/api/runtime/llm", json={"mode": "online"})
+
+    assert response.status_code == 422
 
 
 @pytest.mark.e2e
@@ -180,62 +195,27 @@ def test_explicit_null_model_preserves_current_runtime_model(client: TestClient)
 
 
 @pytest.mark.e2e
-def test_offline_runtime_keeps_and_clears_key_only_in_memory(
+def test_failed_local_adapter_configuration_rolls_back_atomically(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     baseline = _reset_offline_runtime(client)
     manager = client.app.state.runtime_manager
-    secret = "sk-test-memory-only-never-return"
 
-    try:
-        response = client.put(
-            "/api/runtime/llm",
-            json={"mode": "offline", "api_key": secret},
-        )
-        fetched = client.get("/api/runtime/llm")
+    class BrokenLocalLLM:
+        def __init__(self, **_kwargs: object):
+            raise RuntimeError("Connection refused to 10.0.0.5:11434")
 
-        assert response.status_code == 200
-        assert response.json()["data"]["active_mode"] == "offline"
-        assert response.json()["data"]["online_configured"] is True
-        assert manager._api_key == secret
-        assert secret not in response.text
-        assert secret not in fetched.text
-        assert secret not in repr(manager)
-        assert _all_mapping_keys(fetched.json()).isdisjoint({"api_key", "key", "credential"})
-    finally:
-        restored = _reset_offline_runtime(client)
-
-    assert restored == baseline
-    assert manager._api_key is None
-
-
-@pytest.mark.e2e
-def test_failed_online_adapter_configuration_rolls_back_atomically(
-    client: TestClient,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    baseline = _reset_offline_runtime(client)
-    manager = client.app.state.runtime_manager
-    secret = "sk-test-failed-adapter-never-return"
-
-    class BrokenOpenAILLM:
-        def __init__(self, **kwargs: object):
-            raise RuntimeError(f"adapter rejected credential {kwargs['api_key']}")
-
-    monkeypatch.setattr(runtime_module, "OpenAILLM", BrokenOpenAILLM)
+    monkeypatch.setattr(runtime_module, "LocalLLM", BrokenLocalLLM)
     response = client.put(
         "/api/runtime/llm",
-        json={"mode": "online", "model": "broken-model", "api_key": secret},
+        json={"mode": "local", "model": "broken-model"},
     )
 
     assert response.status_code == 400
-    assert response.json()["detail"].startswith("線上執行環境初始化失敗")
-    assert secret not in response.text
+    assert response.json()["detail"].startswith("本機 LLM 執行環境初始化失敗")
+    assert "10.0.0.5" not in response.text
     assert client.get("/api/runtime/llm").json()["data"] == baseline
-    assert secret not in repr(manager)
     assert "broken-model" not in repr(manager)
 
 
@@ -321,7 +301,7 @@ def test_refusal_does_not_create_a_learning_candidate(client: TestClient) -> Non
 
 
 @pytest.mark.e2e
-def test_pending_online_candidate_can_be_reviewed_locally(client: TestClient) -> None:
+def test_pending_llm_candidate_can_be_reviewed_locally(client: TestClient) -> None:
     _reset_offline_runtime(client)
     client.get("/api/training-status")
     runtime = client.app.state.runtime_manager.get_runtime("offline")
@@ -330,7 +310,7 @@ def test_pending_online_candidate_can_be_reviewed_locally(client: TestClient) ->
     params = ("2026-07-09",)
     columns, rows = runtime.executor.execute(sql, params)
     pending = learning.submit(
-        question="2026年7月9日系統日期線上候選審核測試",
+        question="2026年7月9日系統日期 LLM 候選審核測試",
         sql=sql,
         params=params,
         intent="system_metric",
@@ -417,12 +397,10 @@ def test_missing_database_is_reported_as_unavailable(tmp_path: Path) -> None:
 @pytest.mark.parametrize(
     ("message", "leaks_through"),
     [
-        # 設定檔講得清楚的兩類，要原樣說給管理員聽 —— 遮掉的話，「你沒設 key」與
-        # 「provider 名字打錯」都變成同一句沒有指向性的通用錯誤。
-        ("線上模式需要 API key；請在記憶體設定或使用 GMI_API_KEY。", True),
-        ("線上模式需要 API key；請在記憶體設定或使用 OPENAI_API_KEY。", True),
-        ("不支援的線上 provider：gemini；可用的是 ['gmi', 'openai']。", True),
-        ("請先執行 `uv sync --extra online`。", True),
+        # 設定檔講得清楚的幾類，要原樣說給管理員聽 —— 遮掉的話，「provider 名字打錯」
+        # 與「套件沒裝」都變成同一句沒有指向性的通用錯誤。
+        ("不支援的本機 LLM provider：gemini；可用的是 ['ollama', 'ollama-reasoning']。", True),
+        ("請先執行 `uv sync --extra local`。", True),
         # 其餘一律遮蔽，內部細節不能外流。
         ("Connection refused to 10.0.0.5:5432", False),
         ("adapter rejected credential sk-live-abcdef", False),
@@ -432,7 +410,7 @@ def test_missing_database_is_reported_as_unavailable(tmp_path: Path) -> None:
 def test_only_configuration_level_runtime_errors_reach_the_caller(
     message: str, leaks_through: bool
 ) -> None:
-    """訊息帶上 provider 的環境變數名之後，整句比對會漏掉 —— 改前綴比對，但別放寬其餘的。"""
+    """訊息帶上可用的 provider 清單之後，整句比對會漏掉 —— 改前綴比對，但別放寬其餘的。"""
 
     from serving.app import GENERIC_RUNTIME_ERROR, _safe_runtime_error
 

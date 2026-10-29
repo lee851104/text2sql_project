@@ -1,6 +1,6 @@
 {
   "schema_version": "eval-report-v1",
-  "generated_at": "2026-09-24T09:13:37.582200+00:00",
+  "generated_at": "2026-10-29T06:57:57.347752+00:00",
   "mode": "offline_deterministic_rules",
   "database": "data/processed/power.db",
   "data_range": {
@@ -107,7 +107,7 @@
         "total": 60,
         "accuracy": 0.1
       },
-      "note": "這是檢索器本身的離線指標，不假裝是線上 LLM 準確率。"
+      "note": "這是檢索器本身的離線指標，不假裝是本機 LLM 的準確率。"
     },
     "semantic_guard": {
       "metric": "trap_handling_accuracy",
@@ -119,13 +119,13 @@
       "1": 1.0,
       "2": 1.0,
       "3": 1.0,
-      "note": "規則路由在第一次就產生候選；需線上 LLM 測試才能估計重生收益。"
+      "note": "規則路由在第一次就產生候選；重生收益要看本機 LLM 評測（eval.llm_eval）。"
     },
     "routing": {
       "metric": "offline_execution_accuracy",
       "enabled": 1.0,
       "disabled": null,
-      "disabled_status": "not_run_without_online_llm",
+      "disabled_status": "measured_by_llm_eval",
       "rule_coverage": 1.0
     }
   },
