@@ -5,7 +5,7 @@ import base64
 import pytest
 from fastapi.testclient import TestClient
 
-from ingest.build_db import SCHEMA_VERSION, build_database
+from ingest.build_db import build_database
 from ingest.validate import PROJECT_ROOT, resolve_configured_paths
 from serving.accounts import MINIMUM_ITERATIONS, Account, hash_password
 from serving.admin_auth import AdminAuthManager
@@ -280,22 +280,3 @@ def test_the_two_refusals_are_distinct_and_only_one_reaches_the_journal(data_api
         json={"decision": "reject", "note": "withdrawing"},
     )
     client.cookies.clear()
-
-
-@pytest.mark.e2e
-def test_rebuild_is_refused_while_the_active_build_is_current(data_api) -> None:
-    client, _outage_payload, _outage_filename = data_api
-    headers = _sign_in(client, UPLOADER)
-
-    status = client.get("/api/data/status").json()["data"]
-    assert status["build_schema"] == SCHEMA_VERSION
-    assert status["active_build_schema"] == SCHEMA_VERSION
-    assert status["rebuild_required"] is False
-
-    rebuild = client.post(
-        "/api/data/changes/rebuild",
-        headers=headers,
-        json={"reason": "nothing changed"},
-    )
-    assert rebuild.status_code == 409
-    assert "不需要重建" in rebuild.json()["detail"]

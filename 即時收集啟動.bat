@@ -1,7 +1,7 @@
 @echo off
 setlocal EnableExtensions DisableDelayedExpansion
 chcp 65001 >nul
-title GridLens TW - 即時收集
+title PowerQuery TW - 即時收集
 
 rem 從批次檔所在的專案目錄執行；pushd 也支援 UNC 路徑。
 pushd "%~dp0" >nul 2>&1

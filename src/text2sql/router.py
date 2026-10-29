@@ -34,7 +34,7 @@ class RoutedQuery:
 # 的最早與最晚日期」命中「資料涵蓋」，離線執行率因此從 100% 掉到 95%。
 #
 # 代價是換個講法就不會命中，會掉回 other —— 但那與現況相同，不是退步；長尾講法本來
-# 就該由本機 LLM 接手（語料已收錄這四句）。
+# 就該由線上模式的 LLM 接手（語料已收錄這四句）。
 DATA_SCOPE_QUESTIONS: dict[str, frozenset[str]] = {
     "plants": frozenset(
         {
@@ -254,7 +254,7 @@ def missing_parameter_clarification(
       第 7 章講的就是這件事：猜錯的代價是畫面上什麼異狀都沒有。
 
     ★ 為什麼放在管線的最後一步
-      與 ``suggest_scope_question`` 同一層。走到這裡表示規則沒接、本機模型也沒生出
+      與 ``suggest_scope_question`` 同一層。走到這裡表示規則沒接、線上模型也沒生出
       能過守門的 SQL，所以**不可能**從任何 handler 手上搶題目。安全靠順序，不靠把
       判斷寫得多精準。
     """
@@ -298,7 +298,7 @@ def missing_parameter_clarification(
         )
 
     # 範本句：「某機組」「某一機組」明講了是單一機組，卻沒指名是哪一部。
-    # 這類句子原本掉到 LLM 生成，離線環境等於完全沒有回應。
+    # 這類句子原本掉到線上生成，離線環境等於完全沒有回應。
     if intent == "outage" and named_unit is None and re.search(r"某(?:一)?(?:部)?機組", question):
         return MissingParameter(
             "unit",

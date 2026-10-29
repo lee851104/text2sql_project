@@ -728,8 +728,8 @@ def test_a_date_only_some_views_cover_says_which_ones() -> None:
     """兩關之間的縫：v_peak 沒有 2024，v_generation_cost 有。
 
     check_question 放行（聯集涵蓋得到），router 又接不住這個問法，於是沒有 SQL 讓
-    check_sql 檢查。掉進縫裡的題目會拿到「本機 LLM 這次用不了」—— 那句話是誤導，
-    它跟模型無關，換成本機 LLM 也永遠答不出來。
+    check_sql 檢查。掉進縫裡的題目會拿到「線上生成這次用不了」—— 那句話是誤導，
+    它跟線上模式無關，換成線上也永遠答不出來。
     """
 
     question = "查2024年台中出力"
@@ -770,42 +770,3 @@ def test_a_question_without_a_date_is_not_blamed() -> None:
     question = "裝置容量前三大的電廠各在哪個縣市"
 
     assert _bounds_guard().explain_unanswerable_date(extract_entities(question)) is None
-
-
-@pytest.mark.parametrize("question", ["2020年以後商轉的機組", "2024年以後商轉的機組"])
-def test_a_commissioning_year_is_an_attribute_not_a_period(question: str) -> None:
-    """「2020年以後商轉」問的是 v_unit 的商轉日期，不是要查的期間。
-
-    v_unit 沒有時間範圍，拿事實表的涵蓋期間去比，2020 會在路由前就被擋成超出範圍，
-    2024 會被講成「只有部分檢視涵蓋」—— 兩題其實都答得出來（CP-088）。
-    """
-
-    entities = extract_entities(question)
-
-    assert _bounds_guard().check_question(question, entities).code != "DATA_RANGE_OUT_OF_BOUNDS"
-    assert _bounds_guard().explain_unanswerable_date(entities, question=question) is None
-
-
-def test_a_generation_question_the_renewable_view_covers_is_not_blamed() -> None:
-    """問發電量，v_re_generation 涵蓋 2025-03；v_outage 不涵蓋不是日期的問題（CP-088）。"""
-
-    guard = SemanticGuard(
-        data_range=DATA_RANGE,
-        peak_columns=PEAK_COLUMNS,
-        view_spans={
-            "v_peak": ("2025-01-01", "2026-07-31"),
-            "v_re_generation": ("2024-01", "2026-07"),
-            "v_outage": ("2025-07-01", "2028-06-30"),
-        },
-    )
-    question = "2025年3月每座風力場站的發電量"
-
-    assert guard.explain_unanswerable_date(extract_entities(question), question=question) is None
-
-
-def test_a_period_no_view_covers_is_still_refused_with_commissioning_words_absent() -> None:
-    question = "2020年台中#1的尖峰出力"
-
-    decision = _bounds_guard().check_question(question, extract_entities(question))
-
-    assert decision.code == "DATA_RANGE_OUT_OF_BOUNDS"

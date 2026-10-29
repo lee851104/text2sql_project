@@ -2,13 +2,13 @@
 
 執行方式：
 
-    uv run --extra local python scripts/eval_checklist.py                  # 本機 LLM，需要 Ollama
-    uv run python scripts/eval_checklist.py --mode offline                 # 只用離線規則對照
-    uv run python scripts/eval_checklist.py --baseline reports/<舊報告>.json
+    uv run python scripts/eval_online.py                  # 線上，需要 API key
+    uv run python scripts/eval_online.py --mode offline   # 離線對照，不花錢
+    uv run python scripts/eval_online.py --baseline reports/online_checklist-<時間>.json
 
 `eval.run_eval` 是純離線的 —— 它的 routing ablation 永遠回報
-`measured_by_llm_eval`，那條路徑不在離線評測裡。`eval.llm_eval` 量的是固定 20 題的準確率；
-補完語料想逐題看本機模型答得對不對、走哪條路，用這支。
+`not_run_without_online_llm`，那不是「沒 key 就跳過」，是程式裡根本沒有那條路徑。
+所以補完語料想知道線上模型答得對不對，目前只能一題一題手點。這支補的就是那一段。
 
 它不碰執行中的服務，直接在行程內建 runtime 查唯讀的 power.db。好處是改完語料重跑
 不必重啟服務；代價是它量到的是語料與 prompt 的效果，不是服務當下的狀態 —— 服務端
@@ -36,7 +36,7 @@ if str(PROJECT_SRC) not in sys.path:
 
 from serving.runtime import build_runtime  # noqa: E402
 
-DEFAULT_CHECKLIST = PROJECT_ROOT / "scripts" / "llm_checklist.json"
+DEFAULT_CHECKLIST = PROJECT_ROOT / "scripts" / "online_checklist.json"
 CORPUS_PATH = PROJECT_ROOT / "corpus" / "training_corpus.json"
 DATABASE_PATH = PROJECT_ROOT / "data" / "processed" / "power.db"
 REPORT_DIR = PROJECT_ROOT / "reports"
@@ -188,7 +188,7 @@ def main(argv: list[str] | None = None) -> int:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--checklist", type=Path, default=DEFAULT_CHECKLIST)
-    parser.add_argument("--mode", choices=("local", "offline", "auto"), default="local")
+    parser.add_argument("--mode", choices=("online", "offline", "auto"), default="online")
     parser.add_argument("--only", default=None, help="只跑 id 含有這段字的題目")
     parser.add_argument("--out", type=Path, default=None, help="報告輸出路徑")
     parser.add_argument("--baseline", type=Path, default=None, help="拿一份舊報告來對照")
@@ -204,8 +204,8 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         runtime = build_runtime(mode=args.mode)
-    except (RuntimeError, ValueError) as error:
-        # 這段訊息會指名哪個設定有問題，照樣印出來比包成通用錯誤有用。
+    except RuntimeError as error:
+        # 這段訊息會指名要哪個環境變數，照樣印出來比包成通用錯誤有用。
         print(f"建立 runtime 失敗：{error}", file=sys.stderr)
         return 2
 
@@ -231,7 +231,7 @@ def main(argv: list[str] | None = None) -> int:
     }
     print(RULE)
     print(f"通過 {tally['pass']}　失敗 {tally['fail']}　待人工判定 {tally['manual']}")
-    print(f"規則路由 {routes['router']} 題　本機模型 {routes['llm']} 題")
+    print(f"規則路由 {routes['router']} 題　線上模型 {routes['llm']} 題")
 
     if args.baseline:
         changes = _diff(args.baseline, records)
@@ -240,7 +240,7 @@ def main(argv: list[str] | None = None) -> int:
         print("\n".join(changes) if changes else "  沒有差異")
 
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
-    out = args.out or REPORT_DIR / f"llm_checklist-{runtime.mode}-{stamp}.json"
+    out = args.out or REPORT_DIR / f"online_checklist-{runtime.mode}-{stamp}.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     report = {
         "schema_version": "online-checklist-v1",

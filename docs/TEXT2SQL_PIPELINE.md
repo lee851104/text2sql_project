@@ -36,9 +36,9 @@
 
 1. **缺參數就反問**（`MISSING_PARAMETER`，`severity=clarify`）。「某天機組尖峰功率排行榜」沒有說是哪一天，任何模型都推不出那個日期，能做的只有挑一天然後回一張看起來完全正常的表。`evidence.missing` 標明缺的是 `date`／`unit`／`units`／`plant`／`metric`，`suggestions` 給一句可以直接照用的問法。
 2. **近似問法建議**（`DATA_SCOPE_NEAR_MATCH`）。
-3. **本機 LLM 不可用**（`LLM_UNAVAILABLE`）。離線模式、Ollama 沒開、連不上或逾時時，只呼叫一次就停 —— 重問同一句不會有不同結果。這與 `GENERATION_FAILED`（模型有回答、只是答不好，會重試到上限）是兩回事，必須分得開：前者請使用者稍後再試，後者請他換個問法。
+3. **線上生成不可用**（`LLM_UNAVAILABLE`）。連不上、逾時、額度用盡或未設定 key 時，只呼叫一次就停 —— 重問同一句不會有不同結果。這與 `GENERATION_FAILED`（模型有回答、只是答不好，會重試到上限）是兩回事，必須分得開：前者請使用者稍後再試，後者請他換個問法。
 
-這一層放在最後而不是放在意圖分類，是因為走到這裡就表示沒有任何 handler 認領這句話，**不可能**從既有規則或本機模型手上搶題目。安全靠順序，不靠把判斷寫得多精準。
+這一層放在最後而不是放在意圖分類，是因為走到這裡就表示沒有任何 handler 認領這句話，**不可能**從既有規則或線上模型手上搶題目。安全靠順序，不靠把判斷寫得多精準。
 
 ## 日期正規化
 
@@ -78,8 +78,8 @@
 
 ## LLM adapter
 
-`FakeLLM` 用於離線 CI 與重試測試。`LocalLLM` 打本機 Ollama 的 OpenAI 相容 chat completions 端點，用 strict JSON Schema 約束輸出；需安裝 `local` extra，不需要 API key，`base_url` 必填（不會退回任何雲端預設端點）。離線模式由 `DisabledLLM` 拋 `LLMUnavailableError`，管線回 `LLM_UNAVAILABLE`，不會自動改用 `FakeLLM` 假裝在用真實模型。
+`FakeLLM` 用於離線 CI 與重試測試。`OpenAILLM` 使用 OpenAI Responses API 的 JSON Schema Structured Outputs；需安裝 `online` extra，而且必須有 `OPENAI_API_KEY`。缺 key 時由 `DisabledLLM` 拋 `LLMUnavailableError`，管線回 `LLM_UNAVAILABLE`，不會自動改用 `FakeLLM` 假裝在用真實模型。
 
 ## Trace
 
-每步記錄 `stage`、`elapsed_ms` 及必要的 `attempt`、`code`、`record_count` 或 `dropped`。Trace 不記錄完整 prompt 或 stack trace。
+每步記錄 `stage`、`elapsed_ms` 及必要的 `attempt`、`code`、`record_count` 或 `dropped`。Trace 不記錄完整 prompt、API key 或 stack trace。

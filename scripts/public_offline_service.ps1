@@ -75,7 +75,7 @@ function Get-OfflineHealth {
     try {
         $health = Invoke-RestMethod -Uri $LocalHealthUrl -TimeoutSec 2
         if ($health.success -eq $true -and
-            $health.local_llm -eq $false -and
+            $health.online_llm -eq $false -and
             $health.mode.active_mode -eq "offline") {
             return $health
         }
@@ -257,7 +257,7 @@ function Start-PublicOfflineService {
     }
 
     if ($null -ne (Get-OfflineHealth) -or (Test-LocalPortInUse)) {
-        throw "本機連接埠 $LocalPort 已被未追蹤的程序占用；為避免誤把未追蹤的服務公開，啟動已中止。"
+        throw "本機連接埠 $LocalPort 已被未追蹤的程序占用；為避免誤把線上服務公開，啟動已中止。"
     }
 
     $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
@@ -265,7 +265,7 @@ function Start-PublicOfflineService {
     $stderrLog = Join-Path $LogDirectory "public-offline-$stamp.stderr.log"
     $rosterPath = Write-PublicRoster -Credentials $credentials
     $savedEnvironment = @{
-        POWERQUERY_RUNTIME_MODE = [Environment]::GetEnvironmentVariable("POWERQUERY_RUNTIME_MODE", "Process")
+        OPENAI_API_KEY = [Environment]::GetEnvironmentVariable("OPENAI_API_KEY", "Process")
         POWERQUERY_ADMIN_USERNAME = [Environment]::GetEnvironmentVariable("POWERQUERY_ADMIN_USERNAME", "Process")
         POWERQUERY_ADMIN_PASSWORD = [Environment]::GetEnvironmentVariable("POWERQUERY_ADMIN_PASSWORD", "Process")
         POWERQUERY_ADMIN_ALLOWED_HOSTS = [Environment]::GetEnvironmentVariable("POWERQUERY_ADMIN_ALLOWED_HOSTS", "Process")
@@ -276,9 +276,7 @@ function Start-PublicOfflineService {
     }
 
     try {
-        # 公開服務固定只用離線規則：預設的 auto 在這台機器開著 Ollama 時會改用本機 LLM，
-        # 等於把本機模型開給網路上的訪客。
-        [Environment]::SetEnvironmentVariable("POWERQUERY_RUNTIME_MODE", "offline", "Process")
+        [Environment]::SetEnvironmentVariable("OPENAI_API_KEY", $null, "Process")
         # 名冊生效時單一帳號的環境變數不再使用；清掉以免兩套帳號來源並存。
         [Environment]::SetEnvironmentVariable("POWERQUERY_ADMIN_USERNAME", $null, "Process")
         [Environment]::SetEnvironmentVariable("POWERQUERY_ADMIN_PASSWORD", $null, "Process")
@@ -287,8 +285,8 @@ function Start-PublicOfflineService {
         # Funnel 轉到 127.0.0.1，外部訪客在服務眼中全是 loopback；信任這個代理才能
         # 從 X-Forwarded-For 取回真正的來源，否則限速會變成全域共用一桶。
         [Environment]::SetEnvironmentVariable("POWERQUERY_TRUSTED_PROXIES", "127.0.0.1,::1", "Process")
-        # 公開網址的查詢需要登入：執行模式是行程全域的，管理員切到本機 LLM 後，匿名可查
-        # 等於任何訪客都在用這台機器的模型。
+        # 公開網址的查詢需要登入：執行模式與 API key 是行程全域的，匿名可查等於任何
+        # 訪客都在燒管理員輸入的那把 key。
         [Environment]::SetEnvironmentVariable("POWERQUERY_ANONYMOUS_QUERY_SCOPE", "denied", "Process")
         [Environment]::SetEnvironmentVariable("PYTHONUNBUFFERED", "1", "Process")
 

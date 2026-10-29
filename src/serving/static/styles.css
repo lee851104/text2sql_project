@@ -103,14 +103,6 @@
   font-size: .7rem;
 }
 
-.rebuild-notice:not([hidden]) {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px 12px;
-}
-
 .management-tabs {
   display: flex;
   gap: 5px;

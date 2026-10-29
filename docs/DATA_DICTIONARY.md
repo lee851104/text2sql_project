@@ -1,4 +1,4 @@
-# GridLens TW 資料字典
+# PowerQuery TW 資料字典
 
 ## 設計原則
 

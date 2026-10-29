@@ -176,10 +176,10 @@ def test_the_summary_table_reads_every_number_from_the_report(tmp_path: Path) ->
     assert "42.0%" in text, "規則覆蓋要跟著報告走 —— 它決定了這些數字算不算 LLM 的成績"
 
 
-def test_the_summary_table_says_the_local_llm_column_is_empty(tmp_path: Path) -> None:
-    """本機 LLM 不在這份報告裡量，表格就得明講。
+def test_the_summary_table_says_the_online_column_is_empty(tmp_path: Path) -> None:
+    """線上模式沒有量過，表格就得明講。
 
-    只寫離線那一欄的數字而不提本機 LLM，審查者會把它當成整個系統的準確率。缺口要列在表上，
+    只寫離線那一欄的數字而不提線上，審查者會把它當成整個系統的準確率。缺口要列在表上，
     不是躲在最後一段文字裡。
     """
 
@@ -188,7 +188,7 @@ def test_the_summary_table_says_the_local_llm_column_is_empty(tmp_path: Path) ->
     text = summary.read_text(encoding="utf-8")
 
     assert "未量測" in text
-    assert "measured_by_llm_eval" in text, "未量測要附上出處，不能只是一句話"
+    assert "not_run_without_online_llm" in text, "未量測要附上出處，不能只是一句話"
 
 
 def test_write_reports_emits_the_summary_beside_the_json(tmp_path: Path) -> None:

@@ -114,13 +114,8 @@ def describe_coverage(
     *,
     views: Mapping[str, Mapping[str, str]],
     limitations: Sequence[Limitation],
-    realtime: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Build the coverage payload, measuring everything measurable from the database.
-
-    `realtime` 是即時資料的現況（`RealtimeQueryEngine.coverage()`）：realtime.db 是另一個
-    資料庫，所以它的檢視與期間要另外量，不在 power.db 的 sqlite_master 裡。
-    """
+    """Build the coverage payload, measuring everything measurable from the database."""
 
     uri = f"{Path(database).resolve().as_uri()}?mode=ro"
     with sqlite3.connect(uri, uri=True) as connection:
@@ -162,15 +157,12 @@ def describe_coverage(
                 }
             )
 
-    if realtime and realtime.get("available"):
-        available |= {name for name in views if name.startswith("v_rt_")}
     answerable = [
         {"view": name, "title": body["title"], "answers": body["answers"]}
         for name, body in views.items()
         if name in available
     ]
     return {
-        "realtime": dict(realtime) if realtime else {"available": False},
         "date_range": date_range,
         "counts": counts,
         "fuels": sorted(fuels),

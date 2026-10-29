@@ -23,6 +23,6 @@ jobs:
         run: uv run ruff check .
       - name: Offline tests
         env:
-          POWERQUERY_RUNTIME_MODE: offline
+          OPENAI_API_KEY: ""
         run: uv run pytest
 

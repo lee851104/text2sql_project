@@ -1,12 +1,12 @@
 @echo off
 setlocal EnableExtensions DisableDelayedExpansion
 chcp 65001 >nul
-title GridLens TW - 公開離線服務
+title PowerQuery TW - 公開離線服務
 pushd "%~dp0" >nul 2>&1
 if errorlevel 1 goto :failure
 
 echo ============================================================
-echo   GridLens TW 公開離線服務
+echo   PowerQuery TW 公開離線服務
 echo ============================================================
 echo.
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\public_offline_service.ps1" -Mode start
