@@ -9,12 +9,10 @@ from threading import RLock
 from time import perf_counter
 from typing import Any, Protocol
 
-from text2sql.answer_checks import check_result, check_sql, coerce_numeric_params
 from text2sql.corpus import load_corpus
 from text2sql.entities import Entities, extract_entities
 from text2sql.llm import (
     RETRYABLE_CATEGORY,
-    DisabledLLM,
     GeneratedQuery,
     LLMProtocol,
     classify_error,
@@ -38,7 +36,7 @@ LLM_FAILURE_CODES = {
     "incomplete": "LLM_INCOMPLETE",
 }
 
-# 服務與設定的問題，換個問法不會變好。交給迴圈後面的離線澄清的話，使用者會看到
+# 憑證與設定的問題，換個問法不會變好。交給迴圈後面的離線澄清的話，使用者會看到
 # 「這句沒有指名是哪一座電廠」，然後照做，然後還是不能用 —— 而真正該修的人不知道。
 IMMEDIATE_LLM_FAILURES = frozenset({"authentication", "configuration"})
 
@@ -55,21 +53,6 @@ class SemanticGuardProtocol(Protocol):
     def explain_unanswerable_date(
         self, entities: Entities, *, question: str = ""
     ) -> SemanticDecision | None: ...
-
-
-class RealtimeBranch(Protocol):
-    """The realtime path (`text2sql.realtime_query.RealtimeQueryEngine`); None = not ours."""
-
-    def try_query(
-        self,
-        question: str,
-        *,
-        plant: tuple[int, str] | None,
-        plant_roster: Mapping[int, str] | None,
-        llm: LLMProtocol | None,
-        llm_enabled: bool,
-        max_attempts: int = 3,
-    ) -> PipelineResponse | None: ...
 
 
 class AllowAllSemanticGuard:
@@ -122,7 +105,6 @@ class Text2SQLPipeline:
         column_value_conflicts: Mapping[str, str] | None = None,
         semantic_guard: SemanticGuardProtocol | None = None,
         scope_guard: ScopeGuard | None = None,
-        realtime: RealtimeBranch | None = None,
         max_attempts: int = 3,
         top_k: int = 5,
         ngram_min: int = 2,
@@ -152,7 +134,6 @@ class Text2SQLPipeline:
         self.column_value_conflicts = dict(column_value_conflicts or {})
         self.semantic_guard = semantic_guard or AllowAllSemanticGuard()
         self.scope_guard = scope_guard
-        self.realtime = realtime
         self.max_attempts = max_attempts
         self.top_k = top_k
         self.min_score = min_score
@@ -205,14 +186,14 @@ class Text2SQLPipeline:
         只帶例外的類別名稱，不帶它的訊息 —— 上游的錯誤原文可能回顯我們送出去的東西。
         """
 
+        environment = getattr(self.llm, "api_key_env", None)
+        hint = f"（這個 provider 讀的是 {environment}）" if environment else ""
         messages = {
-            "authentication": "本機模型服務拒絕了這個請求；"
-            "請確認 Ollama 前面沒有加上需要驗證的代理。",
-            "configuration": "本機模型服務不接受這個請求；"
-            "請確認模型已下載（ollama pull）、名稱與端點設定正確。",
-            "rate_limit": "本機模型服務正忙，稍後再試。",
-            "service": "本機 LLM 這次用不了（Ollama 沒開、連不上或逾時），"
-            "而這一題需要它才答得出來。規則接得住的問題不受影響，可以先換一個具體一點的問法。",
+            "authentication": f"線上服務拒絕了這組憑證；請到 API 設定確認金鑰與權限。{hint}",
+            "configuration": "線上服務不接受這個請求；請確認模型名稱、端點與輸出格式設定。",
+            "rate_limit": "線上服務這次限流了，稍後再試。",
+            "service": "線上生成這次用不了，而這一題需要它才答得出來。"
+            "規則接得住的問題不受影響，可以先換一個具體一點的問法。",
             "refused": "模型拒絕回答這一題。換個問法或改問資料本身，重複送同一句不會有不同結果。",
             "incomplete": "模型的回應沒有講完；沒講完的 SQL 不會拿去執行。",
         }
@@ -243,41 +224,8 @@ class Text2SQLPipeline:
             evidence=decision.evidence,
         )
 
-    def _realtime_plant(
-        self, plant: str | None
-    ) -> tuple[tuple[int, str] | None, Mapping[int, str] | None]:
-        """The plant identity the realtime branch scopes by; unresolvable means no rows.
-
-        解析不了（沒有授權對照、帳號的電廠不在名冊）時給一個對不上任何名冊的身分，
-        即時路徑會以 RT_SCOPE_MISMATCH 拒絕 —— 不能因為查不到電廠就退回全部可見。
-        """
-
-        if plant is None:
-            return None, None
-        if self.scope_guard is None:
-            return (-1, plant), {}
-        try:
-            scope = self.scope_guard.catalog.scope_for(plant)
-        except ScopeError:
-            return (-1, plant), {}
-        return (scope.plant_id, scope.plant_name), self.scope_guard.catalog.plant_names_by_id()
-
     def query(self, question: str, *, plant: str | None = None) -> PipelineResponse:
         """Answer ``question``; ``plant`` restricts the result to that plant's own rows."""
-        if self.realtime is not None:
-            # 即時問句在一切既有守門之前分流：NO_UNIT_DETAIL、PEAK_SUM_ACROSS_DAYS 這些是為
-            # v_peak 寫的，留在前面會把「今天風力發了多少度」當成跨日加總尖峰擋掉。
-            realtime_plant, roster = self._realtime_plant(plant)
-            answered = self.realtime.try_query(
-                question,
-                plant=realtime_plant,
-                plant_roster=roster,
-                llm=self.llm,
-                llm_enabled=not isinstance(self.llm, DisabledLLM),
-                max_attempts=self.max_attempts,
-            )
-            if answered is not None:
-                return answered
         trace: list[dict[str, Any]] = []
         with self._corpus_lock:
             corpus = self.corpus
@@ -381,25 +329,6 @@ class Text2SQLPipeline:
                 prior_sql = generated.sql
                 continue
 
-            if source == "llm":
-                # 安全之外的第二道：看起來正常、其實答錯的寫法（answer_checks 的說明）。
-                started = perf_counter()
-                generated = GeneratedQuery(
-                    generated.sql, coerce_numeric_params(generated.sql, generated.params)
-                )
-                issue = check_sql(generated.sql, generated.params, self.column_values)
-                self._trace(
-                    trace,
-                    "answer_check",
-                    started,
-                    attempt=attempt,
-                    code=issue.code if issue else "OK",
-                )
-                if issue is not None:
-                    prior_error = issue.as_prior_error()
-                    prior_sql = generated.sql
-                    continue
-
             started = perf_counter()
             semantic = self.semantic_guard.check_sql(question, generated, entities)
             self._trace(trace, "semantic_sql_guard", started, attempt=attempt, code=semantic.code)
@@ -430,20 +359,6 @@ class Text2SQLPipeline:
                 self._trace(trace, "execute", started, attempt=attempt, error=prior_error)
                 continue
             self._trace(trace, "execute", started, attempt=attempt, record_count=len(rows))
-            if source == "llm" and attempt < attempts:
-                # 0 筆或剛好被 LIMIT 截斷：還有重試機會就請模型再看一次；最後一次照常回答，
-                # 因為真的可能沒有資料。
-                issue = check_result(
-                    generated.sql,
-                    rows,
-                    asks_top_n=entities.top_n is not None,
-                    max_rows=self.sql_guard.max_rows,
-                )
-                if issue is not None:
-                    self._trace(trace, "result_check", started, attempt=attempt, code=issue.code)
-                    prior_error = issue.as_prior_error()
-                    prior_sql = generated.sql
-                    continue
             disclosures = []
             disclosed_codes: set[str] = set()
             # 期間另外問，因為 check_sql 一次只回一個 decision：再生能源的查詢會先撞上
@@ -481,15 +396,15 @@ class Text2SQLPipeline:
 
         # 最後一步：與其只回「未能通過驗證與執行」，不如問一句。這一層放在這裡而不是
         # 放在意圖分類，是因為相似度本身分不開 —— 會被它偷走的題目，到這裡早就被更具
-        # 體的規則接走了。本機 LLM 模式同理：LLM 答得出來就走不到這裡。
+        # 體的規則接走了。線上模式同理：LLM 答得出來就走不到這裡。
         # 日期先問。「2024年台中出力」答不出來的原因就是 2024 沒有出力資料，回一句
-        # 「缺少參數」或「本機 LLM 用不了」都是把使用者指向錯的方向。
+        # 「缺少參數」或「線上生成用不了」都是把使用者指向錯的方向。
         out_of_range = self.semantic_guard.explain_unanswerable_date(entities, question=question)
         if out_of_range is not None:
             return self._semantic_error(out_of_range, trace)
 
-        # 離線澄清照樣優先給使用者 —— 它是他當下做得到的事。但 LLM 為什麼沒接上要留在
-        # evidence 裡，否則逾時或服務中斷會完全躲在「這句沒有指名是哪一座電廠」後面。
+        # 離線澄清照樣優先給使用者 —— 它是他當下做得到的事。但線上為什麼沒接上要留在
+        # evidence 裡，否則限流或服務中斷會完全躲在「這句沒有指名是哪一座電廠」後面。
         llm_note = {"llm_error": llm_failure[0]} if llm_failure else {}
 
         missing = missing_parameter_clarification(

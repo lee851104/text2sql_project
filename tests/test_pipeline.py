@@ -93,23 +93,27 @@ def test_authentication_error_is_not_retried_and_is_actionable() -> None:
     assert "sk-secret" not in str(response.to_dict())
 
 
-def test_an_auth_failure_points_at_the_local_setup_not_a_cloud_key() -> None:
-    """地端版沒有 API key 可設；把使用者指去找金鑰，他只會找不到東西。"""
+def test_the_credential_message_names_the_variable_this_provider_reads() -> None:
+    """原本寫死「OpenAI API key」。用 GMI 的人照著去翻 OpenAI 的設定，翻不到東西。"""
 
     class AuthenticationError(Exception):
         status_code = 401
 
-    class ProxiedLLM:
+    class GmiLLM:
+        api_key_env = "GMI_API_KEY"
+
+        def __init__(self) -> None:
+            self.calls = 0
+
         def generate(self, _prompt: str) -> str:
+            self.calls += 1
             raise AuthenticationError("401")
 
-    response = make_pipeline(ProxiedLLM(), lambda _sql, _params: ([], [])).query(
-        "列出所有資料可用日期"
-    )
+    response = make_pipeline(GmiLLM(), lambda _sql, _params: ([], [])).query("列出所有資料可用日期")
 
     assert response.error_code == "LLM_AUTH_FAILED"
-    assert "Ollama" in str(response.error)
-    assert "API key" not in str(response.error) and "金鑰" not in str(response.error)
+    assert "GMI_API_KEY" in str(response.error)
+    assert "OpenAI" not in str(response.error)
 
 
 @pytest.mark.parametrize(
@@ -188,7 +192,7 @@ def test_a_missing_parameter_is_asked_about_instead_of_guessed() -> None:
 
 
 def test_the_clarification_never_takes_a_question_the_model_answered() -> None:
-    """反問排在重試迴圈之後，本機模型生得出能過守門的 SQL 就走不到它。"""
+    """反問排在重試迴圈之後，線上模型生得出能過守門的 SQL 就走不到它。"""
 
     valid = json.dumps(
         {"sql": 'SELECT "日期" FROM v_peak LIMIT 20', "params": []}, ensure_ascii=False
@@ -202,7 +206,7 @@ def test_the_clarification_never_takes_a_question_the_model_answered() -> None:
 
 
 class _BoomLLM:
-    """每次呼叫都以指定的例外名稱失敗，用來模擬本機模型服務的各種掛法。"""
+    """每次呼叫都以指定的例外名稱失敗，用來模擬線上服務的各種掛法。"""
 
     def __init__(self, name: str) -> None:
         self.error = type(name, (Exception,), {})
@@ -234,7 +238,7 @@ def test_a_bad_answer_is_still_retried_to_the_limit() -> None:
 
 
 def test_the_offline_answers_still_work_while_the_service_is_down() -> None:
-    """降級的重點不是切換模型，是本機模型掛掉時離線做得到的事一件都不少。"""
+    """降級的重點不是切換模型，是線上掛掉時離線做得到的事一件都不少。"""
 
     llm = _BoomLLM("APIConnectionError")
     pipeline = make_pipeline(llm, lambda _sql, _params: (["日期"], [("2026-07-31", 1.0)]))

@@ -44,23 +44,6 @@ class ValidationConfig:
     unreliable_notes: frozenset[str]
 
 
-DEFAULT_HISTORY_URL = "https://service.taipower.com.tw/data/opendata/apply/file/d006010/001.json"
-
-
-@dataclass(frozen=True)
-class HistoryConfig:
-    """d006010（各機組過去發電量）的來源與對照檔（RT-2）。"""
-
-    url: str = DEFAULT_HISTORY_URL
-    timeout_seconds: float = 600.0
-    # 2026-09 實測一份 196,169,535 bytes（三個月）；上限留兩倍多的餘裕，超過就當成異常。
-    max_bytes: int = 500_000_000
-    units_csv: Path | None = None  # d006010 序列 → 即時機組的人工對照
-    # 收集器每隔幾小時問一次台電有沒有新的 d006010（HEAD，不下載）；0 表示不自動匯入。
-    # 預設 0：只有 configs/realtime.yaml 明寫才會開，測試與其他設定不會意外下載 200 MB。
-    check_hours: int = 0
-
-
 @dataclass(frozen=True)
 class RealtimeConfig:
     source: SourceConfig
@@ -74,19 +57,10 @@ class RealtimeConfig:
     units_csv: Path
     plants_csv: Path
     log_dir: Path
-    history: HistoryConfig = HistoryConfig()
 
     @property
     def archive_dir(self) -> Path:
         return self.root / "archive"
-
-    @property
-    def history_archive_dir(self) -> Path:
-        return self.root / "history" / "archive"
-
-    @property
-    def history_download_dir(self) -> Path:
-        return self.root / "history" / "download"
 
     @property
     def attempts_dir(self) -> Path:
@@ -140,21 +114,6 @@ def _check(config: RealtimeConfig) -> None:
         raise RealtimeConfigError("retention.raw_days 至少要 1 天。")
 
 
-def _history(raw: dict[str, Any], root: Path, paths: dict[str, Any]) -> HistoryConfig:
-    section = raw.get("history") or {}
-    if not isinstance(section, dict):
-        raise RealtimeConfigError("configs/realtime.yaml 的 `history` 必須是區段。")
-    defaults = HistoryConfig()
-    mapping = paths.get("realtime_history_units_csv")
-    return HistoryConfig(
-        url=str(section.get("url", defaults.url)),
-        timeout_seconds=float(section.get("timeout_seconds", defaults.timeout_seconds)),
-        max_bytes=int(section.get("max_bytes", defaults.max_bytes)),
-        units_csv=root / mapping if mapping else None,
-        check_hours=int(section.get("check_hours", defaults.check_hours)),
-    )
-
-
 def load_config(root: Path = PROJECT_ROOT) -> RealtimeConfig:
     root = root.resolve()
     with (root / "configs/realtime.yaml").open(encoding="utf-8") as handle:
@@ -196,7 +155,6 @@ def load_config(root: Path = PROJECT_ROOT) -> RealtimeConfig:
             units_csv=root / paths["realtime_units_csv"],
             plants_csv=root / paths["plants_csv"],
             log_dir=root / "logs",
-            history=_history(raw, root, paths),
         )
     except KeyError as error:
         raise RealtimeConfigError(f"即時收集設定缺少 {error}。") from error

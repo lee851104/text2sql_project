@@ -20,9 +20,7 @@ function Get-Sha256Hex([string] $Path) {
 
 $projectHash = Get-Sha256Hex "pyproject.toml"
 $lockHash = Get-Sha256Hex "uv.lock"
-# .python-version counts too: changing only the Python version must rebuild .venv. (ASCII only: PowerShell 5.1 reads BOM-less scripts as ANSI.)
-$versionHash = if ([IO.File]::Exists(".python-version")) { Get-Sha256Hex ".python-version" } else { "" }
-$expected = "$projectHash`:$lockHash`:$versionHash"
+$expected = "$projectHash`:$lockHash"
 $stamp = [IO.Path]::GetFullPath(".venv\.powerquery-sync-state")
 
 if ($Mode -eq "check") {

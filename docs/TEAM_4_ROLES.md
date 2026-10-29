@@ -22,7 +22,7 @@
 ## 目前專案基線
 
 - Phase 1～8 已完成：資料工程、SQLite 語意層、Text2SQL、SQL／語意雙守門、離線評測、FastAPI、響應式前端、管理登入、人工審核、資料熱插拔、來源追溯、版本回退與稽核。
-- 全程地端：離線模式只用規則；本機 LLM 模式接本機 Ollama，不需要 API key，候選 SQL 仍通過相同安全與語意守門。
+- 離線模式不需要 API key；線上模式接 OpenAI Responses API，但候選 SQL 仍通過相同安全與語意守門。
 - 五份受控資料來源只能先建立候選 DB，人工核准後才切換；所有 router／LLM 新語料也一律先進入 `pending_review`。
 - 目前驗收基線為 `184 passed`，另需通過 Ruff、前端 JavaScript 語法及 Git whitespace 檢查。
 - 最新執行與回退證據以 `log.md` 最上方儲存點為準；啟動及 API 契約分別見 `docs/SERVING.md`、`src/serving/API_CONTRACT.md`。
@@ -34,7 +34,7 @@
 | 成員 | 主要角色 | 唯一主要擁有範圍 | 下一階段任務 | 驗收證據 |
 |---|---|---|---|---|
 | A | 資料生命週期與熱插拔 | `taipower_align/`、`src/align/`、`src/ingest/`、`src/serving/data_management.py`、`configs/align.yaml`、`configs/outage_overrides.yaml`、資料下載工具與資料文件 | 更新官方快照與相依驗證；維護上傳、移除、替換、回退、版本保留／清理及 Windows／OneDrive 中斷恢復 | 資料品質與 row-count diff、來源 checksum、SQLite `quick_check=ok`、候選核准前不影響查詢、歲修檔 `138→0→138` E2E、tamper fail-closed |
-| B | Text2SQL、LLM 與語料治理 | `src/text2sql/`（不含 C 擁有的 guards 與 `db.py`）、`src/serving/corpus_learning.py`、`corpus/`、`configs/llm.yaml`、`configs/retriever.yaml`、管線文件 | 提升語料外與長尾問句；維護候選去識別、去重、來源追溯、索引版本／回退及本機 LLM 對照評測 | 無 key 可離線重現、result match 與 trace、router／LLM 候選皆為 `pending_review`、核准後才更新 corpus/index、benchmark leakage 為 0 |
+| B | Text2SQL、LLM 與語料治理 | `src/text2sql/`（不含 C 擁有的 guards 與 `db.py`）、`src/serving/corpus_learning.py`、`corpus/`、`configs/llm.yaml`、`configs/retriever.yaml`、管線文件 | 提升語料外與長尾問句；維護候選去識別、去重、來源追溯、索引版本／回退及線上 LLM 對照評測 | 無 key 可離線重現、result match 與 trace、router／LLM 候選皆為 `pending_review`、核准後才更新 corpus/index、benchmark leakage 為 0 |
 | C | 安全、身分驗證與獨立評測 | `src/text2sql/sql_guard.py`、`src/text2sql/semantic_guard.py`、`src/text2sql/db.py`、`src/eval/`、`benchmarks/`、`src/serving/admin_auth.py`、`configs/guard.yaml`、安全／評測文件 | 維護唯讀 SQL、語意陷阱、auth／CSRF／session／rate limit、人工審核安全、tamper 與 promotion gate | 攻擊 SQL 15/15 阻擋、陷阱 45/45 命中、合法邊界 0/20 誤攔、遠端 demo 帳密拒絕、未登入／缺 CSRF 異動拒絕、故障注入通過 |
 | D | API、runtime、前端與整合發表（Integration Owner） | 其餘 `src/serving/`、`src/cli.py`、`src/project_tasks.py`、`configs/config.yaml`、`啟動.bat`、啟動輔助工具、建置／CI、HTTP 契約及共用文件 | 整合 A／B／C 契約；完成桌機／手機展示、OpenAPI、錯誤復原、無障礙、多 worker 切版一致性及 GitHub Release | 全套測試、Ruff、JS、diff check；登入→熱插拔→查詢→語料審核→版本／稽核瀏覽器 E2E；runtime／provenance 同 snapshot；Release checksum 與回退說明 |
 
@@ -76,7 +76,7 @@ D 的 Integration Owner 身分只負責共用契約、合併順序、主分支�
 執行時：
 4. 只修改該 Owner 的 production 範圍及直接對應測試／文件。跨 Owner 需求先定義輸入、輸出、錯誤、資料版本與測試案例，再交接給正確 Owner。
 5. 不得繞過唯讀 SQL、語意守門、人工資料審核或人工語料審核；不得把 API key、密碼、session、真實識別資料、執行期 DB 或大型原始資料加入 Git。
-6. 離線 CI 必須可重現；本機 LLM 功能不得讓沒有 Ollama 的核心測試失敗。
+6. 離線 CI 必須可重現；線上功能不得讓無 API key 的核心測試失敗。
 7. 寫入前確認基線；高風險資料切換、auth、語料發布與稽核改動必須加入負向、競態或故障注入測試。
 
 完成時：
@@ -111,11 +111,11 @@ D 的 Integration Owner 身分只負責共用契約、合併順序、主分支�
 
 主要可修改：src/text2sql/ 中除 sql_guard.py、semantic_guard.py、db.py 外的模組、src/serving/corpus_learning.py、corpus/、configs/llm.yaml、configs/retriever.yaml、docs/TEXT2SQL_PIPELINE.md，以及直接相關測試與管線文件。
 
-你的第一責任是把中文問題穩定轉為可驗證的候選 SQL，同時維持離線可重現。router 與本機 LLM 產生的新語料一律只能進 pending_review；核准時必須重新執行去識別、去重、SQL／語意、結果重播與 benchmark 回歸，通過後才更新 corpus/index。不得讀取或複製 benchmark 標準答案到 corpus，也不得修改 guard 或 HTTP route 來繞過契約。
+你的第一責任是把中文問題穩定轉為可驗證的候選 SQL，同時維持離線可重現。router 與線上 LLM 產生的新語料一律只能進 pending_review；核准時必須重新執行去識別、去重、SQL／語意、結果重播與 benchmark 回歸，通過後才更新 corpus/index。不得讀取或複製 benchmark 標準答案到 corpus，也不得修改 guard 或 HTTP route 來繞過契約。
 
 最低驗收：
 - uv run pytest -q tests/test_entities_aliases.py tests/test_router.py tests/test_retriever.py tests/test_pipeline.py tests/test_corpus_builder.py tests/test_corpus_learning.py
-- 沒有 Ollama 的離線流程可重現
+- 無 API key 的離線流程可重現
 - router／LLM 候選均待人工審核，核准前索引不變
 - tables、資料版本與來源檔 checksum 可追溯，benchmark leakage 為 0
 
@@ -147,7 +147,7 @@ D 的 Integration Owner 身分只負責共用契約、合併順序、主分支�
 
 主要可修改：src/serving/runtime.py、src/serving/app.py、src/serving/presentation.py、src/serving/static/、src/serving/API_CONTRACT.md、src/cli.py、src/project_tasks.py、configs/config.yaml、啟動.bat、scripts/launcher_dependency_state.ps1、scripts/launcher_health.ps1、pyproject.toml、uv.lock、Makefile、.env.example、.gitignore、.github/、README.md、docs/SERVING.md、docs/TEAM_4_ROLES.md、docs/releases/、docs/superpowers/，以及直接相關的 serving／runtime／presentation／launcher／E2E 測試。log.md 的格式由 D 維護，但所有角色可依共享例外追加自己的本次 checkpoint。
 
-你的第一責任是依 A／B／C 的公開 service contract 完成整合，不把領域邏輯複製進 route 或前端。維持 query runtime 與 provenance 同一 snapshot、多 worker 切版同步、結構化安全錯誤、離線／本機 LLM 模式、資料管理登入與五頁籤操作。前端不得拼接不可信 HTML，不得把密碼、CSRF 或 API key 放進瀏覽器儲存；需支援 360px、鍵盤、IME、live region 與圖表 fallback。
+你的第一責任是依 A／B／C 的公開 service contract 完成整合，不把領域邏輯複製進 route 或前端。維持 query runtime 與 provenance 同一 snapshot、多 worker 切版同步、結構化安全錯誤、離線／線上模式、資料管理登入與五頁籤操作。前端不得拼接不可信 HTML，不得把密碼、CSRF 或 API key 放進瀏覽器儲存；需支援 360px、鍵盤、IME、live region 與圖表 fallback。
 
 最低驗收：
 - uv run pytest -q tests/test_serving.py tests/test_runtime_modes.py tests/test_runtime_consistency.py tests/test_data_management_api.py tests/test_presentation.py tests/test_windows_launcher.py

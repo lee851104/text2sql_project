@@ -22,4 +22,3 @@ paths:
   realtime_database: data/processed/realtime.db
   realtime_root: data/realtime
   realtime_units_csv: taipower_align/realtime_units.csv
-  realtime_history_units_csv: taipower_align/realtime_history_units.csv

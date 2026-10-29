@@ -96,7 +96,7 @@ unit_type,unit_name,grain,access_scope,plant_id,note
 太陽能,星股光(註10),unit,shared,,不屬於單一電廠，標 shared
 太陽能,其它購電太陽能,bucket,shared,,彙總列，不屬於單一電廠，標 shared
 風力,觀園,unit,shared,,不屬於單一電廠，標 shared
-風力,台中港,unit,shared,,台中港區風力發電站整站（17141 發電站編號 7、場址 9＋10、35000 kW；即時裝置容量 35.0 MW）；不屬於單一電廠，標 shared
+風力,台中港,unit,shared,,不屬於單一電廠，標 shared
 風力,王功,unit,shared,,不屬於單一電廠，標 shared
 風力,彰工,unit,shared,,不屬於單一電廠，標 shared
 風力,雲麥,unit,shared,,不屬於單一電廠，標 shared
@@ -203,47 +203,3 @@ unit_type,unit_name,grain,access_scope,plant_id,note
 儲能負載,明潭#5,unit,plant,12,名稱前綴對應明潭發電廠
 儲能負載,明潭#6,unit,plant,12,名稱前綴對應明潭發電廠
 儲能負載,電池(註16),bucket,shared,,彙總列，不屬於單一電廠，標 shared
-太陽能,七美,unit,shared,,台電自建再生能源場站，只出現在 d006010；比照 v_re_generation 不受管，標 shared
-太陽能,七股,unit,shared,,台電自建再生能源場站，只出現在 d006010；比照 v_re_generation 不受管，標 shared
-太陽能,中大,unit,shared,,台電自建再生能源場站，只出現在 d006010；比照 v_re_generation 不受管，標 shared
-太陽能,中火,unit,shared,,台電自建再生能源場站，只出現在 d006010；比照 v_re_generation 不受管，標 shared
-太陽能,中科ES,unit,shared,,台電自建再生能源場站，只出現在 d006010；比照 v_re_generation 不受管，標 shared
-太陽能,中部儲運,unit,shared,,台電自建再生能源場站，只出現在 d006010；比照 v_re_generation 不受管，標 shared
-太陽能,北儲,unit,shared,,台電自建再生能源場站，只出現在 d006010；比照 v_re_generation 不受管，標 shared
-太陽能,卓蘭,unit,shared,,台電自建再生能源場站，只出現在 d006010；比照 v_re_generation 不受管，標 shared
-太陽能,台中龍井,unit,shared,,台電自建再生能源場站，只出現在 d006010；比照 v_re_generation 不受管，標 shared
-太陽能,台南鹽田,unit,shared,,台電自建再生能源場站，只出現在 d006010；比照 v_re_generation 不受管，標 shared
-太陽能,后里,unit,shared,,台電自建再生能源場站，只出現在 d006010；比照 v_re_generation 不受管，標 shared
-太陽能,大潭,unit,shared,,台電自建再生能源場站，只出現在 d006010；比照 v_re_generation 不受管，標 shared
-太陽能,大潭生水池,unit,shared,,台電自建再生能源場站，只出現在 d006010；比照 v_re_generation 不受管，標 shared
-太陽能,尖山,unit,shared,,台電自建再生能源場站，只出現在 d006010；比照 v_re_generation 不受管，標 shared
-太陽能,彰林ES,unit,shared,,台電自建再生能源場站，只出現在 d006010；比照 v_re_generation 不受管，標 shared
-太陽能,彰濱,unit,shared,,台電自建再生能源場站，只出現在 d006010；比照 v_re_generation 不受管，標 shared
-太陽能,新伯公,unit,shared,,台電自建再生能源場站，只出現在 d006010；比照 v_re_generation 不受管，標 shared
-太陽能,核三廠,unit,shared,,台電自建再生能源場站，只出現在 d006010；比照 v_re_generation 不受管，標 shared
-太陽能,民雄,unit,shared,,台電自建再生能源場站，只出現在 d006010；比照 v_re_generation 不受管，標 shared
-太陽能,永安鹽灘,unit,shared,,台電自建再生能源場站，只出現在 d006010；比照 v_re_generation 不受管，標 shared
-太陽能,燕巢倉庫,unit,shared,,台電自建再生能源場站，只出現在 d006010；比照 v_re_generation 不受管，標 shared
-太陽能,竹工ES,unit,shared,,台電自建再生能源場站，只出現在 d006010；比照 v_re_generation 不受管，標 shared
-太陽能,興達,unit,shared,,台電自建再生能源場站，只出現在 d006010；比照 v_re_generation 不受管，標 shared
-太陽能,路北,unit,shared,,台電自建再生能源場站，只出現在 d006010；比照 v_re_generation 不受管，標 shared
-太陽能,金門,unit,shared,,台電自建再生能源場站，只出現在 d006010；比照 v_re_generation 不受管，標 shared
-太陽能,高雄ES,unit,shared,,台電自建再生能源場站，只出現在 d006010；比照 v_re_generation 不受管，標 shared
-太陽能,龍潭ES,unit,shared,,台電自建再生能源場站，只出現在 d006010；比照 v_re_generation 不受管，標 shared
-核能,核三#1,unit,plant,34,名稱前綴對應核三廠；只出現在 d006010（已除役或停役）
-核能,核三#2,unit,plant,34,名稱前綴對應核三廠；只出現在 d006010（已除役或停役）
-燃氣,通霄CC#4,unit,plant,21,名稱前綴對應通霄發電廠；只出現在 d006010（已除役或停役）
-燃氣,通霄CC#5,unit,plant,21,名稱前綴對應通霄發電廠；只出現在 d006010（已除役或停役）
-燃料油,核一Gas1,unit,plant,32,名稱前綴對應核一廠；只出現在 d006010（已除役或停役）
-燃料油,核一Gas2,unit,plant,32,名稱前綴對應核一廠；只出現在 d006010（已除役或停役）
-風力,中港,unit,shared,,台中港區風力發電站場址 9「台中港1」（26000 kW）的部分序列，只出現在 d006010；與即時「台中港」（整站 35 MW）範圍不同，依據見 realtime_history_units.csv；比照 v_re_generation 標 shared
-風力,中火,unit,shared,,台電自建再生能源場站，只出現在 d006010；比照 v_re_generation 不受管，標 shared
-風力,大潭,unit,shared,,台電自建再生能源場站，只出現在 d006010；比照 v_re_generation 不受管，標 shared
-風力,恆春,unit,shared,,台電自建再生能源場站，只出現在 d006010；比照 v_re_generation 不受管，標 shared
-風力,林口,unit,shared,,台電自建再生能源場站，只出現在 d006010；比照 v_re_generation 不受管，標 shared
-風力,澎湖中屯,unit,shared,,台電自建再生能源場站，只出現在 d006010；比照 v_re_generation 不受管，標 shared
-風力,澎湖湖西,unit,shared,,台電自建再生能源場站，只出現在 d006010；比照 v_re_generation 不受管，標 shared
-風力,石門,unit,shared,,台電自建再生能源場站，只出現在 d006010；比照 v_re_generation 不受管，標 shared
-風力,蘆竹,unit,shared,,台電自建再生能源場站，只出現在 d006010；比照 v_re_generation 不受管，標 shared
-風力,金門金沙,unit,shared,,台電自建再生能源場站，只出現在 d006010；比照 v_re_generation 不受管，標 shared
-風力,香山,unit,shared,,台電自建再生能源場站，只出現在 d006010；比照 v_re_generation 不受管，標 shared

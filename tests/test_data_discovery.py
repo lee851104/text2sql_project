@@ -87,7 +87,7 @@ def test_meta_patterns_do_not_swallow_ordinary_questions() -> None:
 
 
 def test_every_scope_question_is_also_in_the_corpus() -> None:
-    """離線靠 router，本機 LLM 靠語料檢索；同一批問句兩邊都要有，否則模式一換就答不出來。"""
+    """離線靠 router，線上靠語料檢索；同一批問句兩邊都要有，否則模式一換就答不出來。"""
 
     corpus = json.loads(
         (PROJECT_ROOT / "corpus" / "training_corpus.json").read_text(encoding="utf-8")

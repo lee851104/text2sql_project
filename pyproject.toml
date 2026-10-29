@@ -7,7 +7,7 @@ name = "powerquery-tw"
 version = "0.3.0"
 description = "Trustworthy Text2SQL for Taiwan Power Company open data"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.11"
 dependencies = [
     "certifi>=2025,<2028",
     "fastapi>=0.141,<1",
@@ -17,7 +17,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-local = ["openai>=1.100,<3"]
+online = ["openai>=1.100,<3"]
 dev = [
     "httpx2>=2.12,<3",
     "pytest>=8,<10",
@@ -46,7 +46,7 @@ markers = [
 
 [tool.ruff]
 line-length = 100
-target-version = "py312"
+target-version = "py311"
 exclude = ["taipower_align"]
 
 [tool.ruff.lint]

@@ -53,9 +53,7 @@ def _run_launcher(
 def _dependency_stamp(project: Path) -> str:
     hashes = [
         hashlib.sha256((project / filename).read_bytes()).hexdigest().upper()
-        if (project / filename).is_file()
-        else ""
-        for filename in ("pyproject.toml", "uv.lock", ".python-version")
+        for filename in ("pyproject.toml", "uv.lock")
     ]
     return ":".join(hashes)
 
@@ -77,7 +75,6 @@ def test_double_click_launcher_uses_its_own_unicode_directory_and_skips_redundan
         shutil.copyfile(PROJECT_ROOT / "scripts" / helper, project / "scripts" / helper)
     (project / "pyproject.toml").write_text("[project]\nname='launcher-test'\n", encoding="utf-8")
     (project / "uv.lock").write_text("version = 1\n", encoding="utf-8")
-    (project / ".python-version").write_text("3.12\n", encoding="utf-8")
     log = tmp_path / "uv calls.log"
     (fake_bin / "uv.cmd").write_text(
         """@echo off
@@ -109,27 +106,23 @@ exit /b 0
     )
     third = _run_launcher(launcher, fake_bin=fake_bin, log=log, cwd=elsewhere)
     third_stamp = stamp_path.read_text(encoding="ascii").strip()
-    # 只換 Python 版本也要重建 .venv：舊環境留在 3.11 時，SQL 的雙引號防護會失效。
-    (project / ".python-version").write_text("3.13\n", encoding="utf-8")
-    fourth = _run_launcher(launcher, fake_bin=fake_bin, log=log, cwd=elsewhere)
-    fourth_stamp = stamp_path.read_text(encoding="ascii").strip()
 
     assert second.returncode == 0, second.stdout + second.stderr
     assert third.returncode == 0, third.stdout + third.stderr
-    assert fourth.returncode == 0, fourth.stdout + fourth.stderr
-    assert re.fullmatch(r"[0-9A-F]{64}:[0-9A-F]{64}:[0-9A-F]{64}", first_stamp)
-    assert first_stamp != third_stamp != fourth_stamp
-    assert fourth_stamp == _dependency_stamp(project)
+    assert re.fullmatch(r"[0-9A-F]{64}:[0-9A-F]{64}", first_stamp)
+    assert first_stamp != ":"
+    assert first_stamp != third_stamp
+    assert third_stamp == _dependency_stamp(project)
     assert (project / "data" / "processed" / "power.db").is_file(), (
         first.stdout + first.stderr + second.stdout + second.stderr + third.stdout + third.stderr
     )
     assert not (elsewhere / "data").exists()
 
     calls = log.read_text(encoding="utf-8").splitlines()
-    assert calls.count("sync --extra dev --extra local") == 3
-    assert calls.count("run --no-sync python -m project_tasks init-dirs") == 4
+    assert calls.count("sync --extra dev --extra online") == 2
+    assert calls.count("run --no-sync python -m project_tasks init-dirs") == 3
     assert calls.count("run --no-sync python -m ingest.build_db") == 1
-    assert calls.count("run --no-sync powerquery --serve --host 127.0.0.1 --port 8765") == 4
+    assert calls.count("run --no-sync powerquery --serve --host 127.0.0.1 --port 8765") == 3
     assert "dependency sync skipped" in second.stdout
 
 

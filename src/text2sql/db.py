@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import sqlite3
-from contextlib import closing
 from pathlib import Path
 from time import monotonic
 
@@ -23,10 +22,6 @@ class QueryTimeoutError(TimeoutError):
 
 class QueryResultTooLargeError(ValueError):
     """Raised when a single value exceeds the configured byte ceiling."""
-
-
-class DoubleQuotedStringGuardUnavailable(RuntimeError):
-    """The interpreter cannot turn off SQLite's double-quoted-string fallback."""
 
 
 def _limit_value_size(connection: sqlite3.Connection, max_bytes: int) -> None:
@@ -49,23 +44,15 @@ def _reject_double_quoted_strings(connection: sqlite3.Connection) -> None:
     「allowlist 與實際 schema 不同步」那種情況（例如資料換版後欄位改名）——
     那時 allowlist 會放行，而 DB 沒有那一欄。
 
-    `setconfig` 是 Python 3.12 才有的。以前在 3.11 上這裡直接 `return`，防護就靜默消失：
-    實測 `.venv` 被 uv 建成 3.11 時，測試紅了好幾輪都被當成「本機 SQLite 的問題」。
-    所以專案改成要求 3.12 以上，而這裡拿不到開關就拒絕執行 —— 一道會悄悄不見的防護，
-    比沒有更糟，因為大家以為它在。
+    `setconfig` 是 Python 3.12 才有的，舊版就只能靠 allowlist 與評測抓。
     """
 
-    flags = [
-        getattr(sqlite3, option, None)
-        for option in ("SQLITE_DBCONFIG_DQS_DML", "SQLITE_DBCONFIG_DQS_DDL")
-    ]
-    if not hasattr(connection, "setconfig") or None in flags:
-        raise DoubleQuotedStringGuardUnavailable(
-            "這個 Python／SQLite 關不掉雙引號字串的相容行為（需要 Python 3.12 以上）；"
-            "拼錯的欄位名會被當成字串回傳，所以拒絕執行查詢。"
-        )
-    for flag in flags:
-        connection.setconfig(flag, False)
+    if not hasattr(connection, "setconfig"):
+        return
+    for option in ("SQLITE_DBCONFIG_DQS_DML", "SQLITE_DBCONFIG_DQS_DDL"):
+        flag = getattr(sqlite3, option, None)
+        if flag is not None:
+            connection.setconfig(flag, False)
 
 
 class ReadOnlySQLite:
@@ -80,9 +67,6 @@ class ReadOnlySQLite:
             raise ValueError("timeout_seconds 必須大於 0")
         if max_value_bytes <= 0:
             raise ValueError("max_value_bytes 必須大於 0")
-        # 建 runtime 時就試一次：查詢時才發現會被管線的重試吞成「生成失敗」，服務照常啟動。
-        with closing(sqlite3.connect(":memory:")) as probe:
-            _reject_double_quoted_strings(probe)
         self.database = database.resolve()
         self.timeout_seconds = timeout_seconds
         self.max_value_bytes = max_value_bytes

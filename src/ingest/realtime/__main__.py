@@ -57,12 +57,6 @@ def _format_status(report: dict[str, object]) -> str:
     ]
     if report.get("decisions_error"):
         lines.append(f"人工決定檔錯誤：{report['decisions_error']}")
-    past = report.get("history")
-    if isinstance(past, dict) and past.get("imports"):
-        lines.append(
-            f"d006010 歷史資料：{past['first_day']}～{past['last_day']}（{past['days']} 天，"
-            f"匯入 {past['imports']} 份）"
-        )
     return "\n".join(lines)
 
 
@@ -102,13 +96,6 @@ def main(argv: list[str] | None = None, *, root: Path | None = None) -> int:
     status_parser = commands.add_parser("status", help="健康狀態")
     status_parser.add_argument("--json", action="store_true", help="輸出 JSON")
     commands.add_parser("stop", help="要求收集器停止，最多等 60 秒")
-    history_parser = commands.add_parser(
-        "history", help="匯入台電 d006010 各機組過去發電量（RT-2；收集器必須先停）"
-    )
-    history_commands = history_parser.add_subparsers(dest="history_command", required=True)
-    import_parser = history_commands.add_parser("import", help="匯入一份已下載的 d006010 JSON")
-    import_parser.add_argument("path", type=Path)
-    history_commands.add_parser("download", help="下載最新的 d006010（約 200 MB）再匯入")
     args = parser.parse_args(argv)
     try:
         config = load_config(root) if root is not None else load_config()
@@ -128,10 +115,6 @@ def main(argv: list[str] | None = None, *, root: Path | None = None) -> int:
     _configure_logging(config, to_file=args.command == "run")
     collector = Collector(config)
     try:
-        if args.command == "history":
-            if args.history_command == "download":
-                return collector.download_history()
-            return collector.import_history(args.path)
         if args.command == "run":
             return collector.run()
         if args.command == "once":

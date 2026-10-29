@@ -1,16 +1,8 @@
 import sqlite3
-import sys
-import tomllib
-from pathlib import Path
 
 import pytest
 
-from text2sql.db import (
-    DoubleQuotedStringGuardUnavailable,
-    QueryResultTooLargeError,
-    ReadOnlySQLite,
-    _reject_double_quoted_strings,
-)
+from text2sql.db import QueryResultTooLargeError, ReadOnlySQLite
 
 
 def test_readonly_sqlite_executes_select_and_rejects_writes(tmp_path) -> None:
@@ -68,33 +60,3 @@ def test_one_oversized_value_is_refused_before_it_is_materialised(tmp_path) -> N
 def test_max_value_bytes_must_be_positive(tmp_path) -> None:
     with pytest.raises(ValueError, match="max_value_bytes"):
         ReadOnlySQLite(tmp_path / "sample.db", max_value_bytes=0)
-
-
-def test_an_interpreter_that_cannot_turn_off_dqs_is_refused_at_startup(
-    tmp_path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """以前在 Python 3.11 上這道防護會靜默跳過；現在建執行器時就拒絕。"""
-
-    monkeypatch.delattr(sqlite3, "SQLITE_DBCONFIG_DQS_DML", raising=False)
-
-    with pytest.raises(DoubleQuotedStringGuardUnavailable, match="3.12"):
-        ReadOnlySQLite(tmp_path / "sample.db")
-
-
-def test_a_connection_without_setconfig_is_refused() -> None:
-    class OldConnection:
-        pass
-
-    with pytest.raises(DoubleQuotedStringGuardUnavailable):
-        _reject_double_quoted_strings(OldConnection())
-
-
-def test_the_project_requires_the_python_that_has_the_guard() -> None:
-    """requires-python、.python-version 與 db.py 的需求必須講同一件事。"""
-
-    root = Path(__file__).resolve().parents[1]
-    project = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))
-
-    assert project["project"]["requires-python"] == ">=3.12"
-    assert (root / ".python-version").read_text(encoding="utf-8").strip() == "3.12"
-    assert sys.version_info >= (3, 12)

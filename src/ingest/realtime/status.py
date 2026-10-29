@@ -13,7 +13,6 @@ from pathlib import Path
 
 from ingest.realtime.config import RealtimeConfig, load_config
 from ingest.realtime.decisions import LOAD_ERRORS, load_decisions
-from ingest.realtime.history import summary as history_summary
 from ingest.realtime.lock import is_locked
 from ingest.realtime.maintenance import classify_missing, day_slots
 from ingest.realtime.schedule import target_slot
@@ -115,7 +114,6 @@ def _read(
         "undecided_units": undecided,
         "stale_decisions": stale_decisions,
         "decisions_error": decisions_error,
-        "history": history_summary(connection),
         "latest_quality": None if quality_row is None else quality_row[0],
         "latest_warnings": [] if quality_row is None else json.loads(quality_row[1]),
     }

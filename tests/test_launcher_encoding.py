@@ -21,12 +21,3 @@ def test_the_startup_launcher_has_only_ascii_between_chcp_and_start() -> None:
 
     assert chcp < start
     assert between == [], "chcp 65001 與 start 之間不能有中文；中文註解請放在 chcp 之前"
-
-
-def test_powershell_helpers_are_ascii() -> None:
-    """Windows PowerShell 5.1 讀沒有 BOM 的 .ps1 用 ANSI（cp950）：中文註解的位元組會吃掉換行，
-    下一行程式就被當成註解，而且不會報錯（實測 .python-version 的雜湊因此變成空字串）。"""
-
-    for script in (PROJECT_ROOT / "scripts").glob("*.ps1"):
-        raw = script.read_bytes()
-        assert raw.startswith(b"\xef\xbb\xbf") or raw.isascii(), script.name

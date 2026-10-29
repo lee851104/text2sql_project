@@ -108,69 +108,6 @@ def _month_range(year: int, month: int) -> tuple[DateRange | None, str | None]:
     return DateRange(start, end), None
 
 
-# 半形 `-` 也要收：原本只認全形，「2026年4月1日-4月10日」「2026/4/1-2026/4/10」照樣
-# 靜默變成問第一天。它和數字日期的分隔符同一個字，但區間規則要求前面是完整的年月日、
-# 後面以日結尾，`2026-04-01` 本身只有三段，不會被誤認成區間。
-RANGE_SEPARATOR = r"(?:到|至|~|～|-|－|—)"
-_YEAR_PREFIX = r"(?:(\d{3,4})\s*年|(今年|去年|明年))?"
-_CHINESE_DAY_RANGE = re.compile(
-    rf"{_YEAR_PREFIX}\s*({NUMBER_TOKEN})\s*月\s*({NUMBER_TOKEN})\s*日?\s*{RANGE_SEPARATOR}\s*"
-    rf"{_YEAR_PREFIX}\s*(?:({NUMBER_TOKEN})\s*月)?\s*({NUMBER_TOKEN})\s*日"
-)
-_NUMERIC_DAY_RANGE = re.compile(
-    rf"(?<!\d)({DATE_YEAR})\s*{DATE_SEPARATOR}\s*(\d{{1,2}})\s*{DATE_SEPARATOR}\s*(\d{{1,2}})"
-    rf"\s*{RANGE_SEPARATOR}\s*"
-    rf"(?:({DATE_YEAR})\s*{DATE_SEPARATOR}\s*)?(?:(\d{{1,2}})\s*{DATE_SEPARATOR}\s*)?(\d{{1,2}})(?!\d)"
-)
-
-
-def _explicit_day_range(
-    question: str, reference: date
-) -> tuple[DateRange | None, str | None] | None:
-    """「A 到 B」形式的日期區間；None 表示問句裡沒有區間。
-
-    結束日沒寫年、月時沿用開始日的。區間不合理（結束早於開始、日期不存在）時回
-    `(None, None)`：不能退回單日規則抓第一天，交給 `unparsed_date` 反問。
-    """
-
-    if found := _CHINESE_DAY_RANGE.search(question):
-        year1, relation1, month1, day1, year2, relation2, month2, day2 = found.groups()
-
-        def year(absolute: str | None, relation: str | None, default: int) -> int:
-            if absolute:
-                return _calendar_year(absolute)
-            if relation:
-                return _relative_year(reference.year, relation)
-            return default
-
-        start_year = year(year1, relation1, reference.year)
-        start = (start_year, _number(month1), _number(day1))
-        end = (
-            year(year2, relation2, start_year),
-            _number(month2) if month2 else start[1],
-            _number(day2),
-        )
-    elif found := _NUMERIC_DAY_RANGE.search(question):
-        year1, month1, day1, year2, month2, day2 = found.groups()
-        start = (_calendar_year(year1), int(month1), int(day1))
-        end = (
-            _calendar_year(year2) if year2 else start[0],
-            int(month2) if month2 else start[1],
-            int(day2),
-        )
-    else:
-        return None
-    try:
-        first, last = date(*start), date(*end)
-    except ValueError:
-        return None, None
-    if last < first:
-        return None, None
-    if first == last:
-        return DateRange(first.isoformat(), first.isoformat()), first.isoformat()
-    return DateRange(first.isoformat(), last.isoformat()), None
-
-
 def extract_date_range(
     question: str, *, reference_date: date | None = None
 ) -> tuple[DateRange | None, str | None]:
@@ -182,10 +119,6 @@ def extract_date_range(
 
     question = question.translate(FULLWIDTH_DIGITS)
     reference = reference_date or date.today()
-
-    # 日期區間要先認：下面的單日規則只會抓到第一天，「4月1日到4月10日」就靜默變成問一天。
-    if (ranged := _explicit_day_range(question, reference)) is not None:
-        return ranged
 
     separated = re.search(
         rf"(?<!\d)({DATE_YEAR})\s*{DATE_SEPARATOR}\s*(\d{{1,2}})"

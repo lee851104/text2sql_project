@@ -566,10 +566,7 @@ def test_the_public_launcher_provisions_two_reviewers_and_requires_login() -> No
     assert "POWERQUERY_ACCOUNT_ROSTER" in script
     assert 'Join-Path $StateDirectory "accounts.yaml"' in script
 
-    # 公開服務固定只用離線規則，不把這台機器的本機模型開給網路上的訪客。
-    assert 'SetEnvironmentVariable("POWERQUERY_RUNTIME_MODE", "offline"' in script
-
-    # 執行模式是行程全域的，管理員切到本機 LLM 後匿名可查就等於開放模型，所以要求登入。
+    # 匿名查詢會用掉管理員輸入的 API key，所以公開網址要求登入。
     assert 'SetEnvironmentVariable("POWERQUERY_ANONYMOUS_QUERY_SCOPE", "denied"' in script
 
     # Funnel 轉到 loopback；不信任這個代理的話限速會變成全域共用一桶。

@@ -17,14 +17,10 @@ from ingest.realtime.decisions import Decisions, UnitDecision
 from ingest.realtime.parse import ParsedSnapshot
 from ingest.realtime.timeutil import utc_iso
 
-# 2：RT-2 加入 d006010 歷史資料（三張表），v_rt_daily 依取樣點數在即時與歷史之間取一份。
-SCHEMA_VERSION = "2"
+SCHEMA_VERSION = "1"
 
 VIEWS_IN_DROP_ORDER = ("v_rt_now", "v_rt_daily", "v_rt_10min")
 TABLES_IN_DROP_ORDER = (
-    "meta_rt_history_import",
-    "fact_rt_history_day",
-    "fact_rt_unit_daily_history",
     "meta_rt_attempt",
     "fact_rt_day",
     "fact_rt_unit_daily",
@@ -188,60 +184,7 @@ SCHEMA = (
     """CREATE VIEW v_rt_now AS
         SELECT * FROM v_rt_10min
          WHERE "資料時間" = (SELECT MAX(data_time) FROM fact_rt_snapshot)""",
-    # d006010 的每日彙總（RT-2）。與即時的 fact_rt_unit_daily 分開存：即時那邊每天重算時會先刪整天，
-    # 放在同一張表會把歷史一起刪掉。哪一份對外由 v_rt_daily 決定。
-    """CREATE TABLE fact_rt_unit_daily_history (
-        date             TEXT    NOT NULL,
-        unit_id          INTEGER NOT NULL REFERENCES dim_rt_unit(id),
-        energy_mwh_est   REAL,
-        max_mw           REAL,
-        avg_mw           REAL,
-        min_mw           REAL,
-        samples          INTEGER NOT NULL,
-        expected_samples INTEGER NOT NULL,
-        import_sha256    TEXT    NOT NULL,
-        PRIMARY KEY (date, unit_id)
-    ) WITHOUT ROWID""",
-    """CREATE TABLE fact_rt_history_day (
-        date          TEXT    PRIMARY KEY,
-        series        INTEGER NOT NULL,
-        samples       INTEGER NOT NULL,
-        expected      INTEGER NOT NULL,
-        import_sha256 TEXT    NOT NULL
-    )""",
-    """CREATE TABLE meta_rt_history_import (
-        sha256           TEXT    PRIMARY KEY,
-        archive          TEXT    NOT NULL,
-        start_date       TEXT    NOT NULL,
-        end_date         TEXT    NOT NULL,
-        imported_at      TEXT    NOT NULL,
-        records          INTEGER NOT NULL,
-        series           INTEGER NOT NULL,
-        mapped_series    INTEGER NOT NULL,
-        duplicates       INTEGER NOT NULL,
-        conflicts        INTEGER NOT NULL,
-        invalid_values   INTEGER NOT NULL,
-        out_of_range     INTEGER NOT NULL,
-        unmapped         TEXT    NOT NULL DEFAULT '[]'
-    )""",
-    # 同一天同一部機組兩邊都有時，取樣點數多的那份為準，一樣多取即時：即時有 10 分鐘明細與備註，
-    # 而且是收集器自己驗證過的。欄位與 schema 1 相同（RT-1 §8.2 的契約），只多了「資料來源」的取值。
     f"""CREATE VIEW v_rt_daily AS
-        WITH merged AS (
-            SELECT d.date, d.unit_id, d.energy_mwh_est, d.max_mw, d.avg_mw, d.min_mw,
-                   d.samples, d.expected_samples, d.notes_seen, d.source
-              FROM fact_rt_unit_daily AS d
-             WHERE NOT EXISTS (SELECT 1 FROM fact_rt_unit_daily_history AS h
-                                WHERE h.date = d.date AND h.unit_id = d.unit_id
-                                  AND h.samples > d.samples)
-            UNION ALL
-            SELECT h.date, h.unit_id, h.energy_mwh_est, h.max_mw, h.avg_mw, h.min_mw,
-                   h.samples, h.expected_samples, '', 'history'
-              FROM fact_rt_unit_daily_history AS h
-             WHERE NOT EXISTS (SELECT 1 FROM fact_rt_unit_daily AS d
-                                WHERE d.date = h.date AND d.unit_id = h.unit_id
-                                  AND d.samples >= h.samples)
-        )
         SELECT d.date                                         AS "日期",
                u.unit_type || '|' || u.unit_name              AS "機組鍵",
                u.unit_type                                    AS "機組類型",
@@ -256,10 +199,8 @@ SCHEMA = (
                d.expected_samples                             AS "應有點數",
                round(1.0 * d.samples / d.expected_samples, 4) AS "資料完整度",
                d.notes_seen                                   AS "當日備註",
-               CASE d.source WHEN 'live' THEN '即時收集'
-                             WHEN 'history' THEN '台電歷史資料' ELSE d.source END
-                                                              AS "資料來源"
-          FROM merged AS d
+               CASE d.source WHEN 'live' THEN '即時收集' ELSE d.source END AS "資料來源"
+          FROM fact_rt_unit_daily AS d
           JOIN dim_rt_unit AS u ON u.id = d.unit_id
           LEFT JOIN dim_rt_plant AS p ON p.plant_id = u.plant_id""",
 )
